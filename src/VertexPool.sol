@@ -1,18 +1,22 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.19;
 
-import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
-import {WETH} from "solmate/tokens/WETH.sol";
-import {ERC20} from "solmate/tokens/ERC20.sol";
-import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
+import {Owned} from "solmate/auth/Owned.sol";
+
+import {SafeERC20} from "openzeppelin/token/ERC20/utils/SafeERC20.sol";
+
+import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
+
 import {VertexFactory} from "./VertexFactory.sol";
+import {IEndpoint} from "./interfaces/IEndpoint.sol";
 
 /// @title Elixir-based pool for Vertex
 /// @author The Elixir Team
 /// @notice Liquidity pool aggregator for marketing making in Vertex Protocol.
-contract VertexPool is ERC20 {
-    using SafeTransferLib for ERC20;
+contract VertexPool is ERC20, Owned {
+    using SafeERC20 for ERC20;
     using SafeCastLib for uint256;
     using FixedPointMathLib for uint256;
 
@@ -51,8 +55,13 @@ contract VertexPool is ERC20 {
     /// @notice The address of token1.
     ERC20 public immutable token1;
 
-    /// @notice The address of the factory that created this pool.
-    VertexFactory public immutable factory;
+    /// @notice The ID of the product this pool targets on Vertex.
+    uint32 public immutable id;
+
+    /// @notice Vertex's Endpoint contract.
+    IEndpoint public immutable endpoint;
+
+    bytes32 public immutable contractSubaccount;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -67,6 +76,16 @@ contract VertexPool is ERC20 {
     /// @param rvTokenAmount The amount of rvTokens that were claimed.
     event FeesClaimed(address indexed user, uint256 rvTokenAmount);
 
+    event Deposit(address indexed caller, address indexed owner, uint256 amount0, uint256 amount1, uint256 shares);
+
+    event Withdraw(
+        address indexed caller,
+        address indexed receiver,
+        address indexed owner,
+        uint256 assets,
+        uint256 shares
+    );
+
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -79,60 +98,65 @@ contract VertexPool is ERC20 {
     /// @param token The address of the invalid token.
     error InvalidToken(address token);
 
-    /*//////////////////////////////////////////////////////////////
-                                MODIFIERS
-    //////////////////////////////////////////////////////////////*/
-
-    modifier onlyFactoryOwner() virtual {
-        if (msg.sender != factory.owner()) {
-            revert Unauthroized(msg.sender);
-        }
-
-        _;
-    }
+    error ZeroShares();
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Creates a new Pool that accepts a specific pair of tokens.
+    /// @param _id The ID of the product on Vertex this pool targets.
     /// @param _name The name of the pool.
     /// @param _symbol The symbol of the pool.
     /// @param _token0 The first token of the pool by address sort order.
     /// @param _token1 The second token of the pool by address sort order.
-    constructor(string memory _name, string memory _symbol, ERC20 _token0, ERC20 _token1) ERC20(_name, _symbol, 18) {
+    constructor(uint32 _id, string memory _name, string memory _symbol, ERC20 _token0, ERC20 _token1)
+        ERC20(_name, _symbol)
+        Owned(VertexFactory(msg.sender).owner())
+    {
+        id = _id;
         token0 = _token0;
         token1 = _token1;
+        endpoint = IEndpoint(VertexFactory(msg.sender).endpoint());
 
-        factory = VertexFactory(msg.sender);
+        // Link smart contract to Elixir's signer.
+        contractSubaccount = bytes32(uint256(uint160(address(this))) << 96);
+        bytes32 externalSubaccount = bytes32(uint256(uint160(VertexFactory(msg.sender).externalAccount())) << 96);
+        IEndpoint.LinkSigner memory linkSigner = IEndpoint.LinkSigner(contractSubaccount, externalSubaccount, 0);
+        bytes memory transactionData = abi.encodePacked(abi.encode(19), abi.encode(linkSigner));
+        endpoint.submitSlowModeTransaction(transactionData);
+
+        // Approve Vertex to transfer tokens.
+        token0.approve(address(endpoint), type(uint256).max);
+        token1.approve(address(endpoint), type(uint256).max);
     }
 
     /*//////////////////////////////////////////////////////////////
                         DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    // function deposit(address token, uint256 amount, address receiver) external returns (uint256 shares) {
-    //     // Check if input token is one of the tokens supported by this pool.
-    //     if (token != address(token0) && token != address(token1)) revert InvalidToken(token);
+    function deposit(bool _token0, uint256 amount, address receiver) external returns (uint256) {
+        // Check for rounding error since we round down in previewDeposit.
+        (uint256 shares, uint256 amount0, uint256 amount1) = previewDeposit(_token0, amount);
+        if (shares == 0) revert ZeroShares();
 
-    //     // TODO: Get prices from injective and calculate the amount for the other token to deposit
+        // Transfer both tokens before minting or ERC777s could reenter.
+        token0.safeTransferFrom(msg.sender, address(this), amount0);
+        token1.safeTransferFrom(msg.sender, address(this), amount1);
 
-    //     // Check that the incoming liquidity is 50/50-
+        // Deposit liquidity on Vertex.
+        endpoint.depositCollateral(bytes12(contractSubaccount), id, uint128(amount0));
+
+        // NOTE: Assuming for token 1 to be USDC as it's the currently supported quote token.
+        endpoint.depositCollateral(bytes12(contractSubaccount), 0, uint128(amount1));
+
+        // Mint shares equivalent to deposit liquidity.
+        _mint(receiver, shares);
+
+        emit Deposit(msg.sender, receiver, amount0, amount1, shares);
         
-
-
-    //     // Need to transfer before minting or ERC777s could reenter.
-    //     ERC20(token).safeTransferFrom(msg.sender, address(this), assets);
-
-    //     // Need to transfer before minting or ERC777s could reenter.
-    //     asset.safeTransferFrom(msg.sender, address(this), assets);
-
-    //     _mint(receiver, shares);
-
-    //     emit Deposit(msg.sender, receiver, assets, shares);
-
-    //     afterDeposit(assets, shares);
-    // }
+        return shares;
+    }
 
     // function mint(uint256 shares, address receiver) external returns (uint256 assets) {
     //     assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
@@ -192,17 +216,35 @@ contract VertexPool is ERC20 {
     //     asset.safeTransfer(receiver, assets);
     // }
 
-    // /*//////////////////////////////////////////////////////////////
-    //                         ACCOUNTING LOGIC
-    // //////////////////////////////////////////////////////////////*/
+    /*//////////////////////////////////////////////////////////////
+                            ACCOUNTING LOGIC
+    //////////////////////////////////////////////////////////////*/
 
     // function totalAssets() public view virtual returns (uint256);
 
-    // function convertToShares(uint256 assets) public view virtual returns (uint256) {
-    //     uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
+    function getDepositAmounts(bool _token0, uint256 amount)
+        public
+        view
+        virtual
+        returns (uint256 adjustedAmount0, uint256 adjustedAmount1)
+    {
+        // Get oracle price from Vertex.
+        uint256 price = endpoint.getPriceX18(id);
 
-    //     return supply == 0 ? assets : assets.mulDivDown(supply, totalAssets());
-    // }
+        // Calculate amount of tokens to transfer in a 50/50 way using the price.
+        // Use the boolean token flag to determine which token to adjust.
+        if (_token0) {
+            adjustedAmount0 = amount;
+            adjustedAmount1 = amount * price / (10 ** (18 - token1.decimals()));
+        } else {
+            adjustedAmount0 = amount * price / (10 ** (18 - token0.decimals()));
+            adjustedAmount1 = amount;
+        }
+    }
+
+    function convertToShares(uint256 amount0, uint256 amount1) public view virtual returns (uint256) {
+        return amount0 + amount1;
+    }
 
     // function convertToAssets(uint256 shares) public view virtual returns (uint256) {
     //     uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
@@ -210,9 +252,10 @@ contract VertexPool is ERC20 {
     //     return supply == 0 ? shares : shares.mulDivDown(totalAssets(), supply);
     // }
 
-    // function previewDeposit(uint256 assets) public view virtual returns (uint256) {
-    //     return convertToShares(assets);
-    // }
+    function previewDeposit(bool _token0, uint256 amount) public view virtual returns (uint256, uint256, uint256) {
+        (uint256 amount0, uint256 amount1) = getDepositAmounts(_token0, amount);
+        return (convertToShares(amount0, amount1), amount0, amount1);
+    }
 
     // function previewMint(uint256 shares) public view virtual returns (uint256) {
     //     uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.

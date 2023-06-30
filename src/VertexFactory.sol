@@ -3,12 +3,14 @@ pragma solidity 0.8.19;
 
 import {VertexPool, ERC20} from "./VertexPool.sol";
 import {Bytes32AddressLib} from "solmate/utils/Bytes32AddressLib.sol";
-import {Owned} from "solmate/auth/Owned.sol";
+import {Initializable} from  "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
 
 /// @title Elixir Pool Factory for Vertex
 /// @author The Elixir Team
 /// @notice Factory for Elixir-based Vertex pools based on a pair of ERC20 tokens.
-contract VertexFactory is Owned {
+contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using Bytes32AddressLib for address;
     using Bytes32AddressLib for bytes32;
 
@@ -25,6 +27,9 @@ contract VertexFactory is Owned {
         address token0;
         address token1;
     }
+
+    /// @notice Vertex's clearing house contract
+    address immutable clearingHouse;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -44,10 +49,19 @@ contract VertexFactory is Owned {
     error TokenIsZero();
 
     /*//////////////////////////////////////////////////////////////
-                               CONSTRUCTOR
+                               INITIALIZER
     //////////////////////////////////////////////////////////////*/
 
-    constructor() Owned(msg.sender) {}
+    /// @notice No constructor in upgradable contracts, so initialized with this function.
+    function initialize(uint256 _clearingHouse, address owner) public initializer {
+        __UUPSUpgradeable_init();
+        __Ownable_init();
+
+        clearingHouse = _clearingHouse;
+
+        // Initialize OwnableUpgradeable explicitly with given multisig address.
+        transferOwnership(owner);
+    }
 
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
@@ -58,9 +72,10 @@ contract VertexFactory is Owned {
     /// @param id The ID of the pool on Vertex
     /// @param tokenA One of the two tokens in the desired pool
     /// @param tokenB The other of the two tokens in the desired pool
-    function deployVault(uint8 id, address tokenA, address tokenB) external onlyOwner returns (address pool) {
+    function deployVault(uint8 id, address token0, address token1) external onlyOwner returns (address pool) {
         if (tokenA == tokenB) revert SameTokens();
-        if (address(token0) == address(0)) revert TokenIsZero();
+        if (address(token0) == address(0) || address(token1) == address(0)) revert TokenIsZero();
+        if 
 
         // Use the CREATE2 opcode to deploy a new Vault contract.
         // This will revert if a Vault which accepts this underlying token has already

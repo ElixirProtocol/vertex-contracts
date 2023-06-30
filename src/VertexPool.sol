@@ -111,86 +111,86 @@ contract VertexPool is ERC20 {
                         DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function deposit(address token, uint256 amount, address receiver) external returns (uint256 shares) {
-        // Check if input token is one of the tokens supported by this pool.
-        if (token != address(token0) && token != address(token1)) revert InvalidToken(token);
+    // function deposit(address token, uint256 amount, address receiver) external returns (uint256 shares) {
+    //     // Check if input token is one of the tokens supported by this pool.
+    //     if (token != address(token0) && token != address(token1)) revert InvalidToken(token);
 
-        // TODO: Get prices from injective and calculate the amount for the other token to deposit
+    //     // TODO: Get prices from injective and calculate the amount for the other token to deposit
 
-        // Check that the incoming liquidity is 50/50-
+    //     // Check that the incoming liquidity is 50/50-
         
 
 
-        // Need to transfer before minting or ERC777s could reenter.
-        ERC20(token).safeTransferFrom(msg.sender, address(this), assets);
+    //     // Need to transfer before minting or ERC777s could reenter.
+    //     ERC20(token).safeTransferFrom(msg.sender, address(this), assets);
 
-        // Need to transfer before minting or ERC777s could reenter.
-        asset.safeTransferFrom(msg.sender, address(this), assets);
+    //     // Need to transfer before minting or ERC777s could reenter.
+    //     asset.safeTransferFrom(msg.sender, address(this), assets);
 
-        _mint(receiver, shares);
+    //     _mint(receiver, shares);
 
-        emit Deposit(msg.sender, receiver, assets, shares);
+    //     emit Deposit(msg.sender, receiver, assets, shares);
 
-        afterDeposit(assets, shares);
-    }
+    //     afterDeposit(assets, shares);
+    // }
 
-    function mint(uint256 shares, address receiver) external returns (uint256 assets) {
-        assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
+    // function mint(uint256 shares, address receiver) external returns (uint256 assets) {
+    //     assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
 
-        // Need to transfer before minting or ERC777s could reenter.
-        asset.safeTransferFrom(msg.sender, address(this), assets);
+    //     // Need to transfer before minting or ERC777s could reenter.
+    //     asset.safeTransferFrom(msg.sender, address(this), assets);
 
-        _mint(receiver, shares);
+    //     _mint(receiver, shares);
 
-        emit Deposit(msg.sender, receiver, assets, shares);
+    //     emit Deposit(msg.sender, receiver, assets, shares);
 
-        afterDeposit(assets, shares);
-    }
+    //     afterDeposit(assets, shares);
+    // }
 
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address owner
-    ) external returns (uint256 shares) {
-        shares = previewWithdraw(assets); // No need to check for rounding error, previewWithdraw rounds up.
+    // function withdraw(
+    //     uint256 assets,
+    //     address receiver,
+    //     address owner
+    // ) external returns (uint256 shares) {
+    //     shares = previewWithdraw(assets); // No need to check for rounding error, previewWithdraw rounds up.
 
-        if (msg.sender != owner) {
-            uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
+    //     if (msg.sender != owner) {
+    //         uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
 
-            if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
-        }
+    //         if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
+    //     }
 
-        beforeWithdraw(assets, shares);
+    //     beforeWithdraw(assets, shares);
 
-        _burn(owner, shares);
+    //     _burn(owner, shares);
 
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
+    //     emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
-        asset.safeTransfer(receiver, assets);
-    }
+    //     asset.safeTransfer(receiver, assets);
+    // }
 
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) public virtual returns (uint256 assets) {
-        if (msg.sender != owner) {
-            uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
+    // function redeem(
+    //     uint256 shares,
+    //     address receiver,
+    //     address owner
+    // ) public virtual returns (uint256 assets) {
+    //     if (msg.sender != owner) {
+    //         uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
 
-            if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
-        }
+    //         if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
+    //     }
 
-        // Check for rounding error since we round down in previewRedeem.
-        require((assets = previewRedeem(shares)) != 0, "ZERO_ASSETS");
+    //     // Check for rounding error since we round down in previewRedeem.
+    //     require((assets = previewRedeem(shares)) != 0, "ZERO_ASSETS");
 
-        beforeWithdraw(assets, shares);
+    //     beforeWithdraw(assets, shares);
 
-        _burn(owner, shares);
+    //     _burn(owner, shares);
 
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
+    //     emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
-        asset.safeTransfer(receiver, assets);
-    }
+    //     asset.safeTransfer(receiver, assets);
+    // }
 
     // /*//////////////////////////////////////////////////////////////
     //                         ACCOUNTING LOGIC

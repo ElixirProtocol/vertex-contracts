@@ -15,10 +15,10 @@ import {IEndpoint} from "./interfaces/IEndpoint.sol";
 /// @title Elixir-based pool for Vertex
 /// @author The Elixir Team
 /// @notice Liquidity pool aggregator for marketing making in Vertex Protocol.
-contract VertexPool is ERC20, Owned {
+contract VertexStable is ERC20, Owned {
     using SafeERC20 for ERC20;
     using SafeCastLib for uint256;
-    using FixedPointMathLib for uint256;
+    using FixedPointMathLib for uint128;
 
     /*//////////////////////////////////////////////////////////////
                                 VARIABLES
@@ -49,11 +49,13 @@ contract VertexPool is ERC20, Owned {
     // /// @dev Can go from false to true, never from true to false.
     // bool public isInitialized;
 
-    /// @notice The address of token0.
-    ERC20 public immutable token0;
+    /// @notice The ERC20 instance of the base token.
+    ERC20 public immutable baseToken;
 
-    /// @notice The address of token1.
-    ERC20 public immutable token1;
+    uint128 public baseUnit;
+
+    /// @notice The ERC20 instance of the quote token.
+    ERC20 public immutable quoteToken;
 
     /// @notice The ID of the product this pool targets on Vertex.
     uint32 public immutable id;
@@ -79,11 +81,7 @@ contract VertexPool is ERC20, Owned {
     event Deposit(address indexed caller, address indexed owner, uint256 amount0, uint256 amount1, uint256 shares);
 
     event Withdraw(
-        address indexed caller,
-        address indexed receiver,
-        address indexed owner,
-        uint256 assets,
-        uint256 shares
+        address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
     );
 
     /*//////////////////////////////////////////////////////////////
@@ -94,9 +92,11 @@ contract VertexPool is ERC20, Owned {
     /// @param caller The unauthorized address who attempted the call.
     error Unauthroized(address caller);
 
-    /// @notice Emitted when a deposit function is entered with an invalid token.
-    /// @param token The address of the invalid token.
-    error InvalidToken(address token);
+    /// @notice Emitted when a deposit function is entered with invalid input amounts.
+    error InvalidDepositAmounts();
+
+    /// @notice Emitted when the slippage is too high when calculating the base token amounts.
+    error SlippageTooHigh(uint128 amountQuote, uint128 quoteAmountLow, uint128 quoteAmountHigh);
 
     error ZeroShares();
 
@@ -108,15 +108,15 @@ contract VertexPool is ERC20, Owned {
     /// @param _id The ID of the product on Vertex this pool targets.
     /// @param _name The name of the pool.
     /// @param _symbol The symbol of the pool.
-    /// @param _token0 The first token of the pool by address sort order.
-    /// @param _token1 The second token of the pool by address sort order.
-    constructor(uint32 _id, string memory _name, string memory _symbol, ERC20 _token0, ERC20 _token1)
+    /// @param _quoteToken The quote token of the pair.
+    /// @param _baseToken The base token of the pair.
+    constructor(uint32 _id, string memory _name, string memory _symbol, ERC20 _quoteToken, ERC20 _baseToken)
         ERC20(_name, _symbol)
         Owned(VertexFactory(msg.sender).owner())
     {
         id = _id;
-        token0 = _token0;
-        token1 = _token1;
+        quoteToken = _quoteToken;
+        baseToken = _baseToken;
         endpoint = IEndpoint(VertexFactory(msg.sender).endpoint());
 
         // Link smart contract to Elixir's signer.
@@ -127,34 +127,46 @@ contract VertexPool is ERC20, Owned {
         endpoint.submitSlowModeTransaction(transactionData);
 
         // Approve Vertex to transfer tokens.
-        token0.approve(address(endpoint), type(uint256).max);
-        token1.approve(address(endpoint), type(uint256).max);
+        quoteToken.approve(address(endpoint), type(uint256).max);
+        baseToken.approve(address(endpoint), type(uint256).max);
     }
 
     /*//////////////////////////////////////////////////////////////
                         DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function deposit(bool _token0, uint256 amount, address receiver) external returns (uint256) {
+    function deposit(int128 amountBase, int128 quoteAmountLow, int128 quoteAmountHigh, address receiver)
+        external
+        returns (uint128 shares)
+    {
+        if (!(amountBase > 0) || !(quoteAmountLow > 0) || !(quoteAmountHigh > 0) || !(quoteAmountLow < quoteAmountHigh)) revert InvalidDepositAmounts();
+
+        // Get the amount of base tokens based on the quote token amount.
+        uint128 amountQuote = calculateQuoteAmount(amountBase);
+
+        // Check for slippage based on the given base amount and the calculated quote amount.
+        if (amountQuote < quoteAmountLow || amountQuote > quoteAmountHigh) {
+            revert SlippageTooHigh(amountQuote, quoteAmountLow, quoteAmountHigh);
+        }
+
         // Check for rounding error since we round down in previewDeposit.
-        (uint256 shares, uint256 amount0, uint256 amount1) = previewDeposit(_token0, amount);
-        if (shares == 0) revert ZeroShares();
+        if ((shares = previewDeposit(amountBase, amountQuote)) == 0) revert ZeroShares();
 
         // Transfer both tokens before minting or ERC777s could reenter.
-        token0.safeTransferFrom(msg.sender, address(this), amount0);
-        token1.safeTransferFrom(msg.sender, address(this), amount1);
+        baseToken.safeTransferFrom(msg.sender, address(this), amountBase);
+        quoteToken.safeTransferFrom(msg.sender, address(this), amountQuote);
 
         // Deposit liquidity on Vertex.
-        endpoint.depositCollateral(bytes12(contractSubaccount), id, uint128(amount0));
+        endpoint.depositCollateral(bytes12(contractSubaccount), id, amountBase);
 
         // NOTE: Assuming for token 1 to be USDC as it's the currently supported quote token.
-        endpoint.depositCollateral(bytes12(contractSubaccount), 0, uint128(amount1));
+        endpoint.depositCollateral(bytes12(contractSubaccount), 0, amountQuote);
 
         // Mint shares equivalent to deposit liquidity.
         _mint(receiver, shares);
 
-        emit Deposit(msg.sender, receiver, amount0, amount1, shares);
-        
+        emit Deposit(msg.sender, receiver, amountBase, amountQuote, shares);
+
         return shares;
     }
 
@@ -222,28 +234,21 @@ contract VertexPool is ERC20, Owned {
 
     // function totalAssets() public view virtual returns (uint256);
 
-    function getDepositAmounts(bool _token0, uint256 amount)
+    function calculateQuoteAmount(uint128 amountBase)
         public
         view
         virtual
-        returns (uint256 adjustedAmount0, uint256 adjustedAmount1)
+        returns (uint128)
     {
-        // Get oracle price from Vertex.
-        uint256 price = endpoint.getPriceX18(id);
-
-        // Calculate amount of tokens to transfer in a 50/50 way using the price.
-        // Use the boolean token flag to determine which token to adjust.
-        if (_token0) {
-            adjustedAmount0 = amount;
-            adjustedAmount1 = amount * price / (10 ** (18 - token1.decimals()));
-        } else {
-            adjustedAmount0 = amount * price / (10 ** (18 - token0.decimals()));
-            adjustedAmount1 = amount;
-        }
+        return lpState.base.amount == 0
+            ? amountBase.mul(endpoint.getOraclePriceX18(productId))
+            : amountBase.mul(lpState.quote.amount.div(lpState.base.amount));
     }
 
-    function convertToShares(uint256 amount0, uint256 amount1) public view virtual returns (uint256) {
-        return amount0 + amount1;
+    function convertToShares(uint128 amountBase, uint128 amountQuote) public view virtual returns (uint128) {
+        uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
+        // TODO: Compare calculation when supply != 0 to solmate's ERC4626 implementation.
+        return supply == 0 ? amountBase + amountQuote : amountBase.div(lpState.base.amount).mul(lpState.supply);
     }
 
     // function convertToAssets(uint256 shares) public view virtual returns (uint256) {
@@ -252,9 +257,8 @@ contract VertexPool is ERC20, Owned {
     //     return supply == 0 ? shares : shares.mulDivDown(totalAssets(), supply);
     // }
 
-    function previewDeposit(bool _token0, uint256 amount) public view virtual returns (uint256, uint256, uint256) {
-        (uint256 amount0, uint256 amount1) = getDepositAmounts(_token0, amount);
-        return (convertToShares(amount0, amount1), amount0, amount1);
+    function previewDeposit(uint128 amountBase, uint128 amountQuote) public view virtual returns (uint128) {        
+        return convertToShares(amountBase, amountQuote);
     }
 
     // function previewMint(uint256 shares) public view virtual returns (uint256) {

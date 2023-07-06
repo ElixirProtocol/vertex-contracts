@@ -17,7 +17,7 @@ import {IEndpoint} from "./interfaces/IEndpoint.sol";
 /// @notice Liquidity pool aggregator for marketing making in Vertex Protocol.
 contract VertexStable is ERC20, Owned {
     using SafeERC20 for ERC20;
-    using SafeCastLib for uint256;
+    using SafeCastLib for uint128;
     using FixedPointMathLib for uint128;
 
     /*//////////////////////////////////////////////////////////////
@@ -52,13 +52,17 @@ contract VertexStable is ERC20, Owned {
     /// @notice The ERC20 instance of the base token.
     ERC20 public immutable baseToken;
 
-    uint128 public baseUnit;
+    /// @notice Total amount of base tokens managed by this pool.
+    uint128 public baseCurrent;
 
     /// @notice The ERC20 instance of the quote token.
     ERC20 public immutable quoteToken;
 
+    /// @notice Total amount of quote tokens managed by this pool.
+    uint128 public quoteCurrent;
+
     /// @notice The ID of the product this pool targets on Vertex.
-    uint32 public immutable id;
+    uint32 public immutable productId;
 
     /// @notice Vertex's Endpoint contract.
     IEndpoint public immutable endpoint;
@@ -69,19 +73,19 @@ contract VertexStable is ERC20, Owned {
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Emitted when the Vault is initialized.
-    /// @param user The authorized user who triggered the initialization.
-    event Initialized(address indexed user);
+    // /// @notice Emitted when the Vault is initialized.
+    // /// @param user The authorized user who triggered the initialization.
+    // event Initialized(address indexed user);
 
-    /// @notice Emitted after fees are claimed.
-    /// @param user The authorized user who claimed the fees.
-    /// @param rvTokenAmount The amount of rvTokens that were claimed.
-    event FeesClaimed(address indexed user, uint256 rvTokenAmount);
+    // /// @notice Emitted after fees are claimed.
+    // /// @param user The authorized user who claimed the fees.
+    // /// @param rvTokenAmount The amount of rvTokens that were claimed.
+    // event FeesClaimed(address indexed user, uint256 rvTokenAmount);
 
-    event Deposit(address indexed caller, address indexed owner, uint256 amount0, uint256 amount1, uint256 shares);
+    event Deposit(address indexed caller, address indexed owner, uint128 amount0, uint128 amount1, uint128 shares);
 
     event Withdraw(
-        address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
+        address indexed caller, address indexed receiver, address indexed owner, uint128 assets, uint128 shares
     );
 
     /*//////////////////////////////////////////////////////////////
@@ -105,16 +109,16 @@ contract VertexStable is ERC20, Owned {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Creates a new Pool that accepts a specific pair of tokens.
-    /// @param _id The ID of the product on Vertex this pool targets.
+    /// @param _productId The ID of the product on Vertex this pool targets.
     /// @param _name The name of the pool.
     /// @param _symbol The symbol of the pool.
     /// @param _quoteToken The quote token of the pair.
     /// @param _baseToken The base token of the pair.
-    constructor(uint32 _id, string memory _name, string memory _symbol, ERC20 _quoteToken, ERC20 _baseToken)
+    constructor(uint32 _productId, string memory _name, string memory _symbol, ERC20 _quoteToken, ERC20 _baseToken)
         ERC20(_name, _symbol)
         Owned(VertexFactory(msg.sender).owner())
     {
-        id = _id;
+        productId = _productId;
         quoteToken = _quoteToken;
         baseToken = _baseToken;
         endpoint = IEndpoint(VertexFactory(msg.sender).endpoint());
@@ -135,11 +139,14 @@ contract VertexStable is ERC20, Owned {
                         DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function deposit(int128 amountBase, int128 quoteAmountLow, int128 quoteAmountHigh, address receiver)
+    function deposit(uint128 amountBase, uint128 quoteAmountLow, uint128 quoteAmountHigh, address receiver)
         external
         returns (uint128 shares)
     {
-        if (!(amountBase > 0) || !(quoteAmountLow > 0) || !(quoteAmountHigh > 0) || !(quoteAmountLow < quoteAmountHigh)) revert InvalidDepositAmounts();
+        if (!(amountBase > 0) || !(quoteAmountLow > 0) || !(quoteAmountHigh > 0) || !(quoteAmountLow < quoteAmountHigh))
+        {
+            revert InvalidDepositAmounts();
+        }
 
         // Get the amount of base tokens based on the quote token amount.
         uint128 amountQuote = calculateQuoteAmount(amountBase);
@@ -157,10 +164,14 @@ contract VertexStable is ERC20, Owned {
         quoteToken.safeTransferFrom(msg.sender, address(this), amountQuote);
 
         // Deposit liquidity on Vertex.
-        endpoint.depositCollateral(bytes12(contractSubaccount), id, amountBase);
+        endpoint.depositCollateral(bytes12(contractSubaccount), productId, amountBase);
 
         // NOTE: Assuming for token 1 to be USDC as it's the currently supported quote token.
         endpoint.depositCollateral(bytes12(contractSubaccount), 0, amountQuote);
+
+        // Add the current amounts of base and quote tokens.
+        baseCurrent += amountBase;
+        quoteCurrent += amountQuote;
 
         // Mint shares equivalent to deposit liquidity.
         _mint(receiver, shares);
@@ -232,23 +243,21 @@ contract VertexStable is ERC20, Owned {
                             ACCOUNTING LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    // function totalAssets() public view virtual returns (uint256);
+    function totalAssets() public view returns (uint128) {
+        // TODO: Implement correctly
+        return 0;
+    }
 
-    function calculateQuoteAmount(uint128 amountBase)
-        public
-        view
-        virtual
-        returns (uint128)
-    {
-        return lpState.base.amount == 0
-            ? amountBase.mul(endpoint.getOraclePriceX18(productId))
-            : amountBase.mul(lpState.quote.amount.div(lpState.base.amount));
+    function calculateQuoteAmount(uint128 amountBase) public view virtual returns (uint128) {
+        return baseCurrent == 0
+            ? amountBase.unsafeMod(endpoint.getPriceX18(productId))
+            : amountBase.unsafeMod(quoteCurrent.unsafeDiv(baseCurrent));
     }
 
     function convertToShares(uint128 amountBase, uint128 amountQuote) public view virtual returns (uint128) {
-        uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
-        // TODO: Compare calculation when supply != 0 to solmate's ERC4626 implementation.
-        return supply == 0 ? amountBase + amountQuote : amountBase.div(lpState.base.amount).mul(lpState.supply);
+        uint128 supply = uint128(totalSupply >> 128); // Saves an extra SLOAD if totalSupply is non-zero.
+        // TODO: Compare calculation when supply != 0 to solmate's ERC4626 implementation and also to Vertex's implementation.
+        return supply == 0 ? amountBase + amountQuote : amountBase.mulDivDown(supply, baseCurrent);
     }
 
     // function convertToAssets(uint256 shares) public view virtual returns (uint256) {
@@ -257,7 +266,7 @@ contract VertexStable is ERC20, Owned {
     //     return supply == 0 ? shares : shares.mulDivDown(totalAssets(), supply);
     // }
 
-    function previewDeposit(uint128 amountBase, uint128 amountQuote) public view virtual returns (uint128) {        
+    function previewDeposit(uint128 amountBase, uint128 amountQuote) public view virtual returns (uint128) {
         return convertToShares(amountBase, amountQuote);
     }
 

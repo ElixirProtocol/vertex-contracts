@@ -3,13 +3,15 @@ pragma solidity 0.8.19;
 
 import {Bytes32AddressLib} from "solmate/utils/Bytes32AddressLib.sol";
 
+import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
+
 import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
 
 import {IClearinghouse} from "./interfaces/clearinghouse/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
-import {VertexPool, ERC20} from "./VertexPool.sol";
+import {VertexStable} from "./VertexStable.sol";
 
 /// @title Elixir Pool Factory for Vertex
 /// @author The Elixir Team
@@ -89,7 +91,7 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         // Use the CREATE2 opcode to deploy a new Pool contract.
         // The salt includes the block number to allow to deploy multiple pools per combination of tokens.
         pool = address(
-            new VertexPool{salt: keccak256(abi.encode(id, token0, token1, block.number))}(
+            new VertexStable{salt: keccak256(abi.encode(id, token0, token1, block.number))}(
                 id,
                 string(abi.encodePacked("Elixir LP ", token0.name(), "-", token1.name(), " for Vertex")),
                 string(abi.encodePacked("elxr-", token0.symbol(), "-", token1.symbol())),

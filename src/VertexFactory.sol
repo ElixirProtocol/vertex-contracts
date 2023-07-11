@@ -13,9 +13,9 @@ import {IClearinghouse} from "./interfaces/clearinghouse/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
 import {VertexStable} from "./VertexStable.sol";
 
-/// @title Elixir Pool Factory for Vertex
+/// @title Elixir Vault Factory for Vertex
 /// @author The Elixir Team
-/// @notice Factory for Elixir-based Vertex pools based on a pair of ERC20 tokens.
+/// @notice Factory for Elixir-based Vertex vaults based on a pair of ERC20 tokens.
 contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using Bytes32AddressLib for address;
     using Bytes32AddressLib for bytes32;
@@ -24,10 +24,11 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
                                 VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Returns the pool address for a given pair of tokens and a fee, or address 0 if it does not exist
+    /// @notice Returns the vault address for a given pair of tokens and a fee, or address 0 if it does not exist
     /// @dev tokenA and tokenB may be passed in either token0/token1 or token1/token0 order
-    mapping(address => mapping(address => address)) public getPoolByTokens;
-    mapping(uint32 => address) public getPoolByProduct;
+    mapping(ERC20 => mapping(ERC20 => VertexStable)) public getStableVaultByTokens;
+    mapping(ERC20 => mapping(ERC20 => VertexStable)) public getStableVaultByTokens;
+    mapping(uint32 => address) public getVaultByProduct;
 
     /// @notice Vertex's clearing house contract
     IClearinghouse public clearingHouse;
@@ -40,11 +41,11 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Emitted when a new Pool is deployed.
-    /// @param token0 The first token of the pool by address sort order
-    /// @param token1 The second token of the pool by address sort order
-    /// @param pool The address of the created pool
-    event PoolDeployed(address token0, address token1, address pool);
+    /// @notice Emitted when a new Vault is deployed.
+    /// @param token0 The first token of the vault by address sort order
+    /// @param token1 The second token of the vault by address sort order
+    /// @param vault The address of the created vault
+    event VaultDeployed(address token0, address token1, address vault);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -74,23 +75,23 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         transferOwnership(owner);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                           EXTERNAL FUNCTIONS
+    /*///////////////////////////////////////////////////////////////
+                          VAULT DEPLOYMENT LOGIC
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Deploys a new Vault which supports a specific underlying token.
     /// @dev This will revert if a Vault that accepts the same underlying token has already been deployed.
     /// @param id The ID of the product on Vertex
-    /// @param token0 Token 0 of the pool to be created
-    /// @param token1 Token 1 of the pool to be created
-    function deployVault(uint32 id, ERC20 token0, ERC20 token1) external onlyOwner returns (address pool) {
+    /// @param token0 Token 0 of the vault to be created
+    /// @param token1 Token 1 of the vault to be created
+    function deployVault(uint32 id, ERC20 token0, ERC20 token1) external onlyOwner returns (address vault) {
         if (token0 == token1) revert SameTokens();
         if (address(token0) == address(0) || address(token1) == address(0)) revert TokenIsZero();
         if (clearingHouse.getEngineByProduct(id) == address(0)) revert InvalidProduct();
 
-        // Use the CREATE2 opcode to deploy a new Pool contract.
-        // The salt includes the block number to allow to deploy multiple pools per combination of tokens.
-        pool = address(
+        // Use the CREATE2 opcode to deploy a new Vault contract.
+        // The salt includes the block number to allow to deploy multiple vaults per combination of tokens.
+        vault = address(
             new VertexStable{salt: keccak256(abi.encode(id, token0, token1, block.number))}(
                 id,
                 string(abi.encodePacked("Elixir LP ", token0.name(), "-", token1.name(), " for Vertex")),
@@ -100,7 +101,20 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             )
         );
 
-        emit PoolDeployed(address(token0), address(token1), pool);
+        emit VaultDeployed(address(token0), address(token1), vault);
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                            VAULT LOOKUP LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Returns if a Vault at an address has already been deployed.
+    /// @param vault The address of a Vault which may not have been deployed yet.
+    /// @return A boolean indicating whether the Vault has been deployed already.
+    /// @dev This function is useful to check the return values of getVaultFromUnderlying,
+    /// as it does not check that the Vault addresses it computes have been deployed yet.
+    function isVaultDeployed(Vault vault) external view returns (bool) {
+        return address(vault).code.length > 0;
     }
 
     /*//////////////////////////////////////////////////////////////

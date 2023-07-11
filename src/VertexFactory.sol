@@ -3,7 +3,7 @@ pragma solidity 0.8.19;
 
 import {Bytes32AddressLib} from "solmate/utils/Bytes32AddressLib.sol";
 
-import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";

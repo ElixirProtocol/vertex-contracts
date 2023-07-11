@@ -2,12 +2,9 @@
 pragma solidity 0.8.19;
 
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
-import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
+import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
-
-import {SafeERC20} from "openzeppelin/token/ERC20/utils/SafeERC20.sol";
-
-import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import {VertexFactory} from "./VertexFactory.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
@@ -16,9 +13,8 @@ import {IEndpoint} from "./interfaces/IEndpoint.sol";
 /// @author The Elixir Team
 /// @notice Liquidity pool aggregator for marketing making in Vertex Protocol.
 contract VertexStable is ERC20, Owned {
-    using SafeERC20 for ERC20;
-    using SafeCastLib for uint128;
-    using FixedPointMathLib for uint128;
+    using SafeTransferLib for ERC20;
+    using FixedPointMathLib for uint256;
 
     /*//////////////////////////////////////////////////////////////
                                 VARIABLES
@@ -43,7 +39,7 @@ contract VertexStable is ERC20, Owned {
     // uint64 public lastHarvest;
 
     // /// @notice The amount of locked profit at the end of the last harvest.
-    // uint128 public maxLockedProfit;
+    // uint256 public maxLockedProfit;
 
     // /// @notice Whether the Vault has been initialized yet.
     // /// @dev Can go from false to true, never from true to false.
@@ -53,13 +49,13 @@ contract VertexStable is ERC20, Owned {
     ERC20 public immutable baseToken;
 
     /// @notice Total amount of base tokens managed by this pool.
-    uint128 public baseCurrent;
+    uint256 public baseCurrent;
 
     /// @notice The ERC20 instance of the quote token.
     ERC20 public immutable quoteToken;
 
     /// @notice Total amount of quote tokens managed by this pool.
-    uint128 public quoteCurrent;
+    uint256 public quoteCurrent;
 
     /// @notice The ID of the product this pool targets on Vertex.
     uint32 public immutable productId;
@@ -82,10 +78,17 @@ contract VertexStable is ERC20, Owned {
     // /// @param rvTokenAmount The amount of rvTokens that were claimed.
     // event FeesClaimed(address indexed user, uint256 rvTokenAmount);
 
-    event Deposit(address indexed caller, address indexed owner, uint128 amount0, uint128 amount1, uint128 shares);
+    event Deposit(
+        address indexed caller, address indexed owner, uint256 amountBase, uint256 amountQuote, uint256 shares
+    );
 
     event Withdraw(
-        address indexed caller, address indexed receiver, address indexed owner, uint128 assets, uint128 shares
+        address indexed caller,
+        address indexed receiver,
+        address indexed owner,
+        uint256 amountBase,
+        uint256 amountQuote,
+        uint256 shares
     );
 
     /*//////////////////////////////////////////////////////////////
@@ -100,9 +103,13 @@ contract VertexStable is ERC20, Owned {
     error InvalidDepositAmounts();
 
     /// @notice Emitted when the slippage is too high when calculating the base token amounts.
-    error SlippageTooHigh(uint128 amountQuote, uint128 quoteAmountLow, uint128 quoteAmountHigh);
+    error SlippageTooHigh(uint256 amountQuote, uint256 quoteAmountLow, uint256 quoteAmountHigh);
 
+    // TODO: Add Natspec.
     error ZeroShares();
+
+    // TODO: Add Natspec.
+    error ZeroAssets();
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTOR
@@ -115,7 +122,7 @@ contract VertexStable is ERC20, Owned {
     /// @param _quoteToken The quote token of the pair.
     /// @param _baseToken The base token of the pair.
     constructor(uint32 _productId, string memory _name, string memory _symbol, ERC20 _quoteToken, ERC20 _baseToken)
-        ERC20(_name, _symbol)
+        ERC20(_name, _symbol, 18)
         Owned(VertexFactory(msg.sender).owner())
     {
         productId = _productId;
@@ -139,9 +146,9 @@ contract VertexStable is ERC20, Owned {
                         DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function deposit(uint128 amountBase, uint128 quoteAmountLow, uint128 quoteAmountHigh, address receiver)
+    function deposit(uint256 amountBase, uint256 quoteAmountLow, uint256 quoteAmountHigh, address receiver)
         external
-        returns (uint128 shares)
+        returns (uint256 shares)
     {
         if (!(amountBase > 0) || !(quoteAmountLow > 0) || !(quoteAmountHigh > 0) || !(quoteAmountLow < quoteAmountHigh))
         {
@@ -149,7 +156,7 @@ contract VertexStable is ERC20, Owned {
         }
 
         // Get the amount of base tokens based on the quote token amount.
-        uint128 amountQuote = calculateQuoteAmount(amountBase);
+        uint256 amountQuote = calculateQuoteAmount(amountBase);
 
         // Check for slippage based on the given base amount and the calculated quote amount.
         if (amountQuote < quoteAmountLow || amountQuote > quoteAmountHigh) {
@@ -164,10 +171,10 @@ contract VertexStable is ERC20, Owned {
         quoteToken.safeTransferFrom(msg.sender, address(this), amountQuote);
 
         // Deposit liquidity on Vertex.
-        endpoint.depositCollateral(bytes12(contractSubaccount), productId, amountBase);
+        endpoint.depositCollateral(bytes12(contractSubaccount), productId, uint128(amountBase));
 
         // NOTE: Assuming for token 1 to be USDC as it's the currently supported quote token.
-        endpoint.depositCollateral(bytes12(contractSubaccount), 0, amountQuote);
+        endpoint.depositCollateral(bytes12(contractSubaccount), 0, uint128(amountQuote));
 
         // Add the current amounts of base and quote tokens.
         baseCurrent += amountBase;
@@ -178,113 +185,116 @@ contract VertexStable is ERC20, Owned {
 
         emit Deposit(msg.sender, receiver, amountBase, amountQuote, shares);
 
-        return shares;
+        afterDeposit(amountBase, amountQuote, shares);
     }
 
-    // function mint(uint256 shares, address receiver) external returns (uint256 assets) {
-    //     assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
+    function mint(uint256 shares, address receiver) external returns (uint256 amountBase, uint256 amountQuote) {
+        (amountBase, amountQuote) = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
 
-    //     // Need to transfer before minting or ERC777s could reenter.
-    //     asset.safeTransferFrom(msg.sender, address(this), assets);
+        // Transfer both tokens before minting or ERC777s could reenter.
+        baseToken.safeTransferFrom(msg.sender, address(this), amountBase);
+        quoteToken.safeTransferFrom(msg.sender, address(this), amountQuote);
 
-    //     _mint(receiver, shares);
+        _mint(receiver, shares);
 
-    //     emit Deposit(msg.sender, receiver, assets, shares);
+        emit Deposit(msg.sender, receiver, amountBase, amountQuote, shares);
 
-    //     afterDeposit(assets, shares);
-    // }
+        afterDeposit(amountBase, amountQuote, shares);
+    }
 
-    // function withdraw(
-    //     uint256 assets,
-    //     address receiver,
-    //     address owner
-    // ) external returns (uint256 shares) {
-    //     shares = previewWithdraw(assets); // No need to check for rounding error, previewWithdraw rounds up.
+    function withdraw(uint256 amountBase, address receiver, address owner) external returns (uint256 shares) {
+        shares = previewWithdraw(amountBase); // No need to check for rounding error, previewWithdraw rounds up.
+        // Fetch amount of quote token to withdraw respective to the amount of base token.
+        uint256 amountQuote = calculateQuoteAmount(amountBase);
 
-    //     if (msg.sender != owner) {
-    //         uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
+        if (msg.sender != owner) {
+            uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
 
-    //         if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
-    //     }
+            if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
+        }
 
-    //     beforeWithdraw(assets, shares);
+        beforeWithdraw(amountBase, amountQuote, shares);
 
-    //     _burn(owner, shares);
+        _burn(owner, shares);
 
-    //     emit Withdraw(msg.sender, receiver, owner, assets, shares);
+        emit Withdraw(msg.sender, receiver, owner, amountBase, amountQuote, shares);
 
-    //     asset.safeTransfer(receiver, assets);
-    // }
+        baseToken.safeTransfer(receiver, amountBase);
+        quoteToken.safeTransfer(receiver, amountQuote);
+    }
 
-    // function redeem(
-    //     uint256 shares,
-    //     address receiver,
-    //     address owner
-    // ) public virtual returns (uint256 assets) {
-    //     if (msg.sender != owner) {
-    //         uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
+    function redeem(uint256 shares, address receiver, address owner) public returns (uint256 amountBase, uint256 amountQuote) {
+        if (msg.sender != owner) {
+            uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
 
-    //         if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
-    //     }
+            if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
+        }
 
-    //     // Check for rounding error since we round down in previewRedeem.
-    //     require((assets = previewRedeem(shares)) != 0, "ZERO_ASSETS");
+        // Check for rounding error since we round down in previewRedeem.
+        (amountBase, amountQuote) = previewRedeem(shares);
+        if (amountBase == 0 && amountQuote == 0) revert ZeroAssets();
 
-    //     beforeWithdraw(assets, shares);
+        beforeWithdraw(amountBase, amountQuote, shares);
 
-    //     _burn(owner, shares);
+        _burn(owner, shares);
 
-    //     emit Withdraw(msg.sender, receiver, owner, assets, shares);
+        emit Withdraw(msg.sender, receiver, owner, amountBase, amountQuote, shares);
 
-    //     asset.safeTransfer(receiver, assets);
-    // }
+        baseToken.safeTransfer(receiver, amountBase);
+        quoteToken.safeTransfer(receiver, amountQuote);
+    }
 
     /*//////////////////////////////////////////////////////////////
                             ACCOUNTING LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function totalAssets() public view returns (uint128) {
+    function totalAssets() public view returns (uint256) {
         // TODO: Implement correctly
         return 0;
     }
 
-    function calculateQuoteAmount(uint128 amountBase) public view virtual returns (uint128) {
+    function calculateQuoteAmount(uint256 amountBase) public view returns (uint256) {
         return baseCurrent == 0
             ? amountBase.unsafeMod(endpoint.getPriceX18(productId))
             : amountBase.unsafeMod(quoteCurrent.unsafeDiv(baseCurrent));
     }
 
-    function convertToShares(uint128 amountBase, uint128 amountQuote) public view virtual returns (uint128) {
-        uint128 supply = uint128(totalSupply >> 128); // Saves an extra SLOAD if totalSupply is non-zero.
+    function convertToShares(uint256 amountBase, uint256 amountQuote) public view returns (uint256) {
+        uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
         // TODO: Compare calculation when supply != 0 to solmate's ERC4626 implementation and also to Vertex's implementation.
         return supply == 0 ? amountBase + amountQuote : amountBase.mulDivDown(supply, baseCurrent);
     }
 
-    // function convertToAssets(uint256 shares) public view virtual returns (uint256) {
-    //     uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
+    function convertToAssets(uint256 shares) public view virtual returns (uint256, uint256) {
+        uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
+        // TODO: Check math calculation for both cases
+        return supply == 0
+            ? (shares, shares)
+            : (shares.mulDivUp(totalAssets(), supply), shares.mulDivUp(totalAssets(), supply));
+    }
 
-    //     return supply == 0 ? shares : shares.mulDivDown(totalAssets(), supply);
-    // }
-
-    function previewDeposit(uint128 amountBase, uint128 amountQuote) public view virtual returns (uint128) {
+    function previewDeposit(uint256 amountBase, uint256 amountQuote) public view returns (uint256) {
         return convertToShares(amountBase, amountQuote);
     }
 
-    // function previewMint(uint256 shares) public view virtual returns (uint256) {
-    //     uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
+    function previewMint(uint256 shares) public view returns (uint256, uint256) {
+        uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
 
-    //     return supply == 0 ? shares : shares.mulDivUp(totalAssets(), supply);
-    // }
+        // TODO: Check for the calculation when supply is not 0 (especially withe ach return value depending on totalAssets)
+        return supply == 0
+            ? (shares, shares)
+            : (shares.mulDivUp(totalAssets(), supply), shares.mulDivUp(totalAssets(), supply));
+    }
 
-    // function previewWithdraw(uint256 assets) public view virtual returns (uint256) {
-    //     uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
+    function previewWithdraw(uint256 amountBase) public view virtual returns (uint256) {
+        uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
+        // TODO: Check math calculation when supply is 0 and when it's not
+        return supply == 0 ? amountBase : amountBase.mulDivUp(supply, baseCurrent);
+    }
 
-    //     return supply == 0 ? assets : assets.mulDivUp(supply, totalAssets());
-    // }
-
-    // function previewRedeem(uint256 shares) public view virtual returns (uint256) {
-    //     return convertToAssets(shares);
-    // }
+    function previewRedeem(uint256 shares) public view virtual returns (uint256, uint256) {
+        return convertToAssets(shares);
+    }
 
     // /*//////////////////////////////////////////////////////////////
     //                  DEPOSIT/WITHDRAWAL LIMIT LOGIC
@@ -310,16 +320,13 @@ contract VertexStable is ERC20, Owned {
     //                       INTERNAL HOOKS LOGIC
     // //////////////////////////////////////////////////////////////*/
 
-    // function beforeWithdraw(uint256 assets, uint256 shares) internal virtual {}
+    function beforeWithdraw(uint256 amountBase, uint256 amountQuote, uint256 shares) internal virtual {
+        // TODO: Check anything before withdraw?
+    }
 
-    // function afterDeposit(uint256 assets, uint256 shares) internal virtual {}
-
-    // function afterDeposit(uint256, uint256) internal override {}
-
-    // function beforeWithdraw(uint256 assets, uint256) internal override {
-    //     // Retrieve underlying tokens from strategies/float.
-    //     retrieveUnderlying(assets);
-    // }
+    function afterDeposit(uint256 amountBase, uint256 amountQuote, uint256 shares) internal virtual {
+        // TODO: Checks after deposit?
+    }
 
     // /// @dev Retrieves a specific amount of underlying tokens held in strategies and/or float.
     // /// @dev Only withdraws from strategies if needed and maintains the target float percentage if possible.

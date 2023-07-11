@@ -40,10 +40,10 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Emitted when a new Vault is deployed.
-    /// @param token0 The first token of the vault by address sort order
-    /// @param token1 The second token of the vault by address sort order
-    /// @param vault The address of the created vault
-    event VaultDeployed(address token0, address token1, address vault);
+    /// @param baseToken The base token of the vault.
+    /// @param quoteToken The quote token of the vault.
+    /// @param vault The address of the created vault.
+    event VaultDeployed(address baseToken, address quoteToken, address vault);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -80,26 +80,53 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /// @notice Deploys a new Vault which supports a specific underlying token.
     /// @dev This will revert if a Vault that accepts the same underlying token has already been deployed.
     /// @param id The ID of the product on Vertex
-    /// @param token0 Token 0 of the vault to be created
-    /// @param token1 Token 1 of the vault to be created
-    function deployVault(uint32 id, ERC20 token0, ERC20 token1) external onlyOwner returns (address vault) {
-        if (token0 == token1) revert SameTokens();
-        if (address(token0) == address(0) || address(token1) == address(0)) revert TokenIsZero();
+    /// @param baseToken Token 0 of the vault to be created
+    /// @param quoteToken Token 1 of the vault to be created
+    function deployVault(uint32 id, ERC20 baseToken, ERC20 quoteToken) external onlyOwner returns (address vault) {
+        if (baseToken == quoteToken) revert SameTokens();
+        if (address(baseToken) == address(0) || address(quoteToken) == address(0)) revert TokenIsZero();
         if (clearingHouse.getEngineByProduct(id) == address(0)) revert InvalidProduct();
 
-        // Use the CREATE2 opcode to deploy a new Vault contract.
-        // The salt includes the block number to allow to deploy multiple vaults per combination of tokens.
+        string memory name = string(abi.encodePacked("Elixir LP ", baseToken.name(), "-", quoteToken.name(), " for Vertex"));
+        string memory symbol = string(abi.encodePacked("elxr-", baseToken.symbol(), "-", quoteToken.symbol()));
+        bytes32 salt = keccak256(abi.encode(id, baseToken, quoteToken, block.number));
+
         vault = address(
-            new VertexStable{salt: keccak256(abi.encode(id, token0, token1, block.number))}(
-                id,
-                string(abi.encodePacked("Elixir LP ", token0.name(), "-", token1.name(), " for Vertex")),
-                string(abi.encodePacked("elxr-", token0.symbol(), "-", token1.symbol())),
-                token0,
-                token1
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff),
+                            address(this),
+                            salt,
+                            keccak256(
+                                abi.encodePacked(
+                                    type(VertexStable).creationCode, abi.encode(id, name, symbol, baseToken, quoteToken)
+                                )
+                            )
+                        )
+                    )
+                )
             )
         );
 
-        emit VaultDeployed(address(token0), address(token1), vault);
+        // Approve vault for it to fetch payment tokens for slow transaction fees.
+        ERC20(clearingHouse.getQuote()).approve(vault, type(uint256).max);
+
+        // Use the CREATE2 opcode to deploy a new Vault contract.
+        // The salt includes the block number to allow to deploy multiple vaults per combination of tokens.
+        new VertexStable{salt: salt}(
+            id,
+            name,
+            symbol,
+            baseToken,
+            quoteToken
+        );
+
+        // Store vault given product id
+        getVaultByProduct[id] = vault;
+
+        emit VaultDeployed(address(baseToken), address(quoteToken), vault);
     }
 
     /*//////////////////////////////////////////////////////////////

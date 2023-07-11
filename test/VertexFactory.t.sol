@@ -55,16 +55,21 @@ contract TestVertexFactory is Test, VertexContracts {
         EXTERNAL_ACCOUNT = users[2];
         vm.label(EXTERNAL_ACCOUNT, "External Account");
 
+        // Fork network and fetch Vertex contracts.
+        prepare();
+
         baseToken = new MockToken();
         quoteToken = new MockToken();
 
-        // TODO: Create Vertex contracts mocking clearinghouse and endpoint.
-
         vertexFactory = new VertexFactory();
         vertexFactory.initialize(clearingHouse, endpoint, EXTERNAL_ACCOUNT, FACTORY_OWNER);
+
+        // Deal payment token to the factory, which pays for the slow mode transactions of all the vaults.
+        deal(address(payment), address(vertexFactory), 100 ether);
     }
 
     function testDeployVault() public {
+        vm.selectFork(networkFork);
         vm.prank(FACTORY_OWNER);
         VertexStable vertexStable = VertexStable(vertexFactory.deployVault(0, baseToken, quoteToken));
 
@@ -74,12 +79,14 @@ contract TestVertexFactory is Test, VertexContracts {
     }
 
     function testFailNoDuplicateVaults() public {
+        vm.selectFork(networkFork);
         vm.startPrank(FACTORY_OWNER);
         vertexFactory.deployVault(0, baseToken, quoteToken);
         vertexFactory.deployVault(0, baseToken, quoteToken);
     }
 
     function testIsVaultDeployed() public {
+        vm.selectFork(networkFork);
         assertFalse(vertexFactory.getVaultByProduct(1) != address(0));
     }
 }

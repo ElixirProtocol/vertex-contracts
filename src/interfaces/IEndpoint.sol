@@ -233,6 +233,8 @@ interface IEndpoint is IVersion {
         int128 perpPriceX18;
     }
 
+    function clearinghouse() external view returns (IClearinghouse);
+
     function depositCollateral(bytes12 subaccountName, uint32 productId, uint128 amount) external;
 
     function setBook(uint32 productId, address book) external;

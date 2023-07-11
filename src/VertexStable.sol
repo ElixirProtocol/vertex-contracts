@@ -7,6 +7,7 @@ import {Owned} from "solmate/auth/Owned.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import {VertexFactory} from "./VertexFactory.sol";
+import {IClearinghouse} from "./interfaces/clearinghouse/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
 
 /// @title Elixir-based vault for Vertex
@@ -54,6 +55,9 @@ contract VertexStable is ERC20, Owned {
     /// @notice The ERC20 instance of the quote token.
     ERC20 public immutable quoteToken;
 
+    /// @notice The payment token for endpoint slow-mode transactions.
+    ERC20 public immutable paymentToken;
+
     /// @notice Total amount of quote tokens managed by this vault.
     uint256 public quoteCurrent;
 
@@ -68,15 +72,6 @@ contract VertexStable is ERC20, Owned {
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
-
-    // /// @notice Emitted when the Vault is initialized.
-    // /// @param user The authorized user who triggered the initialization.
-    // event Initialized(address indexed user);
-
-    // /// @notice Emitted after fees are claimed.
-    // /// @param user The authorized user who claimed the fees.
-    // /// @param rvTokenAmount The amount of rvTokens that were claimed.
-    // event FeesClaimed(address indexed user, uint256 rvTokenAmount);
 
     event Deposit(
         address indexed caller, address indexed owner, uint256 amountBase, uint256 amountQuote, uint256 shares
@@ -119,16 +114,22 @@ contract VertexStable is ERC20, Owned {
     /// @param _productId The ID of the product on Vertex this vault targets.
     /// @param _name The name of the vault.
     /// @param _symbol The symbol of the vault.
-    /// @param _quoteToken The quote token of the pair.
-    /// @param _baseToken The base token of the pair.
-    constructor(uint32 _productId, string memory _name, string memory _symbol, ERC20 _quoteToken, ERC20 _baseToken)
+    /// @param _baseToken The base token of the vault.
+    /// @param _quoteToken The quote token of the vault.
+    constructor(uint32 _productId, string memory _name, string memory _symbol, ERC20 _baseToken, ERC20 _quoteToken)
         ERC20(_name, _symbol, 18)
         Owned(VertexFactory(msg.sender).owner())
     {
         productId = _productId;
-        quoteToken = _quoteToken;
         baseToken = _baseToken;
+        quoteToken = _quoteToken;
         endpoint = IEndpoint(VertexFactory(msg.sender).endpoint());
+        // It may happen that the quote token of endpoint payments is not the quote token of the vault/product.
+        paymentToken = ERC20(IClearinghouse(endpoint.clearinghouse()).getQuote());
+
+        // Fetch payment fee for linked signer transaciton.
+        paymentToken.transferFrom(msg.sender, address(this), 1000000);
+        paymentToken.approve(address(endpoint), type(uint256).max);
 
         // Link smart contract to Elixir's signer.
         contractSubaccount = bytes32(uint256(uint160(address(this))) << 96);
@@ -138,8 +139,8 @@ contract VertexStable is ERC20, Owned {
         endpoint.submitSlowModeTransaction(transactionData);
 
         // Approve Vertex to transfer tokens.
-        quoteToken.approve(address(endpoint), type(uint256).max);
         baseToken.approve(address(endpoint), type(uint256).max);
+        quoteToken.approve(address(endpoint), type(uint256).max);
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -32,34 +32,54 @@ contract TestVertexFactory is Test, VertexContracts {
     address internal FACTORY_OWNER;
 
     /*//////////////////////////////////////////////////////////////
+                                  MISC
+    //////////////////////////////////////////////////////////////*/
+
+    // Off-chain validator account that makes request on behalf of the vaults.
+    address internal EXTERNAL_ACCOUNT;
+
+    /*//////////////////////////////////////////////////////////////
                                   TESTS
     //////////////////////////////////////////////////////////////*/
 
     function setUp() public {
+        utils = new Utils();
+        address payable[] memory users = utils.createUsers(3);
+
+        USER1 = users[0];
+        vm.label(USER1, "User");
+
+        FACTORY_OWNER = users[1];
+        vm.label(FACTORY_OWNER, "Factory Owner");
+
+        EXTERNAL_ACCOUNT = users[2];
+        vm.label(EXTERNAL_ACCOUNT, "External Account");
+
         baseToken = new MockToken();
         quoteToken = new MockToken();
 
         // TODO: Create Vertex contracts mocking clearinghouse and endpoint.
 
         vertexFactory = new VertexFactory();
-        vertexFactory.initialize(address(clearingHouse), address(endpoint), address(externalAccount), FACTORY_OWNER);
+        vertexFactory.initialize(clearingHouse, endpoint, EXTERNAL_ACCOUNT, FACTORY_OWNER);
     }
 
     function testDeployVault() public {
-        VertexStable vertexStable = vertexFactory.deployVault(underlying);
+        vm.prank(FACTORY_OWNER);
+        VertexStable vertexStable = VertexStable(vertexFactory.deployVault(0, baseToken, quoteToken));
 
-        assertTrue(vertexFactory.isVaultDeployed(vertexStable));
-        assertEq(address(vertexFactory.getStableVaultByTokens(baseToken, quoteToken)), address(vertexStable));
+        assertEq(vertexFactory.getVaultByProduct(0), address(vertexStable));
         assertEq(address(vertexStable.baseToken()), address(baseToken));
         assertEq(address(vertexStable.quoteToken()), address(quoteToken));
     }
 
     function testFailNoDuplicateVaults() public {
+        vm.startPrank(FACTORY_OWNER);
         vertexFactory.deployVault(0, baseToken, quoteToken);
         vertexFactory.deployVault(0, baseToken, quoteToken);
     }
 
     function testIsVaultDeployed() public {
-        assertFalse(vertexFactory.isVaultDeployed(Vault(payable(address(0xBEEF)))));
+        assertFalse(vertexFactory.getVaultByProduct(1) != address(0));
     }
 }

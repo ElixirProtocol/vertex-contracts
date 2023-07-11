@@ -24,10 +24,8 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
                                 VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Returns the vault address for a given pair of tokens and a fee, or address 0 if it does not exist
-    /// @dev tokenA and tokenB may be passed in either token0/token1 or token1/token0 order
-    mapping(ERC20 => mapping(ERC20 => VertexStable)) public getStableVaultByTokens;
-    mapping(ERC20 => mapping(ERC20 => VertexStable)) public getStableVaultByTokens;
+    /// @notice Returns the vault address for a given product id
+    /// @dev Returns address instead of Stable or Perp vault type to avoid casting
     mapping(uint32 => address) public getVaultByProduct;
 
     /// @notice Vertex's clearing house contract
@@ -75,7 +73,7 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         transferOwnership(owner);
     }
 
-    /*///////////////////////////////////////////////////////////////
+    /*//////////////////////////////////////////////////////////////
                           VAULT DEPLOYMENT LOGIC
     //////////////////////////////////////////////////////////////*/
 
@@ -102,19 +100,6 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         );
 
         emit VaultDeployed(address(token0), address(token1), vault);
-    }
-
-    /*///////////////////////////////////////////////////////////////
-                            VAULT LOOKUP LOGIC
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Returns if a Vault at an address has already been deployed.
-    /// @param vault The address of a Vault which may not have been deployed yet.
-    /// @return A boolean indicating whether the Vault has been deployed already.
-    /// @dev This function is useful to check the return values of getVaultFromUnderlying,
-    /// as it does not check that the Vault addresses it computes have been deployed yet.
-    function isVaultDeployed(Vault vault) external view returns (bool) {
-        return address(vault).code.length > 0;
     }
 
     /*//////////////////////////////////////////////////////////////

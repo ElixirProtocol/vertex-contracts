@@ -9,8 +9,6 @@ import {IClearinghouse} from "../src/interfaces/clearinghouse/IClearinghouse.sol
 import {IEndpoint} from "../src/interfaces/IEndpoint.sol";
 
 contract VertexContracts is Test {
-    Utils internal utils;
-
     /*//////////////////////////////////////////////////////////////
                                 CONTRACTS
     //////////////////////////////////////////////////////////////*/

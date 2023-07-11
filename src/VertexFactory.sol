@@ -87,7 +87,8 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         if (address(baseToken) == address(0) || address(quoteToken) == address(0)) revert TokenIsZero();
         if (clearingHouse.getEngineByProduct(id) == address(0)) revert InvalidProduct();
 
-        string memory name = string(abi.encodePacked("Elixir LP ", baseToken.name(), "-", quoteToken.name(), " for Vertex"));
+        string memory name =
+            string(abi.encodePacked("Elixir LP ", baseToken.name(), "-", quoteToken.name(), " for Vertex"));
         string memory symbol = string(abi.encodePacked("elxr-", baseToken.symbol(), "-", quoteToken.symbol()));
         bytes32 salt = keccak256(abi.encode(id, baseToken, quoteToken, block.number));
 

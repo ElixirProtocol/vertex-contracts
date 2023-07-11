@@ -21,31 +21,6 @@ contract VertexStable is ERC20, Owned {
                                 VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    // /// @notice The underlying token the Vault accepts.
-    // ERC20 public immutable UNDERLYING;
-
-    // /// @notice The base unit of the underlying token and hence rvToken.
-    // /// @dev Equal to 10 ** decimals. Used for fixed point arithmetic.
-    // uint256 internal immutable BASE_UNIT;
-
-    // /// @notice The total amount of underlying tokens held in strategies at the time of the last harvest.
-    // /// @dev Includes maxLockedProfit, must be correctly subtracted to compute available/free holdings.
-    // uint256 public totalStrategyHoldings;
-
-    // /// @notice A timestamp representing when the first harvest in the most recent harvest window occurred.
-    // /// @dev May be equal to lastHarvest if there was/has only been one harvest in the most last/current window.
-    // uint64 public lastHarvestWindowStart;
-
-    // /// @notice A timestamp representing when the most recent harvest occurred.
-    // uint64 public lastHarvest;
-
-    // /// @notice The amount of locked profit at the end of the last harvest.
-    // uint256 public maxLockedProfit;
-
-    // /// @notice Whether the Vault has been initialized yet.
-    // /// @dev Can go from false to true, never from true to false.
-    // bool public isInitialized;
-
     /// @notice The ERC20 instance of the base token.
     ERC20 public immutable baseToken;
 
@@ -54,9 +29,6 @@ contract VertexStable is ERC20, Owned {
 
     /// @notice The ERC20 instance of the quote token.
     ERC20 public immutable quoteToken;
-
-    /// @notice The payment token for endpoint slow-mode transactions.
-    ERC20 public immutable paymentToken;
 
     /// @notice Total amount of quote tokens managed by this vault.
     uint256 public quoteCurrent;
@@ -67,7 +39,14 @@ contract VertexStable is ERC20, Owned {
     /// @notice Vertex's Endpoint contract.
     IEndpoint public immutable endpoint;
 
+    /// @notice Bytes of vault's subaccount.
     bytes32 public immutable contractSubaccount;
+
+    /// @notice Pending balance of base tokens of a user.
+    mapping(address => uint256) public basePending;
+
+    /// @notice Pending balance of quote tokens of a user.
+    mapping(address => uint256) public quotePending;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -77,7 +56,7 @@ contract VertexStable is ERC20, Owned {
         address indexed caller, address indexed owner, uint256 amountBase, uint256 amountQuote, uint256 shares
     );
 
-    event Withdraw(
+    event WithdrawRequest(
         address indexed caller,
         address indexed receiver,
         address indexed owner,
@@ -85,6 +64,8 @@ contract VertexStable is ERC20, Owned {
         uint256 amountQuote,
         uint256 shares
     );
+
+    event Claim(address indexed receiver, uint256 claimBase, uint256 claimQuote);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -100,11 +81,14 @@ contract VertexStable is ERC20, Owned {
     /// @notice Emitted when the slippage is too high when calculating the base token amounts.
     error SlippageTooHigh(uint256 amountQuote, uint256 quoteAmountLow, uint256 quoteAmountHigh);
 
-    // TODO: Add Natspec.
+    /// @notice Emitted when a deposit function is entered with a calculated amount of zero amount of shares.
     error ZeroShares();
 
-    // TODO: Add Natspec.
+    /// @notice Emitted when a redeem function is entered with an amount of shares that is equivalent to zero assets.
     error ZeroAssets();
+
+    /// @notice Emitted when a claim function is entered with a pending balance of zero for the quote or base tokens.
+    error ZeroClaim();
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTOR
@@ -124,8 +108,9 @@ contract VertexStable is ERC20, Owned {
         baseToken = _baseToken;
         quoteToken = _quoteToken;
         endpoint = IEndpoint(VertexFactory(msg.sender).endpoint());
+
         // It may happen that the quote token of endpoint payments is not the quote token of the vault/product.
-        paymentToken = ERC20(IClearinghouse(endpoint.clearinghouse()).getQuote());
+        ERC20 paymentToken = ERC20(IClearinghouse(endpoint.clearinghouse()).getQuote());
 
         // Fetch payment fee for linked signer transaciton.
         paymentToken.transferFrom(msg.sender, address(this), 1000000);
@@ -174,7 +159,7 @@ contract VertexStable is ERC20, Owned {
         // Deposit liquidity on Vertex.
         endpoint.depositCollateral(bytes12(contractSubaccount), productId, uint128(amountBase));
 
-        // NOTE: Assuming for token 1 to be USDC as it's the currently supported quote token.
+        // NOTE: Assumes quote token is USDC, so product id is 0.
         endpoint.depositCollateral(bytes12(contractSubaccount), 0, uint128(amountQuote));
 
         // Add the current amounts of base and quote tokens.
@@ -203,9 +188,13 @@ contract VertexStable is ERC20, Owned {
         _afterDeposit(amountBase, amountQuote, shares);
     }
 
-    // TODO: Fetch fees from Vertex.
+    /// @notice Sends a withdraw request for a given amount of base tokens for the equivalent amount of quote tokens.
+    /// @param amountBase The amount of base tokens to withdraw.
+    /// @param receiver The address to receive the withdrawn tokens.
+    /// @param owner The owner of the shares to withdraw.
     function withdraw(uint256 amountBase, address receiver, address owner) external returns (uint256 shares) {
         shares = previewWithdraw(amountBase); // No need to check for rounding error, previewWithdraw rounds up.
+
         // Fetch amount of quote token to withdraw respective to the amount of base token.
         uint256 amountQuote = calculateQuoteAmount(amountBase);
 
@@ -219,13 +208,13 @@ contract VertexStable is ERC20, Owned {
 
         _burn(owner, shares);
 
-        emit Withdraw(msg.sender, receiver, owner, amountBase, amountQuote, shares);
-
-        baseToken.safeTransfer(receiver, amountBase);
-        quoteToken.safeTransfer(receiver, amountQuote);
+        emit WithdrawRequest(msg.sender, receiver, owner, amountBase, amountQuote, shares);
     }
 
-    // TODO: Fetch fees from Vertex.
+    /// @notice Sends a redeem request for a given amount of shares for the equivalent amount of base and quote tokens.
+    /// @param shares The amount of shares to redeem.
+    /// @param receiver The address to receive the redeemed tokens.
+    /// @param owner The owner of the shares to redeem.
     function redeem(uint256 shares, address receiver, address owner)
         public
         returns (uint256 amountBase, uint256 amountQuote)
@@ -244,25 +233,66 @@ contract VertexStable is ERC20, Owned {
 
         _burn(owner, shares);
 
-        emit Withdraw(msg.sender, receiver, owner, amountBase, amountQuote, shares);
+        emit WithdrawRequest(msg.sender, receiver, owner, amountBase, amountQuote, shares);
+    }
 
-        baseToken.safeTransfer(receiver, amountBase);
-        quoteToken.safeTransfer(receiver, amountQuote);
+    /// @notice Claims all received base and quote tokens from the pending balance.
+    /// @param receiver The address to receive the claimed tokens.
+    function claim(address receiver) external returns (uint256 claimBase, uint256 claimQuote) {
+        claimBase = basePending[msg.sender];
+        claimQuote = quotePending[msg.sender];
+
+        if (claimBase == 0 || claimQuote == 0) revert ZeroClaim();
+
+        // Resets the pending balance of the receiver.
+        basePending[msg.sender] = 0;
+        quotePending[msg.sender] = 0;
+
+        // Transfers the tokens after to prevent reentrancy.
+        baseToken.safeTransfer(receiver, claimBase);
+        quoteToken.safeTransfer(receiver, claimQuote);
+    }
+
+    /// @notice Sends a request withdrawal transaction to Vertex.
+    /// @dev This function is only callable within the redeem and withdraw functions.
+    /// @param amountBase The amount of base tokens to withdraw.
+    /// @param amountQuote The amount of quote tokens to withdraw.
+    function request(uint256 amountBase, uint256 amountQuote) private {
+        IEndpoint.WithdrawCollateral memory withdrawalBase =
+            IEndpoint.WithdrawCollateral(contractSubaccount, productId, uint128(amountBase), 0);
+        // NOTE: Assumes quote token is USDC, so product id is 0.
+        IEndpoint.WithdrawCollateral memory withdrawalQuote =
+            IEndpoint.WithdrawCollateral(contractSubaccount, 0, uint128(amountQuote), 0);
+
+        // Send base token withdraw request.
+        endpoint.submitSlowModeTransaction(abi.encodePacked(abi.encode(2), abi.encode(withdrawalBase)));
+
+        // Send quote token withdraw request.
+        endpoint.submitSlowModeTransaction(abi.encodePacked(abi.encode(2), abi.encode(withdrawalQuote)));
+
+        // Add the amounts of each token as pending.
+        // Cannot overflow because the sum of all user
+        // balances can't exceed the max uint256 value.
+        unchecked {
+            basePending[msg.sender] += amountBase;
+            quotePending[msg.sender] += amountQuote;
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
                             ACCOUNTING LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function totalAssets() public view returns (uint256) {
-        // TODO: Implement correctly
-        return 0;
+    function totalAssets() public view returns (uint256, uint256) {
+        return (baseCurrent, quoteCurrent);
     }
 
     function calculateQuoteAmount(uint256 amountBase) public view returns (uint256) {
         return baseCurrent == 0
-            ? amountBase.unsafeMod(endpoint.getPriceX18(productId))
-            : amountBase.unsafeMod(quoteCurrent.unsafeDiv(baseCurrent));
+            ? amountBase.mulDivDown(
+                endpoint.getPriceX18(productId), 10 ** (18 + (baseToken.decimals() - quoteToken.decimals()))
+            )
+            : amountBase.mulDivDown(quoteCurrent.unsafeDiv(baseCurrent), 1 ether);
     }
 
     function convertToShares(uint256 amountBase, uint256 amountQuote) public view returns (uint256) {
@@ -276,7 +306,7 @@ contract VertexStable is ERC20, Owned {
         // TODO: Check math calculation for both cases
         return supply == 0
             ? (shares, shares)
-            : (shares.mulDivUp(totalAssets(), supply), shares.mulDivUp(totalAssets(), supply));
+            : (shares.mulDivUp(baseCurrent, supply), shares.mulDivUp(quoteCurrent, supply));
     }
 
     function previewDeposit(uint256 amountBase, uint256 amountQuote) public view returns (uint256) {
@@ -289,7 +319,7 @@ contract VertexStable is ERC20, Owned {
         // TODO: Check for the calculation when supply is not 0 (especially withe ach return value depending on totalAssets)
         return supply == 0
             ? (shares, shares)
-            : (shares.mulDivUp(totalAssets(), supply), shares.mulDivUp(totalAssets(), supply));
+            : (shares.mulDivUp(baseCurrent, supply), shares.mulDivUp(quoteCurrent, supply));
     }
 
     function previewWithdraw(uint256 amountBase) public view virtual returns (uint256) {
@@ -306,11 +336,11 @@ contract VertexStable is ERC20, Owned {
     //                  DEPOSIT/WITHDRAWAL LIMIT LOGIC
     // //////////////////////////////////////////////////////////////*/
 
-    function maxDeposit(address) public view returns (uint256) {
+    function maxDeposit(address) public pure returns (uint256) {
         return type(uint256).max;
     }
 
-    function maxMint(address) public view returns (uint256) {
+    function maxMint(address) public pure returns (uint256) {
         return type(uint256).max;
     }
 
@@ -326,8 +356,9 @@ contract VertexStable is ERC20, Owned {
     //                       INTERNAL HOOKS LOGIC
     // //////////////////////////////////////////////////////////////*/
 
-    function _beforeWithdraw(uint256 amountBase, uint256 amountQuote, uint256 shares) internal {
-        // TODO: Check anything before withdraw?
+    function _beforeWithdraw(uint256 amountBase, uint256 amountQuote, uint256) internal {
+        // TODO: Fetch fees from Vertex (add it as extra of baes and quote amounts)
+        request(amountBase, amountQuote);
     }
 
     function _afterDeposit(uint256 amountBase, uint256 amountQuote, uint256 shares) internal {

@@ -70,103 +70,92 @@ contract TestVertexStable is Test, VertexContracts {
         assertEq(quoteToken.balanceOf(address(this)), preDepositBalQuote);
     }
 
-    // function testAtomicDepositRedeem() public {
-    //     underlying.mint(address(this), 1e18);
-    //     underlying.approve(address(vault), 1e18);
+    function testDepositRedeem() public {
+        uint256 amountBase = 10 ** baseToken.decimals();
+        uint256 amountQuote = vault.calculateQuoteAmount(amountBase);
 
-    //     uint256 preDepositBal = underlying.balanceOf(address(this));
+        deal(address(baseToken), address(this), amountBase);
+        deal(address(quoteToken), address(this), amountQuote);
 
-    //     vault.deposit(1e18, address(this));
+        baseToken.approve(address(vault), amountBase);
+        quoteToken.approve(address(vault), amountQuote);
 
-    //     assertEq(vault.convertToAssets(10 ** vault.decimals()), 1e18);
-    //     assertEq(vault.totalStrategyHoldings(), 0);
-    //     assertEq(vault.totalAssets(), 1e18);
-    //     assertEq(vault.totalFloat(), 1e18);
-    //     assertEq(vault.balanceOf(address(this)), 1e18);
-    //     assertEq(vault.convertToAssets(vault.balanceOf(address(this))), 1e18);
-    //     assertEq(underlying.balanceOf(address(this)), preDepositBal - 1e18);
+        uint256 preDepositBalBase = baseToken.balanceOf(address(this));
+        uint256 preDepositBalQuote = quoteToken.balanceOf(address(this));
 
-    //     vault.redeem(1e18, address(this), address(this));
+        uint256 shares = vault.deposit(amountBase, 1, amountQuote, address(this));
 
-    //     assertEq(vault.convertToAssets(10 ** vault.decimals()), 1e18);
-    //     assertEq(vault.totalStrategyHoldings(), 0);
-    //     assertEq(vault.totalAssets(), 0);
-    //     assertEq(vault.totalFloat(), 0);
-    //     assertEq(vault.balanceOf(address(this)), 0);
-    //     assertEq(vault.convertToAssets(vault.balanceOf(address(this))), 0);
-    //     assertEq(underlying.balanceOf(address(this)), preDepositBal);
-    // }
+        (uint256 convertedBase, uint256 convertedQuote) = vault.convertToAssets(shares);
 
-    // function testDepositRedeem(uint256 amount) public {
-    //     amount = bound(amount, 1e5, 1e27);
+        assertEq(convertedBase, amountBase);
+        assertEq(convertedQuote, amountQuote);
+        assertEq(vault.baseCurrent(), amountBase);
+        assertEq(vault.quoteCurrent(), amountQuote);
+        assertEq(vault.balanceOf(address(this)), amountBase + amountQuote);
+        assertEq(baseToken.balanceOf(address(this)), preDepositBalBase - amountBase);
+        assertEq(quoteToken.balanceOf(address(this)), preDepositBalQuote - amountQuote);
 
-    //     underlying.mint(address(this), amount);
-    //     underlying.approve(address(vault), amount);
+        vault.redeem(shares, address(this), address(this));
 
-    //     uint256 preDepositBal = underlying.balanceOf(address(this));
+        assertEq(vault.totalSupply(), 0);
+        assertEq(vault.balanceOf(address(this)), 0);
+        assertEq(vault.balanceOf(address(this)), 0);
+        assertEq(baseToken.balanceOf(address(this)), preDepositBalBase);
+        assertEq(quoteToken.balanceOf(address(this)), preDepositBalQuote);
+    }
 
-    //     vault.deposit(amount, address(this));
+    /*///////////////////////////////////////////////////////////////
+                 DEPOSIT/WITHDRAWAL SANITY CHECK TESTS
+    //////////////////////////////////////////////////////////////*/
 
-    //     assertEq(vault.convertToAssets(10 ** vault.decimals()), 1e18);
-    //     assertEq(vault.totalStrategyHoldings(), 0);
-    //     assertEq(vault.totalAssets(), amount);
-    //     assertEq(vault.totalFloat(), amount);
-    //     assertEq(vault.balanceOf(address(this)), amount);
-    //     assertEq(vault.convertToAssets(vault.balanceOf(address(this))), amount);
-    //     assertEq(underlying.balanceOf(address(this)), preDepositBal - amount);
+    function testFailDepositWithNotEnoughApproval(uint256 amountBase) public {
+        uint256 amountQuote = vault.calculateQuoteAmount(amountBase);
 
-    //     vault.redeem(amount, address(this), address(this));
+        deal(address(baseToken), address(this), amountBase);
+        deal(address(quoteToken), address(this), amountQuote);
 
-    //     assertEq(vault.convertToAssets(10 ** vault.decimals()), 1e18);
-    //     assertEq(vault.totalStrategyHoldings(), 0);
-    //     assertEq(vault.totalAssets(), 0);
-    //     assertEq(vault.totalFloat(), 0);
-    //     assertEq(vault.balanceOf(address(this)), 0);
-    //     assertEq(vault.convertToAssets(vault.balanceOf(address(this))), 0);
-    //     assertEq(underlying.balanceOf(address(this)), preDepositBal);
-    // }
+        baseToken.approve(address(vault), amountBase / 2);
+        quoteToken.approve(address(vault), amountQuote / 2);
 
-    // /*///////////////////////////////////////////////////////////////
-    //              DEPOSIT/WITHDRAWAL SANITY CHECK TESTS
-    // //////////////////////////////////////////////////////////////*/
+        vault.deposit(amountBase, 1, amountQuote, address(this));
+    }
 
-    // function testFailDepositWithNotEnoughApproval(uint256 amount) public {
-    //     underlying.mint(address(this), amount / 2);
-    //     underlying.approve(address(vault), amount / 2);
+    function testFailWithdrawWithNotEnoughBalance(uint256 amountBase) public {
+        uint256 amountQuote = vault.calculateQuoteAmount(amountBase);
 
-    //     vault.deposit(amount, address(this));
-    // }
+        deal(address(baseToken), address(this), amountBase / 2);
+        deal(address(quoteToken), address(this), amountQuote / 2);
 
-    // function testFailWithdrawWithNotEnoughBalance(uint256 amount) public {
-    //     underlying.mint(address(this), amount / 2);
-    //     underlying.approve(address(vault), amount / 2);
+        vault.deposit(amountBase / 2, 1, amountQuote, address(this));
 
-    //     vault.deposit(amount / 2, address(this));
+        vault.withdraw(amountBase, address(this), address(this));
+    }
 
-    //     vault.withdraw(amount, address(this), address(this));
-    // }
+    function testFailRedeemWithNotEnoughBalance(uint256 amountBase) public {
+        uint256 amountQuote = vault.calculateQuoteAmount(amountBase);
 
-    // function testFailRedeemWithNotEnoughBalance(uint256 amount) public {
-    //     underlying.mint(address(this), amount / 2);
-    //     underlying.approve(address(vault), amount / 2);
+        deal(address(baseToken), address(this), amountBase / 2);
+        deal(address(quoteToken), address(this), amountQuote / 2);
 
-    //     vault.deposit(amount / 2, address(this));
+        vault.deposit(amountBase / 2, 1, amountQuote, address(this));
 
-    //     vault.redeem(amount, address(this), address(this));
-    // }
+        vault.redeem(amountBase, address(this), address(this));
+    }
 
-    // function testFailWithdrawWithNoBalance(uint256 amount) public {
-    //     if (amount == 0) amount = 1;
-    //     vault.withdraw(amount, address(this), address(this));
-    // }
+    function testFailWithdrawWithNoBalance(uint256 amountBase) public {
+        if (amountBase == 0) amountBase = 1;
+        vault.withdraw(amountBase, address(this), address(this));
+    }
 
-    // function testFailRedeemWithNoBalance(uint256 amount) public {
-    //     vault.redeem(amount, address(this), address(this));
-    // }
+    function testFailRedeemWithNoBalance(uint256 amountBase) public {
+        vault.redeem(amountBase, address(this), address(this));
+    }
 
-    // function testFailDepositWithNoApproval(uint256 amount) public {
-    //     vault.deposit(amount, address(this));
-    // }
+    function testFailDepositWithNoApproval(uint256 amountBase) public {
+        vault.deposit(amountBase, 1, type(uint256).max, address(this));
+    }
+
+    // TODO: Test fail slippage
 
     // /*///////////////////////////////////////////////////////////////
     //                  STRATEGY DEPOSIT/WITHDRAWAL TESTS

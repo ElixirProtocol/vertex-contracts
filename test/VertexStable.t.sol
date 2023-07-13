@@ -75,7 +75,7 @@ contract TestVertexStable is Test, VertexContracts {
         assertEq(baseToken.balanceOf(address(vault)), 0);
         assertEq(quoteToken.balanceOf(address(vault)), 0);
 
-        vault.withdraw(amountBase, address(this), address(this));
+        vault.withdraw(amountBase, address(this));
 
         assertEq(vault.balanceOf(address(this)), 0);
         assertEq(vault.totalSupply(), 0);
@@ -130,7 +130,7 @@ contract TestVertexStable is Test, VertexContracts {
         assertEq(baseToken.balanceOf(address(vault)), 0);
         assertEq(quoteToken.balanceOf(address(vault)), 0);
 
-        vault.redeem(shares, address(this), address(this));
+        vault.redeem(shares, address(this));
 
         assertEq(vault.balanceOf(address(this)), 0);
         assertEq(vault.totalSupply(), 0);
@@ -171,7 +171,7 @@ contract TestVertexStable is Test, VertexContracts {
 
         vault.deposit(amountBase, 1, amountQuote, address(this));
 
-        vault.withdraw(amountBase, address(this), address(this));
+        vault.withdraw(amountBase, address(this));
     }
 
     function testDepositRedeemUnprocessed() public {
@@ -188,7 +188,7 @@ contract TestVertexStable is Test, VertexContracts {
 
         vault.previewRedeem(shares);
 
-        vault.redeem(shares, address(this), address(this));
+        vault.redeem(shares, address(this));
     }
 
     // TODO: Deposit + withdraw with funds already in vault.
@@ -222,7 +222,7 @@ contract TestVertexStable is Test, VertexContracts {
         vm.warp(block.timestamp + 259200);
         endpoint.executeSlowModeTransactions(2);
 
-        vault.withdraw(amountBase, address(this), address(this));
+        vault.withdraw(amountBase, address(this));
     }
 
     function testFailRedeemWithNotEnoughBalance(uint256 amountBase) public {
@@ -237,16 +237,16 @@ contract TestVertexStable is Test, VertexContracts {
         vm.warp(block.timestamp + 259200);
         endpoint.executeSlowModeTransactions(2);
 
-        vault.redeem(amountBase, address(this), address(this));
+        vault.redeem(amountBase, address(this));
     }
 
     function testFailWithdrawWithNoBalance(uint256 amountBase) public {
         if (amountBase == 0) amountBase = 1;
-        vault.withdraw(amountBase, address(this), address(this));
+        vault.withdraw(amountBase, address(this));
     }
 
     function testFailRedeemWithNoBalance(uint256 amountBase) public {
-        vault.redeem(amountBase, address(this), address(this));
+        vault.redeem(amountBase, address(this));
     }
 
     function testFailDepositWithNoApproval(uint256 amountBase) public {
@@ -280,7 +280,7 @@ contract TestVertexStable is Test, VertexContracts {
         vm.warp(block.timestamp + 259200);
         endpoint.executeSlowModeTransactions(2);
 
-        vault.withdraw(amountBase, address(this), address(this));
+        vault.withdraw(amountBase, address(this));
 
         vault.claim(address(this));
     }
@@ -300,7 +300,7 @@ contract TestVertexStable is Test, VertexContracts {
         vm.warp(block.timestamp + 259200);
         endpoint.executeSlowModeTransactions(2);
 
-        vault.redeem(shares, address(this), address(this));
+        vault.redeem(shares, address(this));
 
         vault.claim(address(this));
     }
@@ -320,7 +320,7 @@ contract TestVertexStable is Test, VertexContracts {
         vm.warp(block.timestamp + 259200);
         endpoint.executeSlowModeTransactions(2);
 
-        vault.redeem(shares, address(this), address(this));
+        vault.redeem(shares, address(this));
 
         // Advance time for redeem slow-mode tx.
         vm.warp(block.timestamp + 259200);

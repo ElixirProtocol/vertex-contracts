@@ -9,7 +9,7 @@ import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.
 import {UUPSUpgradeable} from "openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
 
-import {IClearinghouse} from "./interfaces/clearinghouse/IClearinghouse.sol";
+import {IClearinghouse} from "./interfaces/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
 import {VertexStable} from "./VertexStable.sol";
 
@@ -43,7 +43,7 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /// @param baseToken The base token of the vault.
     /// @param quoteToken The quote token of the vault.
     /// @param vault The address of the created vault.
-    event VaultDeployed(address baseToken, address quoteToken, address vault);
+    event VaultDeployed(address indexed baseToken, address indexed quoteToken, address indexed vault);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS

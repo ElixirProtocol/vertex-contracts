@@ -7,7 +7,7 @@ import {Utils} from "./utils/Utils.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-import {IClearinghouse} from "../src/interfaces/clearinghouse/IClearinghouse.sol";
+import {IClearinghouse} from "../src/interfaces/IClearinghouse.sol";
 import {IEndpoint} from "../src/interfaces/IEndpoint.sol";
 import {VertexFactory} from "../src/VertexFactory.sol";
 

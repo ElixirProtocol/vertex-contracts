@@ -12,3 +12,8 @@ docs/
 
 # Dotenv file
 .env
+
+# General
+.DS_Store
+.AppleDouble
+.LSOverride

@@ -235,6 +235,10 @@ interface IEndpoint is IVersion {
 
     function clearinghouse() external view returns (IClearinghouse);
 
+    function slowModeConfig() external view returns (SlowModeConfig memory);
+
+    function executeSlowModeTransactions(uint32 count) external;
+
     function depositCollateral(bytes12 subaccountName, uint32 productId, uint128 amount) external;
 
     function setBook(uint32 productId, address book) external;

@@ -80,6 +80,6 @@ contract VertexContracts is Test {
         vertexFactory.initialize(clearingHouse, endpoint, EXTERNAL_ACCOUNT, FACTORY_OWNER);
 
         // Deal payment token to the factory, which pays for the slow mode transactions of all the vaults.
-        deal(address(paymentToken), address(vertexFactory), 100 ether);
+        deal(address(paymentToken), address(vertexFactory), type(uint128).max);
     }
 }

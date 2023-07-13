@@ -3,7 +3,7 @@ pragma solidity 0.8.19;
 
 import "forge-std/Test.sol";
 
-import {VertexContracts} from "./VertexContracts.sol";
+import {VertexContracts} from "./VertexContracts.t.sol";
 import {VertexStable} from "../src/VertexStable.sol";
 import {VertexFactory} from "../src/VertexFactory.sol";
 
@@ -22,7 +22,7 @@ contract TestVertexStable is Test, VertexContracts {
 
     function setUp() public {
         // Fork network, deploy factory, and prepare contracts.
-        factorySetUp();
+        testSetUp();
 
         // Deploy a VertexStable vault.
         vm.prank(FACTORY_OWNER);

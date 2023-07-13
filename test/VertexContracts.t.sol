@@ -3,13 +3,20 @@ pragma solidity 0.8.19;
 
 import "forge-std/Test.sol";
 
-import {Utils} from "./utils/Utils.sol";
+import {Utils} from "./utils/Utils.t.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
+import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {IClearinghouse} from "../src/interfaces/IClearinghouse.sol";
 import {IEndpoint} from "../src/interfaces/IEndpoint.sol";
 import {VertexFactory} from "../src/VertexFactory.sol";
+
+contract UUPSProxy is ERC1967Proxy {
+    constructor(address _implementation, bytes memory _data)
+        ERC1967Proxy(_implementation, _data)
+    {}
+}
 
 contract VertexContracts is Test {
     Utils internal utils;
@@ -23,6 +30,9 @@ contract VertexContracts is Test {
     ERC20 internal paymentToken;
     IClearinghouse internal clearingHouse;
 
+    // Elixir contracts
+    VertexFactory internal vertexFactoryImplementation;
+    UUPSProxy internal proxy;
     VertexFactory internal vertexFactory;
 
     // Assuming base token is WBTC and quote token is USDC.
@@ -60,7 +70,7 @@ contract VertexContracts is Test {
         paymentToken = ERC20(clearingHouse.getQuote());
     }
 
-    function factorySetUp() public {
+    function testSetUp() public {
         utils = new Utils();
         address payable[] memory users = utils.createUsers(3);
 
@@ -76,7 +86,15 @@ contract VertexContracts is Test {
         // Fork network and fetch Vertex contracts.
         prepare();
 
-        vertexFactory = new VertexFactory();
+        // Deploy Factory implementation
+        vertexFactoryImplementation = new VertexFactory();
+
+        // Deploy proxy contract and point it to implementation
+        proxy = new UUPSProxy(address(vertexFactoryImplementation), "");
+
+        // wrap in ABI to support easier calls
+        vertexFactory = VertexFactory(address(proxy));
+
         vertexFactory.initialize(clearingHouse, endpoint, EXTERNAL_ACCOUNT, FACTORY_OWNER);
 
         // Deal payment token to the factory, which pays for the slow mode transactions of all the vaults.

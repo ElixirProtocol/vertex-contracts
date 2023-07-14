@@ -10,9 +10,9 @@ import {VertexFactory} from "./VertexFactory.sol";
 import {IClearinghouse} from "./interfaces/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
 
-/// @title Elixir-based vault for Vertex
+/// @title Elixir Stable Vault for Vertex
 /// @author The Elixir Team
-/// @notice Liquidity vault aggregator for marketing making in Vertex Protocol.
+/// @notice Liquidity vault aggregator for market making on stable pairs in Vertex Protocol.
 contract VertexStable is ERC20, Owned {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
@@ -54,6 +54,15 @@ contract VertexStable is ERC20, Owned {
     /// @notice Payment token for slow mode transactions through Vertex.
     ERC20 public immutable paymentToken;
 
+    /// @notice The pause status of deposits.
+    bool public depositPaused;
+
+    /// @notice The pause status of withdrawals.
+    bool public withdrawPaused;
+
+    /// @notice The pause status of claims.
+    bool public claimPaused;
+
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
@@ -84,6 +93,12 @@ contract VertexStable is ERC20, Owned {
     /// @param claimBase The amount of base tokens claimed.
     /// @param claimQuote The amount of quote tokens claimed.
     event Claim(address indexed caller, address indexed receiver, uint256 claimBase, uint256 claimQuote);
+
+    /// @notice Emitted when pause statuses are updated.
+    /// @param depositPaused True when deposits are paused, false otherwise.
+    /// @param withdrawPaused True when withdrawals are paused, false otherwise.
+    /// @param claimPaused True when claims are paused, false otherwise.
+    event PauseUpdated(bool depositPaused, bool withdrawPaused, bool claimPaused);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -120,6 +135,37 @@ contract VertexStable is ERC20, Owned {
     /// @param calculatedAmountBase The amount of base tokens calculated.
     error InvalidCalculation(uint256 shares, uint256 amountBase, uint256 calculatedAmountBase);
 
+    /// @notice Emitted when deposits (deposit and mint) are paused.
+    error DepositsPaused();
+
+    /// @notice Emitted when withdrawals (withdraw and redeem) are paused.
+    error WithdrawalsPaused();
+
+    /// @notice Emitted when claims are paused.
+    error ClaimsPaused();
+
+    /*//////////////////////////////////////////////////////////////
+                                MODIFIERS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Reverts when deposits are paused.
+    modifier whenDepositNotPaused() {
+        if (depositPaused) revert DepositsPaused();
+        _;
+    }
+
+    /// @notice Reverts when withdrawals are paused.
+    modifier whenWithdrawNotPaused() {
+        if (withdrawPaused) revert WithdrawalsPaused();
+        _;
+    }
+
+    /// @notice Reverts when claims are paused.
+    modifier whenClaimNotPaused() {
+        if (claimPaused) revert ClaimsPaused();
+        _;
+    }
+
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
@@ -152,7 +198,9 @@ contract VertexStable is ERC20, Owned {
         IEndpoint.LinkSigner memory linkSigner = IEndpoint.LinkSigner(contractSubaccount, externalSubaccount, 0);
 
         // Submit transaction to Vertex after fetching fee to pay.
-        submitSlowModeTransaction(abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner)));
+        _submitSlowModeTransaction(
+            abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner))
+        );
 
         // Approve Vertex to transfer tokens.
         baseToken.approve(address(endpoint), type(uint256).max);
@@ -160,7 +208,7 @@ contract VertexStable is ERC20, Owned {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        DEPOSIT/WITHDRAWAL LOGIC
+                        DEPOSIT/WITHDRAWAL ENTRY
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Deposits base and quote tokens into the vault, which are sent to Vertex, before minting the equivalent shares.
@@ -170,6 +218,7 @@ contract VertexStable is ERC20, Owned {
     /// @param receiver The address that will receive the shares.
     function deposit(uint256 amountBase, uint256 quoteAmountLow, uint256 quoteAmountHigh, address receiver)
         external
+        whenDepositNotPaused
         returns (uint256 shares)
     {
         if (!(amountBase > 0) || !(quoteAmountLow > 0) || !(quoteAmountHigh > 0) || !(quoteAmountLow < quoteAmountHigh))
@@ -188,57 +237,28 @@ contract VertexStable is ERC20, Owned {
         // Check for rounding error since we round down in previewDeposit.
         if ((shares = previewDeposit(amountBase, amountQuote)) == 0) revert ZeroShares();
 
-        // Transfer both tokens before minting or ERC777s could reenter.
-        baseToken.safeTransferFrom(msg.sender, address(this), amountBase);
-        quoteToken.safeTransferFrom(msg.sender, address(this), amountQuote);
-
-        IEndpoint.DepositCollateral memory depositBase =
-            IEndpoint.DepositCollateral(contractSubaccount, productId, uint128(amountBase));
-        // NOTE: Assumes quote token is USDC, so product id is 0.
-        IEndpoint.DepositCollateral memory depositQuote =
-            IEndpoint.DepositCollateral(contractSubaccount, 0, uint128(amountQuote));
-
-        // Send deposit requests to Vertex.
-        submitSlowModeTransaction(
-            abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositBase))
-        );
-        submitSlowModeTransaction(
-            abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositQuote))
-        );
-
-        // Add the current amounts of base and quote tokens.
-        baseActive += amountBase;
-        quoteActive += amountQuote;
-
-        // Mint shares equivalent to deposit liquidity.
-        _mint(receiver, shares);
-
-        emit Deposit(msg.sender, receiver, amountBase, amountQuote, shares);
-
-        _afterDeposit(amountBase, amountQuote, shares);
+        // Execute the universal deposit logic.
+        _depositLogic(amountBase, amountQuote, receiver, shares);
     }
 
     /// @notice Given an amount of shares, deposits base and quote tokens into the vault, which are sent to Vertex, before minting the shares.
     /// @param shares The amount of shares to mint.
     /// @param receiver The address that will receive the shares.
-    function mint(uint256 shares, address receiver) external returns (uint256 amountBase, uint256 amountQuote) {
+    function mint(uint256 shares, address receiver)
+        external
+        whenDepositNotPaused
+        returns (uint256 amountBase, uint256 amountQuote)
+    {
         (amountBase, amountQuote) = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
 
-        // Transfer both tokens before minting or ERC777s could reenter.
-        baseToken.safeTransferFrom(msg.sender, address(this), amountBase);
-        quoteToken.safeTransferFrom(msg.sender, address(this), amountQuote);
-
-        _mint(receiver, shares);
-
-        emit Deposit(msg.sender, receiver, amountBase, amountQuote, shares);
-
-        _afterDeposit(amountBase, amountQuote, shares);
+        // Execute the universal deposit logic.
+        _depositLogic(amountBase, amountQuote, receiver, shares);
     }
 
     /// @notice Sends a withdraw request to Vertex for a given amount of base tokens and the equivalent amount of quote tokens.
     /// @param amountBase The amount of base tokens to withdraw.
     /// @param owner The owner of the shares to withdraw.
-    function withdraw(uint256 amountBase, address owner) external returns (uint256 shares) {
+    function withdraw(uint256 amountBase, address owner) external whenWithdrawNotPaused returns (uint256 shares) {
         shares = previewWithdraw(amountBase); // No need to check for rounding error, previewWithdraw rounds up.
 
         // Fetch amount of quote token to withdraw respective to the amount of base token.
@@ -252,37 +272,33 @@ contract VertexStable is ERC20, Owned {
             if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
         }
 
-        _beforeWithdraw(amountBase, amountQuote);
-
-        _burn(owner, shares);
-
-        emit Withdraw(msg.sender, owner, amountBase, amountQuote, shares);
+        _withdrawLogic(amountBase, amountQuote, owner, shares);
     }
 
     /// @notice Sends a redeem request to Vertex for a given amount of shares for the equivalent amount of base and quote tokens.
     /// @param shares The amount of shares to redeem.
     /// @param owner The owner of the shares to redeem.
-    function redeem(uint256 shares, address owner) public returns (uint256 amountBase, uint256 amountQuote) {
+    function redeem(uint256 shares, address owner)
+        external
+        whenWithdrawNotPaused
+        returns (uint256 amountBase, uint256 amountQuote)
+    {
+        // Check for rounding error since we round down in previewRedeem.
+        (amountBase, amountQuote) = previewRedeem(shares);
+        if (amountBase == 0 && amountQuote == 0) revert ZeroAssets();
+
         if (msg.sender != owner) {
             uint256 allowed = allowance[owner][msg.sender]; // Saves gas for limited approvals.
 
             if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
         }
 
-        // Check for rounding error since we round down in previewRedeem.
-        (amountBase, amountQuote) = previewRedeem(shares);
-        if (amountBase == 0 && amountQuote == 0) revert ZeroAssets();
-
-        _beforeWithdraw(amountBase, amountQuote);
-
-        _burn(owner, shares);
-
-        emit Withdraw(msg.sender, owner, amountBase, amountQuote, shares);
+        _withdrawLogic(amountBase, amountQuote, owner, shares);
     }
 
     /// @notice Claims all received base and quote tokens from the pending balance.
     /// @param receiver The address to receive the claimed tokens.
-    function claim(address receiver) external returns (uint256 claimBase, uint256 claimQuote) {
+    function claim(address receiver) external whenClaimNotPaused returns (uint256 claimBase, uint256 claimQuote) {
         claimBase = basePending[msg.sender];
         claimQuote = quotePending[msg.sender];
 
@@ -297,38 +313,6 @@ contract VertexStable is ERC20, Owned {
         quoteToken.safeTransfer(receiver, claimQuote);
 
         emit Claim(msg.sender, receiver, claimBase, claimQuote);
-    }
-
-    /// @notice Sends a withdraw transaction to Vertex.
-    /// @dev This function should only callable within the redeem and withdraw functions.
-    /// @param amountBase The amount of base tokens to withdraw from Vertex.
-    /// @param amountQuote The amount of quote tokens to withdraw from Vertex.
-    function request(uint256 amountBase, uint256 amountQuote) internal {
-        IEndpoint.WithdrawCollateral memory withdrawalBase =
-            IEndpoint.WithdrawCollateral(contractSubaccount, productId, uint128(amountBase), 0);
-        // NOTE: Assumes quote token is USDC, so product id is 0.
-        IEndpoint.WithdrawCollateral memory withdrawalQuote =
-            IEndpoint.WithdrawCollateral(contractSubaccount, 0, uint128(amountQuote), 0);
-
-        // Send withdraw requests to Vertex.
-        submitSlowModeTransaction(
-            abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawalBase))
-        );
-        submitSlowModeTransaction(
-            abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawalQuote))
-        );
-
-        // Subtract the amounts of each token from the active market making balance.
-        baseActive -= amountBase;
-        quoteActive -= amountQuote;
-
-        // Add the amounts of each token as pending.
-        // Cannot overflow because the sum of all user
-        // balances can't exceed the max uint256 value.
-        unchecked {
-            basePending[msg.sender] += amountBase;
-            quotePending[msg.sender] += amountQuote;
-        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -423,7 +407,7 @@ contract VertexStable is ERC20, Owned {
 
     /// @notice Submits a slow mode transaction to Vertex.
     /// @param transaction The transaction to submit.
-    function submitSlowModeTransaction(bytes memory transaction) internal {
+    function _submitSlowModeTransaction(bytes memory transaction) internal {
         // Deposit collateral doens't have fees.
         if (uint8(transaction[0]) != uint8(IEndpoint.TransactionType.DepositCollateral)) {
             // Fetch payment fee.
@@ -434,27 +418,97 @@ contract VertexStable is ERC20, Owned {
     }
 
     /*//////////////////////////////////////////////////////////////
-                          INTERNAL HOOKS LOGIC
+                       DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Hook called before a deposit.
-    /// @param amountBase The amount of base tokens deposited.
-    /// @param amountQuote The amount of quote tokens deposited.
-    function _beforeWithdraw(uint256 amountBase, uint256 amountQuote) internal {
-        // TODO: Fetch fees from Vertex (add it as extra of baes and quote amounts)
-        request(amountBase, amountQuote);
+    /// @notice Hook executed in a deposit or mint function.
+    /// @dev This function transfers the tokens from the user, sends two slow-mode transactions
+    // to Vertex, and updates internal balances.
+    /// @param amountBase The amount of base tokens to deposit.
+    /// @param amountQuote The amount of quote tokens to deposit.
+    /// @param receiver The address that will receive the shares.
+    /// @param shares The amount of shares to mint.
+    function _depositLogic(uint256 amountBase, uint256 amountQuote, address receiver, uint256 shares) internal {
+        // Transfer both tokens before minting or ERC777s could reenter.
+        baseToken.safeTransferFrom(msg.sender, address(this), amountBase);
+        quoteToken.safeTransferFrom(msg.sender, address(this), amountQuote);
 
-        // TODO: Decrease baseActive and quoteActive
+        IEndpoint.DepositCollateral memory depositBase =
+            IEndpoint.DepositCollateral(contractSubaccount, productId, uint128(amountBase));
+        // NOTE: Assumes quote token is USDC, so product id is 0.
+        IEndpoint.DepositCollateral memory depositQuote =
+            IEndpoint.DepositCollateral(contractSubaccount, 0, uint128(amountQuote));
+
+        // Send deposit requests to Vertex.
+        _submitSlowModeTransaction(
+            abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositBase))
+        );
+        _submitSlowModeTransaction(
+            abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositQuote))
+        );
+
+        // Add the current amounts of base and quote tokens.
+        baseActive += amountBase;
+        quoteActive += amountQuote;
+
+        // Mint shares equivalent to deposit liquidity.
+        _mint(receiver, shares);
+
+        emit Deposit(msg.sender, receiver, amountBase, amountQuote, shares);
     }
 
-    /// @notice Hook called after a deposit.
-    function _afterDeposit(uint256, uint256, uint256) internal {
-        // TODO: Checks after deposit?
+    /// @notice Hook executed in a withdraw or redeem function.
+    /// @dev This function sends two slow-mode transactions to Vertex, and updates internal balances.
+    /// @param amountBase The amount of base tokens to withdraw from Vertex.
+    /// @param amountQuote The amount of quote tokens to withdraw from Vertex.
+    /// @param owner The address from which the shares are burned from.
+    /// @param shares The amount of shares to burn.
+    function _withdrawLogic(uint256 amountBase, uint256 amountQuote, address owner, uint256 shares) internal {
+        // TODO: Fetch fees from Vertex (add it as extra of baes and quote amounts)
+        IEndpoint.WithdrawCollateral memory withdrawalBase =
+            IEndpoint.WithdrawCollateral(contractSubaccount, productId, uint128(amountBase), 0);
+        // NOTE: Assumes quote token is USDC, so product id is 0.
+        IEndpoint.WithdrawCollateral memory withdrawalQuote =
+            IEndpoint.WithdrawCollateral(contractSubaccount, 0, uint128(amountQuote), 0);
+
+        // Send withdraw requests to Vertex.
+        _submitSlowModeTransaction(
+            abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawalBase))
+        );
+        _submitSlowModeTransaction(
+            abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawalQuote))
+        );
+
+        // Subtract the amounts of each token from the active market making balance.
+        baseActive -= amountBase;
+        quoteActive -= amountQuote;
+
+        // Add the amounts of each token as pending.
+        // Cannot overflow because the sum of all user
+        // balances can't exceed the max uint256 value.
+        unchecked {
+            basePending[msg.sender] += amountBase;
+            quotePending[msg.sender] += amountQuote;
+        }
+
+        _burn(owner, shares);
+
+        emit Withdraw(msg.sender, owner, amountBase, amountQuote, shares);
     }
 
     /*//////////////////////////////////////////////////////////////
                           PERMISSIONED FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    // TODO: Pause and unpause functions (deposit pause or withdraw pause)
+    /// @notice Manages the paused status of deposits, withdrawals, and claims
+    /// @param _depositPaused True to pause deposits, false otherwise.
+    /// @param _withdrawPaused True to pause withdrawals, false otherwise.
+    /// @param _claimPaused True to pause claims, false otherwise.
+    function pause(bool _depositPaused, bool _withdrawPaused, bool _claimPaused) external onlyOwner {
+        depositPaused = _depositPaused;
+        withdrawPaused = _withdrawPaused;
+        claimPaused = _claimPaused;
+
+        emit PauseUpdated(depositPaused, withdrawPaused, claimPaused); 
+    }
 }

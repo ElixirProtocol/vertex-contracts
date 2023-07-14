@@ -38,7 +38,7 @@ contract TestVertexStable is Test, VertexContracts {
         endpoint.executeSlowModeTransactions(uint32(queue.txCount - queue.txUpTo));
     }
 
-    /*///////////////////////////////////////////////////////////////
+    /*//////////////////////////////////////////////////////////////
                         DEPOSIT/WITHDRAWAL TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -56,6 +56,59 @@ contract TestVertexStable is Test, VertexContracts {
         uint256 preDepositBalQuote = quoteToken.balanceOf(address(this));
 
         uint256 shares = vault.deposit(amountBase, 1, amountQuote, address(this));
+
+        assertEq(shares, vault.balanceOf(address(this)));
+
+        (uint256 convertedBase, uint256 convertedQuote) = vault.convertToAssets(shares);
+
+        // Advance time for deposit slow-mode tx.
+        vm.warp(block.timestamp + 259200);
+        endpoint.executeSlowModeTransactions(2);
+
+        assertEq(convertedBase, amountBase);
+        assertEq(convertedQuote, amountQuote);
+        assertEq(vault.baseActive(), amountBase);
+        assertEq(vault.quoteActive(), amountQuote);
+        assertEq(vault.balanceOf(address(this)), amountBase + amountQuote);
+        assertEq(baseToken.balanceOf(address(this)), preDepositBalBase - amountBase);
+        assertEq(quoteToken.balanceOf(address(this)), preDepositBalQuote - amountQuote);
+        assertEq(baseToken.balanceOf(address(vault)), 0);
+        assertEq(quoteToken.balanceOf(address(vault)), 0);
+
+        vault.withdraw(amountBase, address(this));
+
+        assertEq(vault.balanceOf(address(this)), 0);
+        assertEq(vault.totalSupply(), 0);
+
+        // Advance time for withdraw slow-mode tx.
+        vm.warp(block.timestamp + 259200);
+        endpoint.executeSlowModeTransactions(2);
+
+        assertEq(baseToken.balanceOf(address(vault)), amountBase);
+        assertEq(quoteToken.balanceOf(address(vault)), amountQuote);
+
+        vault.claim(address(this));
+
+        assertEq(baseToken.balanceOf(address(vault)), 0);
+        assertEq(quoteToken.balanceOf(address(vault)), 0);
+        assertEq(vault.baseActive(), 0);
+        assertEq(vault.quoteActive(), 0);
+        assertEq(baseToken.balanceOf(address(this)), preDepositBalBase);
+        assertEq(quoteToken.balanceOf(address(this)), preDepositBalQuote);
+    }
+
+    function testMintWithdraw() public {
+        deal(address(baseToken), address(this), type(uint256).max);
+        deal(address(quoteToken), address(this), type(uint256).max);
+
+        baseToken.approve(address(vault), type(uint256).max);
+        quoteToken.approve(address(vault), type(uint256).max);
+
+        uint256 preDepositBalBase = baseToken.balanceOf(address(this));
+        uint256 preDepositBalQuote = quoteToken.balanceOf(address(this));
+
+        uint256 shares = 100000;
+        (uint256 amountBase, uint256 amountQuote) = vault.mint(shares, address(this));
 
         assertEq(shares, vault.balanceOf(address(this)));
 
@@ -194,7 +247,7 @@ contract TestVertexStable is Test, VertexContracts {
     // TODO: Deposit + withdraw with funds already in vault.
     // TODO: Deposit + redeem with funds already in vault.
 
-    /*///////////////////////////////////////////////////////////////
+    /*//////////////////////////////////////////////////////////////
                  DEPOSIT/WITHDRAWAL SANITY CHECK TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -328,6 +381,40 @@ contract TestVertexStable is Test, VertexContracts {
 
         vault.claim(address(this));
 
+        vault.claim(address(this));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    DEPOSIT/WITHDRAWAL PAUSED TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function testDepositsPaused() public {
+        vm.prank(FACTORY_OWNER);
+        vault.pause(true, false, false);
+
+        vm.expectRevert(VertexStable.DepositsPaused.selector);
+        vault.deposit(1, 1, 1, address(this));
+
+        vm.expectRevert(VertexStable.DepositsPaused.selector);
+        vault.mint(1, address(this));
+    }
+
+    function testWithdrawalsPaused() public {
+        vm.prank(FACTORY_OWNER);
+        vault.pause(false, true, false);
+
+        vm.expectRevert(VertexStable.WithdrawalsPaused.selector);
+        vault.withdraw(1, address(this));
+
+        vm.expectRevert(VertexStable.WithdrawalsPaused.selector);
+        vault.redeem(1, address(this));
+    }
+
+    function testClaimsPaused() public {
+        vm.prank(FACTORY_OWNER);
+        vault.pause(false, false, true);
+
+        vm.expectRevert(VertexStable.ClaimsPaused.selector);
         vault.claim(address(this));
     }
 }

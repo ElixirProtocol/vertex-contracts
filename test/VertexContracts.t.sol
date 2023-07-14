@@ -13,9 +13,7 @@ import {IEndpoint} from "../src/interfaces/IEndpoint.sol";
 import {VertexFactory} from "../src/VertexFactory.sol";
 
 contract UUPSProxy is ERC1967Proxy {
-    constructor(address _implementation, bytes memory _data)
-        ERC1967Proxy(_implementation, _data)
-    {}
+    constructor(address _implementation, bytes memory _data) ERC1967Proxy(_implementation, _data) {}
 }
 
 contract VertexContracts is Test {

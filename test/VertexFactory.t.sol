@@ -31,6 +31,11 @@ contract TestVertexFactory is Test, VertexContracts {
         assertEq(address(vertexStable.quoteToken()), address(quoteToken));
     }
 
+    function testFailUnauthorizedDeploy() public {
+        vm.selectFork(networkFork);
+        VertexStable(vertexFactory.deployVault(0, baseToken, quoteToken));
+    }
+
     function testFailNoDuplicateVaults() public {
         vm.selectFork(networkFork);
         vm.startPrank(FACTORY_OWNER);
@@ -44,7 +49,9 @@ contract TestVertexFactory is Test, VertexContracts {
     }
 
     function testFailDoubleInitiliaze() public {
-        vertexFactory.initialize(IClearinghouse(address(0)), IEndpoint(address(0)), address(address(0)), address(address(0)));
+        vertexFactory.initialize(
+            IClearinghouse(address(0)), IEndpoint(address(0)), address(address(0)), address(address(0))
+        );
     }
 
     function testSameTokens() public {

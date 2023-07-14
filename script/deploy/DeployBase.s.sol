@@ -7,6 +7,11 @@ import {IEndpoint, IClearinghouse, VertexFactory} from "../../src/VertexFactory.
 import {UUPSProxy} from "../../test/VertexContracts.t.sol";
 
 abstract contract DeployBase is Script {
+    // Environment specific variables.
+    IClearinghouse internal clearingHouse;
+    IEndpoint internal endpoint;
+    address internal externalAccount;
+
     // Deploy addresses.
     VertexFactory internal factoryImplementation;
     UUPSProxy internal proxy;
@@ -15,11 +20,14 @@ abstract contract DeployBase is Script {
     // Deployer key.
     uint256 internal deployerKey;
 
+    constructor(address _clearingHouse, address _endpoint, address _externalAccount) {
+        clearingHouse = IClearinghouse(_clearingHouse);
+        endpoint = IEndpoint(_endpoint);
+        externalAccount = _externalAccount;
+    }
+
     function setup() internal {
         deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        IClearinghouse clearingHouse = IClearinghouse(0x61B10E98049B00d4D863e3637D9E14Acd23ad8a3);
-        IEndpoint endpoint = IEndpoint(0x5956D6f55011678b2CAB217cD21626F7668ba6c5);
-        address externalAccount = 0x28CcdB531854d09D48733261688dc1679fb9A242;
 
         // Deploy with key.
         vm.startBroadcast(deployerKey);

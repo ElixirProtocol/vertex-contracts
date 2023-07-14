@@ -122,7 +122,7 @@ contract TestVertexSpot is Test, VertexContracts {
         assertEq(convertedQuote, amountQuote);
         assertEq(vault.baseActive(), amountBase);
         assertEq(vault.quoteActive(), amountQuote);
-        assertEq(vault.balanceOf(address(this)), amountBase + amountQuote);
+        assertEq(vault.balanceOf(address(this)), shares);
         assertEq(baseToken.balanceOf(address(this)), preDepositBalBase - amountBase);
         assertEq(quoteToken.balanceOf(address(this)), preDepositBalQuote - amountQuote);
         assertEq(baseToken.balanceOf(address(vault)), 0);

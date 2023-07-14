@@ -20,3 +20,11 @@ In order to run all tests, run:
 ```sh
 forge test
 ```
+
+### Deploy Contracts
+
+In order to deploy the contracts, set the relevant constants in the respective chain script, and run the following command(s):
+
+```sh
+forge script script/deploy/DeployGoerli.s.sol:DeployGoerli -vvvv --fork-url RPC --broadcast --slow
+```

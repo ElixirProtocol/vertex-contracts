@@ -406,7 +406,7 @@ contract VertexSpotVault is ERC20, Owned {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Submits a slow mode transaction to Vertex.
-    /// @dev More information about slow mode transactions: 
+    /// @dev More information about slow mode transactions:
     /// https://vertex-protocol.gitbook.io/docs/developer-resources/api/withdrawing-on-chain
     /// @param transaction The transaction to submit.
     function _submitSlowModeTransaction(bytes memory transaction) internal {
@@ -511,6 +511,6 @@ contract VertexSpotVault is ERC20, Owned {
         withdrawPaused = _withdrawPaused;
         claimPaused = _claimPaused;
 
-        emit PauseUpdated(depositPaused, withdrawPaused, claimPaused); 
+        emit PauseUpdated(depositPaused, withdrawPaused, claimPaused);
     }
 }

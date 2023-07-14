@@ -102,7 +102,8 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
                             salt,
                             keccak256(
                                 abi.encodePacked(
-                                    type(VertexSpotVault).creationCode, abi.encode(id, name, symbol, baseToken, quoteToken)
+                                    type(VertexSpotVault).creationCode,
+                                    abi.encode(id, name, symbol, baseToken, quoteToken)
                                 )
                             )
                         )

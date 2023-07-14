@@ -17,9 +17,9 @@ abstract contract DeployBase is Script {
 
     function setup() internal {
         deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        IClearinghouse clearingHouse = IClearinghouse(address(0));
-        IEndpoint endpoint = IEndpoint(address(0));
-        address externalAccount = address(0);
+        IClearinghouse clearingHouse = IClearinghouse(0x61B10E98049B00d4D863e3637D9E14Acd23ad8a3);
+        IEndpoint endpoint = IEndpoint(0x5956D6f55011678b2CAB217cD21626F7668ba6c5);
+        address externalAccount = 0x28CcdB531854d09D48733261688dc1679fb9A242;
 
         // Deploy with key.
         vm.startBroadcast(deployerKey);

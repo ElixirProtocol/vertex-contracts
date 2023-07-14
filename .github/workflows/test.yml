@@ -2,7 +2,7 @@ name: CI
 on: push
 env:
   FOUNDRY_PROFILE: ci
-  ARBITRUM_RPC_URL: 'https://rpc.ankr.com/arbitrum'
+  ARBITRUM_RPC_URL: 'https://arb1.croswap.com/rpc'
 
 jobs:
   tests:

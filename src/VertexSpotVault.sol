@@ -10,10 +10,10 @@ import {VertexFactory} from "./VertexFactory.sol";
 import {IClearinghouse} from "./interfaces/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
 
-/// @title Elixir Stable Vault for Vertex
+/// @title Elixir Spot Vault for Vertex
 /// @author The Elixir Team
 /// @notice Liquidity vault aggregator for market making on stable pairs in Vertex Protocol.
-contract VertexStable is ERC20, Owned {
+contract VertexSpotVault is ERC20, Owned {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
@@ -406,6 +406,8 @@ contract VertexStable is ERC20, Owned {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Submits a slow mode transaction to Vertex.
+    /// @dev More information about slow mode transactions: 
+    /// https://vertex-protocol.gitbook.io/docs/developer-resources/api/withdrawing-on-chain
     /// @param transaction The transaction to submit.
     function _submitSlowModeTransaction(bytes memory transaction) internal {
         // Deposit collateral doens't have fees.

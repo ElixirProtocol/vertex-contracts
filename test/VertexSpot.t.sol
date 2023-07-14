@@ -4,17 +4,17 @@ pragma solidity 0.8.19;
 import "forge-std/Test.sol";
 
 import {VertexContracts} from "./VertexContracts.t.sol";
-import {VertexStable} from "../src/VertexStable.sol";
+import {VertexSpotVault} from "../src/VertexSpotVault.sol";
 import {VertexFactory} from "../src/VertexFactory.sol";
 
 import {IEndpoint} from "../src/interfaces/IEndpoint.sol";
 
-contract TestVertexStable is Test, VertexContracts {
+contract TestVertexSpot is Test, VertexContracts {
     /*//////////////////////////////////////////////////////////////
                                 CONTRACTS
     //////////////////////////////////////////////////////////////*/
 
-    VertexStable internal vault;
+    VertexSpotVault internal vault;
 
     /*//////////////////////////////////////////////////////////////
                                   TESTS
@@ -24,9 +24,9 @@ contract TestVertexStable is Test, VertexContracts {
         // Fork network, deploy factory, and prepare contracts.
         testSetUp();
 
-        // Deploy a VertexStable vault.
+        // Deploy a VertexSpotVault vault.
         vm.prank(FACTORY_OWNER);
-        vault = VertexStable(vertexFactory.deployVault(1, baseToken, quoteToken));
+        vault = VertexSpotVault(vertexFactory.deployVault(1, baseToken, quoteToken));
 
         // Advance time for slow-mode tx.
         vm.warp(block.timestamp + 259200);
@@ -392,10 +392,10 @@ contract TestVertexStable is Test, VertexContracts {
         vm.prank(FACTORY_OWNER);
         vault.pause(true, false, false);
 
-        vm.expectRevert(VertexStable.DepositsPaused.selector);
+        vm.expectRevert(VertexSpotVault.DepositsPaused.selector);
         vault.deposit(1, 1, 1, address(this));
 
-        vm.expectRevert(VertexStable.DepositsPaused.selector);
+        vm.expectRevert(VertexSpotVault.DepositsPaused.selector);
         vault.mint(1, address(this));
     }
 
@@ -403,10 +403,10 @@ contract TestVertexStable is Test, VertexContracts {
         vm.prank(FACTORY_OWNER);
         vault.pause(false, true, false);
 
-        vm.expectRevert(VertexStable.WithdrawalsPaused.selector);
+        vm.expectRevert(VertexSpotVault.WithdrawalsPaused.selector);
         vault.withdraw(1, address(this));
 
-        vm.expectRevert(VertexStable.WithdrawalsPaused.selector);
+        vm.expectRevert(VertexSpotVault.WithdrawalsPaused.selector);
         vault.redeem(1, address(this));
     }
 
@@ -414,7 +414,7 @@ contract TestVertexStable is Test, VertexContracts {
         vm.prank(FACTORY_OWNER);
         vault.pause(false, false, true);
 
-        vm.expectRevert(VertexStable.ClaimsPaused.selector);
+        vm.expectRevert(VertexSpotVault.ClaimsPaused.selector);
         vault.claim(address(this));
     }
 }

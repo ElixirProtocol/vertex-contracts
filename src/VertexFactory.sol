@@ -11,7 +11,7 @@ import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgrade
 
 import {IClearinghouse} from "./interfaces/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
-import {VertexStable} from "./VertexStable.sol";
+import {VertexSpotVault} from "./VertexSpotVault.sol";
 
 /// @title Elixir Vault Factory for Vertex
 /// @author The Elixir Team
@@ -102,7 +102,7 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
                             salt,
                             keccak256(
                                 abi.encodePacked(
-                                    type(VertexStable).creationCode, abi.encode(id, name, symbol, baseToken, quoteToken)
+                                    type(VertexSpotVault).creationCode, abi.encode(id, name, symbol, baseToken, quoteToken)
                                 )
                             )
                         )
@@ -116,7 +116,7 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         // Use the CREATE2 opcode to deploy a new Vault contract.
         // The salt includes the block number to allow to deploy multiple vaults per combination of tokens.
-        new VertexStable{salt: salt}(
+        new VertexSpotVault{salt: salt}(
             id,
             name,
             symbol,

@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: Unlicense
-pragma solidity >=0.8.0;
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.19;
 
-import {Test} from "forge-std/Test.sol";
+import "forge-std/Test.sol";
 
 contract Utils is Test {
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));

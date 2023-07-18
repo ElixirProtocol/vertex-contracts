@@ -2,5 +2,11 @@
 src = 'src'
 out = 'out'
 libs = ['lib']
+optimizer = true
+fs_permissions = [{ access = "read", path = "./"}]
+
+[rpc_endpoints]
+arbitrum = "${ARBITRUM_RPC_URL}"
+goerli = "${GOERLI_RPC_URL}"
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

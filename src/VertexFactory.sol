@@ -9,9 +9,9 @@ import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.
 import {UUPSUpgradeable} from "openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
 
-import {IClearinghouse} from "./interfaces/clearinghouse/IClearinghouse.sol";
+import {IClearinghouse} from "./interfaces/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
-import {VertexStable} from "./VertexStable.sol";
+import {VertexSpotVault} from "./VertexSpotVault.sol";
 
 /// @title Elixir Vault Factory for Vertex
 /// @author The Elixir Team
@@ -43,7 +43,7 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /// @param baseToken The base token of the vault.
     /// @param quoteToken The quote token of the vault.
     /// @param vault The address of the created vault.
-    event VaultDeployed(address baseToken, address quoteToken, address vault);
+    event VaultDeployed(address indexed baseToken, address indexed quoteToken, address indexed vault);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -102,7 +102,8 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
                             salt,
                             keccak256(
                                 abi.encodePacked(
-                                    type(VertexStable).creationCode, abi.encode(id, name, symbol, baseToken, quoteToken)
+                                    type(VertexSpotVault).creationCode,
+                                    abi.encode(id, name, symbol, baseToken, quoteToken)
                                 )
                             )
                         )
@@ -116,7 +117,7 @@ contract VertexFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         // Use the CREATE2 opcode to deploy a new Vault contract.
         // The salt includes the block number to allow to deploy multiple vaults per combination of tokens.
-        new VertexStable{salt: salt}(
+        new VertexSpotVault{salt: salt}(
             id,
             name,
             symbol,

@@ -3,11 +3,12 @@ pragma solidity 0.8.19;
 
 import "forge-std/Test.sol";
 
-import {Utils} from "./utils/Utils.sol";
+import {Utils} from "./utils/Utils.t.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
+import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {IClearinghouse} from "../src/interfaces/clearinghouse/IClearinghouse.sol";
+import {IClearinghouse} from "../src/interfaces/IClearinghouse.sol";
 import {IEndpoint} from "../src/interfaces/IEndpoint.sol";
 import {VertexFactory} from "../src/VertexFactory.sol";
 
@@ -23,6 +24,9 @@ contract VertexContracts is Test {
     ERC20 internal paymentToken;
     IClearinghouse internal clearingHouse;
 
+    // Elixir contracts
+    VertexFactory internal vertexFactoryImplementation;
+    ERC1967Proxy internal proxy;
     VertexFactory internal vertexFactory;
 
     // Assuming base token is WBTC and quote token is USDC.
@@ -34,7 +38,8 @@ contract VertexContracts is Test {
     //////////////////////////////////////////////////////////////*/
 
     // Neutral users
-    address internal USER1;
+    address internal ALICE;
+    address internal BOB;
 
     // Elixir users
     address internal FACTORY_OWNER;
@@ -60,26 +65,37 @@ contract VertexContracts is Test {
         paymentToken = ERC20(clearingHouse.getQuote());
     }
 
-    function factorySetUp() public {
+    function testSetUp() public {
         utils = new Utils();
-        address payable[] memory users = utils.createUsers(3);
+        address payable[] memory users = utils.createUsers(4);
 
-        USER1 = users[0];
-        vm.label(USER1, "User");
+        ALICE = users[0];
+        vm.label(ALICE, "Alice");
 
-        FACTORY_OWNER = users[1];
+        BOB = users[1];
+        vm.label(BOB, "Bob");
+
+        FACTORY_OWNER = users[2];
         vm.label(FACTORY_OWNER, "Factory Owner");
 
-        EXTERNAL_ACCOUNT = users[2];
+        EXTERNAL_ACCOUNT = users[3];
         vm.label(EXTERNAL_ACCOUNT, "External Account");
 
         // Fork network and fetch Vertex contracts.
         prepare();
 
-        vertexFactory = new VertexFactory();
+        // Deploy Factory implementation
+        vertexFactoryImplementation = new VertexFactory();
+
+        // Deploy proxy contract and point it to implementation
+        proxy = new ERC1967Proxy(address(vertexFactoryImplementation), "");
+
+        // wrap in ABI to support easier calls
+        vertexFactory = VertexFactory(address(proxy));
+
         vertexFactory.initialize(clearingHouse, endpoint, EXTERNAL_ACCOUNT, FACTORY_OWNER);
 
         // Deal payment token to the factory, which pays for the slow mode transactions of all the vaults.
-        deal(address(paymentToken), address(vertexFactory), 100 ether);
+        deal(address(paymentToken), address(vertexFactory), type(uint128).max);
     }
 }

@@ -347,8 +347,9 @@ contract VertexSpotVault is ERC20, Owned {
     function convertToAssets(uint256 shares) public view virtual returns (uint256, uint256) {
         uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
         // TODO: Check math calculation for both cases
-        return
-            supply == 0 ? (shares, shares) : (shares.mulDivUp(baseActive, supply), shares.mulDivUp(quoteActive, supply));
+        return supply == 0
+            ? (shares, shares)
+            : (shares.mulDivDown(baseActive, supply), shares.mulDivDown(quoteActive, supply));
     }
 
     /// @notice Calculates an amount of shares to mint based on an amount of base and quote tokens.
@@ -361,8 +362,9 @@ contract VertexSpotVault is ERC20, Owned {
         uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
 
         // TODO: Check for the calculation when supply is not 0 (especially withe ach return value depending on totalAssets)
-        return
-            supply == 0 ? (shares, shares) : (shares.mulDivUp(baseActive, supply), shares.mulDivUp(quoteActive, supply));
+        return supply == 0
+            ? (shares, calculateQuoteAmount(shares))
+            : (shares.mulDivUp(baseActive, supply), shares.mulDivUp(quoteActive, supply));
     }
 
     /// @notice Calculates an amount of shares to withdraw based on an amount of base tokens.

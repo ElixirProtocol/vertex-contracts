@@ -9,7 +9,7 @@ contract DeployGoerli is DeployBase {
     // 1. ClearingHouse
     // 2. Endpoint
     // 3. External account
-    
+
     constructor()
         DeployBase(
             0x61B10E98049B00d4D863e3637D9E14Acd23ad8a3,

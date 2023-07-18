@@ -12,10 +12,6 @@ import {IClearinghouse} from "../src/interfaces/IClearinghouse.sol";
 import {IEndpoint} from "../src/interfaces/IEndpoint.sol";
 import {VertexFactory} from "../src/VertexFactory.sol";
 
-contract UUPSProxy is ERC1967Proxy {
-    constructor(address _implementation, bytes memory _data) ERC1967Proxy(_implementation, _data) {}
-}
-
 contract VertexContracts is Test {
     Utils internal utils;
 
@@ -30,7 +26,7 @@ contract VertexContracts is Test {
 
     // Elixir contracts
     VertexFactory internal vertexFactoryImplementation;
-    UUPSProxy internal proxy;
+    ERC1967Proxy internal proxy;
     VertexFactory internal vertexFactory;
 
     // Assuming base token is WBTC and quote token is USDC.
@@ -42,7 +38,8 @@ contract VertexContracts is Test {
     //////////////////////////////////////////////////////////////*/
 
     // Neutral users
-    address internal USER1;
+    address internal ALICE;
+    address internal BOB;
 
     // Elixir users
     address internal FACTORY_OWNER;
@@ -70,15 +67,18 @@ contract VertexContracts is Test {
 
     function testSetUp() public {
         utils = new Utils();
-        address payable[] memory users = utils.createUsers(3);
+        address payable[] memory users = utils.createUsers(4);
 
-        USER1 = users[0];
-        vm.label(USER1, "User");
+        ALICE = users[0];
+        vm.label(ALICE, "Alice");
 
-        FACTORY_OWNER = users[1];
+        BOB = users[1];
+        vm.label(BOB, "Bob");
+
+        FACTORY_OWNER = users[2];
         vm.label(FACTORY_OWNER, "Factory Owner");
 
-        EXTERNAL_ACCOUNT = users[2];
+        EXTERNAL_ACCOUNT = users[3];
         vm.label(EXTERNAL_ACCOUNT, "External Account");
 
         // Fork network and fetch Vertex contracts.
@@ -88,7 +88,7 @@ contract VertexContracts is Test {
         vertexFactoryImplementation = new VertexFactory();
 
         // Deploy proxy contract and point it to implementation
-        proxy = new UUPSProxy(address(vertexFactoryImplementation), "");
+        proxy = new ERC1967Proxy(address(vertexFactoryImplementation), "");
 
         // wrap in ABI to support easier calls
         vertexFactory = VertexFactory(address(proxy));

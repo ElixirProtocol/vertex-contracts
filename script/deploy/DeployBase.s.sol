@@ -4,7 +4,7 @@ pragma solidity 0.8.19;
 import "forge-std/Script.sol";
 
 import {IEndpoint, IClearinghouse, VertexFactory} from "../../src/VertexFactory.sol";
-import {UUPSProxy} from "../../test/VertexContracts.t.sol";
+import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 
 abstract contract DeployBase is Script {
     // Environment specific variables.
@@ -14,7 +14,7 @@ abstract contract DeployBase is Script {
 
     // Deploy addresses.
     VertexFactory internal factoryImplementation;
-    UUPSProxy internal proxy;
+    ERC1967Proxy internal proxy;
     VertexFactory internal factory;
 
     // Deployer key.
@@ -35,9 +35,8 @@ abstract contract DeployBase is Script {
         // Deploy Factory implementation.
         factoryImplementation = new VertexFactory();
 
-        // TODO: Check correct proxy contract.
         // Deploy proxy contract and point it to implementation.
-        proxy = new UUPSProxy(address(factoryImplementation), "");
+        proxy = new ERC1967Proxy(address(factoryImplementation), "");
 
         // Wrap in ABI to support easier calls.
         factory = VertexFactory(address(proxy));

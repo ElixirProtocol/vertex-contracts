@@ -9,7 +9,6 @@ import {VertexFactory} from "../src/VertexFactory.sol";
 
 import {IEndpoint} from "../src/interfaces/IEndpoint.sol";
 
-import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import "openzeppelin/utils/math/Math.sol";
 
 contract TestVertexSpotVault is Test, VertexContracts {
@@ -683,5 +682,22 @@ contract TestVertexSpotVault is Test, VertexContracts {
 
         vm.expectRevert(VertexSpotVault.ClaimsPaused.selector);
         vault.claim(address(this));
+    }
+    function caseExecuteAssetEquivalenceCalculation(uint256 a, uint256 b, uint256 c, uint256 expected) public view returns (bool result) {
+        uint256 abc = vault.assetEquivalenceCalculation(a, b, c);
+        uint256 bac = vault.assetEquivalenceCalculation(b, a, c);
+        result = (abc == bac) && (abc == expected);
+    }
+    function testAssetEquivalenceCalculation() public {
+        // Trivial cases
+        assertTrue(caseExecuteAssetEquivalenceCalculation(1, 1, 1, 1));
+        assertTrue(caseExecuteAssetEquivalenceCalculation(1, 2, 1, 2));
+        assertTrue(caseExecuteAssetEquivalenceCalculation(1, 2, 2, 1));
+        assertTrue(caseExecuteAssetEquivalenceCalculation(1, 2, 3, 0));
+        assertTrue(caseExecuteAssetEquivalenceCalculation(2, 3, 6, 1));
+        assertTrue(caseExecuteAssetEquivalenceCalculation(1, 6, 6, 1));
+        assertTrue(caseExecuteAssetEquivalenceCalculation(1, 1, 2^255, 0));
+        assertTrue(caseExecuteAssetEquivalenceCalculation(1, 2^255, 2^255, 1));
+        assertTrue(caseExecuteAssetEquivalenceCalculation(2^255, 2^255, 2^255, 2^255));
     }
 }

@@ -10,11 +10,13 @@ import {VertexFactory} from "./VertexFactory.sol";
 import {IClearinghouse} from "./interfaces/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
 
+import "openzeppelin/utils/math/Math.sol";
 /// @title Elixir Spot Vault for Vertex
 /// @author The Elixir Team
 /// @notice Liquidity vault aggregator for market making on stable pairs in Vertex Protocol.
 contract VertexSpotVault is ERC20, Owned {
     using SafeTransferLib for ERC20;
+    using Math for uint256;
     using FixedPointMathLib for uint256;
 
     /*//////////////////////////////////////////////////////////////
@@ -323,14 +325,19 @@ contract VertexSpotVault is ERC20, Owned {
     function totalAssets() public view returns (uint256, uint256) {
         return (baseActive, quoteActive);
     }
-
+    /// @notice Performs the calculation for conversion of base tokens to quote tokens.
+    function assetEquivalenceCalculation(uint256 bamount, uint256 qactive, uint256 bactive) public pure returns (uint256 result) {
+        // amountBase * (quoteActive / baseActive)
+        result = bamount.mulDiv(qactive, bactive);
+    }
     /// @notice Returns an amount of quote tokens based on a given amount of base tokens.
     function calculateQuoteAmount(uint256 amountBase) public view returns (uint256) {
         return baseActive == 0
             ? amountBase.mulDivDown(
-                endpoint.getPriceX18(productId), 10 ** (18 + (baseToken.decimals() - quoteToken.decimals()))
+                endpoint.getPriceX18(productId),
+                10 ** (18 + (baseToken.decimals() - quoteToken.decimals()))
             )
-            : amountBase.mulDivDown(quoteActive.unsafeDiv(baseActive), 1);
+            : assetEquivalenceCalculation(amountBase, baseActive, quoteActive);
     }
 
     /// @notice Returns an amount of shares given an amount of base and quote tokens.

@@ -17,7 +17,6 @@ import "openzeppelin/utils/math/Math.sol";
 contract VertexSpotVault is ERC20, Owned {
     using SafeTransferLib for ERC20;
     using Math for uint256;
-    using FixedPointMathLib for uint256;
 
     /*//////////////////////////////////////////////////////////////
                                 VARIABLES
@@ -333,7 +332,7 @@ contract VertexSpotVault is ERC20, Owned {
     /// @notice Returns an amount of quote tokens based on a given amount of base tokens.
     function calculateQuoteAmount(uint256 amountBase) public view returns (uint256) {
         return baseActive == 0
-            ? amountBase.mulDivDown(
+            ? amountBase.mulDiv(
                 endpoint.getPriceX18(productId),
                 10 ** (18 + (baseToken.decimals() - quoteToken.decimals()))
             )
@@ -346,7 +345,7 @@ contract VertexSpotVault is ERC20, Owned {
     function convertToShares(uint256 amountBase, uint256 amountQuote) public view returns (uint256) {
         uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
         // TODO: Compare calculation when supply != 0 to solmate's ERC4626 implementation and also to Vertex's implementation.
-        return supply == 0 ? amountBase + amountQuote : amountBase.mulDivDown(supply, baseActive);
+        return supply == 0 ? amountBase + amountQuote : amountBase.mulDiv(supply, baseActive);
     }
 
     /// @notice Returns an amount of base and quote tokens given an amount of shares.
@@ -356,7 +355,7 @@ contract VertexSpotVault is ERC20, Owned {
         // TODO: Check math calculation for both cases
         return supply == 0
             ? (shares, shares)
-            : (shares.mulDivDown(baseActive, supply), shares.mulDivDown(quoteActive, supply));
+            : (shares.mulDiv(baseActive, supply), shares.mulDiv(quoteActive, supply));
     }
 
     /// @notice Calculates an amount of shares to mint based on an amount of base and quote tokens.
@@ -371,14 +370,14 @@ contract VertexSpotVault is ERC20, Owned {
         // TODO: Check for the calculation when supply is not 0 (especially withe ach return value depending on totalAssets)
         return supply == 0
             ? (shares, calculateQuoteAmount(shares))
-            : (shares.mulDivUp(baseActive, supply), shares.mulDivUp(quoteActive, supply));
+            : (shares.mulDiv(baseActive, supply), shares.mulDiv(quoteActive, supply));
     }
 
     /// @notice Calculates an amount of shares to withdraw based on an amount of base tokens.
     function previewWithdraw(uint256 amountBase) public view virtual returns (uint256) {
         uint256 supply = totalSupply; // Saves an extra SLOAD if totalSupply is non-zero.
         // TODO: Check math calculation when supply is 0 and when it's not
-        return supply == 0 ? amountBase : amountBase.mulDivUp(supply, baseActive);
+        return supply == 0 ? amountBase : amountBase.mulDiv(supply, baseActive);
     }
 
     /// @notice Calculates an amount of base and quote tokens to withdraw based on an amount of shares.

@@ -8,6 +8,7 @@ import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 
 abstract contract DeployBase is Script {
     // Environment specific variables.
+    address internal feeToken;
     IEndpoint internal endpoint;
     address internal externalAccount;
 
@@ -19,7 +20,8 @@ abstract contract DeployBase is Script {
     // Deployer key.
     uint256 internal deployerKey;
 
-    constructor(address _endpoint, address _externalAccount) {
+    constructor(address _feeToken, address _endpoint, address _externalAccount) {
+        feeToken = _feeToken;
         endpoint = IEndpoint(_endpoint);
         externalAccount = _externalAccount;
     }
@@ -38,6 +40,15 @@ abstract contract DeployBase is Script {
 
         // Wrap in ABI to support easier calls.
         manager = VertexManager(address(proxy));
+
+        (bool success,) =
+            address(feeToken).call(abi.encodeWithSignature("mint(address,uint256)", vm.addr(deployerKey), 20000000000));
+        require(success);
+
+        (success,) = address(feeToken).call(
+            abi.encodeWithSignature("approve(address,uint256)", address(manager), type(uint256).max)
+        );
+        require(success);
 
         manager.initialize(address(endpoint), externalAccount);
 

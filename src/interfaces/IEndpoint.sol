@@ -63,4 +63,6 @@ interface IEndpoint {
     function submitSlowModeTransaction(bytes calldata transaction) external;
 
     function getPriceX18(uint32 productId) external view returns (uint256);
+
+    function slowModeFees() external view returns (uint256);
 }

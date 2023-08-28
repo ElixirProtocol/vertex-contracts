@@ -359,8 +359,11 @@ contract TestVertexManager is Test {
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
 
-        amounts[0] = amountBTC * 2;
-        amounts[1] = amountUSDC * 2;
+        amountBTC = 1 * 10 ** 6;
+        amountUSDC = getBalancedAmount(1, BTC, USDC, amountBTC);
+
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
 
         vertexManager.withdraw(1, amounts, 0);
 

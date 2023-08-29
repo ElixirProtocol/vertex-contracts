@@ -104,7 +104,7 @@ contract TestVertexManager is Test {
         deal(address(paymentToken), OWNER, type(uint256).max);
 
         // Set the endpoint and external account of the contract.
-        vertexManager.initialize(address(endpoint), EXTERNAL_ACCOUNT);
+        vertexManager.initialize(address(endpoint), EXTERNAL_ACCOUNT, 1000000);
 
         vm.stopPrank();
 
@@ -238,7 +238,7 @@ contract TestVertexManager is Test {
     function testWithdrawInvalidFee() public {
         depositSetUp();
 
-        uint256 amountBTC = 1 * 10 ** 6;
+        uint256 amountBTC = 1 * 10 ** 8;
         uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         uint256[] memory amounts = new uint256[](2);
@@ -272,7 +272,7 @@ contract TestVertexManager is Test {
 
         vertexManager.updatePoolHardcaps(1, hardcaps);
 
-        uint256 amountBTC = 1 * 10 ** 6;
+        uint256 amountBTC = 1 * 10 ** 8;
         uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         uint256[] memory amounts = new uint256[](2);
@@ -286,7 +286,7 @@ contract TestVertexManager is Test {
     function testSingleDepositSpot() public {
         depositSetUp();
 
-        uint256 amountBTC = 1 * 10 ** 6 + vertexManager.getWithdrawFee(address(BTC));
+        uint256 amountBTC = 1 * 10 ** 8 + vertexManager.getWithdrawFee(address(BTC));
         uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC);
@@ -323,7 +323,7 @@ contract TestVertexManager is Test {
     function testDoubleDepositSpot() public {
         depositSetUp();
 
-        uint256 amountBTC = 1 * 10 ** 6;
+        uint256 amountBTC = 1 * 10 ** 8;
         uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC * 2);
@@ -346,7 +346,7 @@ contract TestVertexManager is Test {
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
 
-        amountBTC = 1 * 10 ** 6;
+        amountBTC = 1 * 10 ** 8;
         amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         amounts[0] = amountBTC;
@@ -372,7 +372,7 @@ contract TestVertexManager is Test {
         perpDepositSetUp();
 
         // Deposit 1 BTC, 0 USDC, and 1 WETH
-        uint256 amountBTC = 1 * 10 ** 6;
+        uint256 amountBTC = 1 * 10 ** 8;
         uint256 amountUSDC = 0;
         uint256 amountWETH = 1 ether;
 
@@ -412,7 +412,7 @@ contract TestVertexManager is Test {
     function testSingleDepositSpotBalanced() public {
         depositSetUp();
 
-        uint256 amountBTC = 1 * 10 ** 6 + vertexManager.getWithdrawFee(address(BTC));
+        uint256 amountBTC = 1 * 10 ** 8 + vertexManager.getWithdrawFee(address(BTC));
         uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC);
@@ -440,7 +440,7 @@ contract TestVertexManager is Test {
         vertexManager.withdrawBalanced(1, amountBTC, 0);
 
         assertEq(vertexManager.getUserActiveAmounts(1, address(this)), expectedAmounts);
-        assertEq(vertexManager.pendingBalances(address(this), address(BTC)), 1 * 10 ** 6);
+        assertEq(vertexManager.pendingBalances(address(this), address(BTC)), 1 * 10 ** 8);
         assertEq(vertexManager.pendingBalances(address(this), address(USDC)), amountUSDC);
 
         // Advance time for withdraw slow-mode tx.
@@ -473,7 +473,7 @@ contract TestVertexManager is Test {
     function testSingleDepositBalancedSlippage() public {
         depositSetUp();
 
-        uint256 amountBTC = 1 * 10 ** 6 + vertexManager.getWithdrawFee(address(BTC));
+        uint256 amountBTC = 1 * 10 ** 8 + vertexManager.getWithdrawFee(address(BTC));
         uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.SlippageTooHigh.selector, amountUSDC, amountUSDC * 2, amountUSDC * 4));
@@ -612,7 +612,7 @@ contract TestVertexManager is Test {
     function testApplyFees() public {
         depositSetUp();
 
-        uint256 amountBTC = 1 * 10 ** 6 + vertexManager.getWithdrawFee(address(BTC));
+        uint256 amountBTC = 1 * 10 ** 8 + vertexManager.getWithdrawFee(address(BTC));
         uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC);
@@ -638,7 +638,7 @@ contract TestVertexManager is Test {
     function testFeesTooHigh() public {
         depositSetUp();
 
-        uint256 amountBTC = 1 * 10 ** 6 + vertexManager.getWithdrawFee(address(BTC));
+        uint256 amountBTC = 1 * 10 ** 8 + vertexManager.getWithdrawFee(address(BTC));
         uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC);
@@ -673,11 +673,11 @@ contract TestVertexManager is Test {
 
         // Expect revert by trying to initliaze the implementation contract.
         vm.expectRevert();
-        vertexManagerImplementation.initialize(address(0), address(0));
+        vertexManagerImplementation.initialize(address(0), address(0), 0);
 
         // Expect revert for not enough funds to set up linked signer.
         vm.expectRevert();
-        tempVertexManager.initialize(address(endpoint), EXTERNAL_ACCOUNT);
+        tempVertexManager.initialize(address(endpoint), EXTERNAL_ACCOUNT, 1000000);
 
         // Approve the manager to move USDC for fee payments.
         paymentToken.approve(address(tempVertexManager), type(uint256).max);
@@ -685,16 +685,14 @@ contract TestVertexManager is Test {
         // Deal payment token to the factory, which pays for the slow mode transactions of all the vaults.
         deal(address(paymentToken), address(this), type(uint256).max);
 
-        tempVertexManager.initialize(address(endpoint), EXTERNAL_ACCOUNT);
+        tempVertexManager.initialize(address(endpoint), EXTERNAL_ACCOUNT, 1000000);
     }
 
     function testFailDoubleInitiliaze() public {
-        vm.selectFork(networkFork);
-        vertexManager.initialize(address(0), address(0));
+        vertexManager.initialize(address(0), address(0), 0);
     }
 
     function testAuthorizedUpgrade() public {
-        vm.selectFork(networkFork);
         vm.startPrank(OWNER);
 
         // Deploy 2nd implementation
@@ -704,7 +702,6 @@ contract TestVertexManager is Test {
     }
 
     function testFailUnauthorizedUpgrade() public {
-        vm.selectFork(networkFork);
         vertexManager.upgradeTo(address(0));
     }
 
@@ -713,9 +710,15 @@ contract TestVertexManager is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testGetWithdrawFee() public {
-        vm.selectFork(networkFork);
-
         vm.expectRevert();
         vertexManager.getWithdrawFee(address(0xdead));
+    }
+
+    function testUpdateSlowModeFee() public {
+        vm.expectRevert();
+        vertexManager.updateSlowModeFee(69);
+
+        vm.prank(OWNER);
+        vertexManager.updateSlowModeFee(69);
     }
 }

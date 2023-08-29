@@ -48,14 +48,17 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice The Elixir fee reimbursements per token address.
     mapping(address => uint256) public fees;
 
+    /// @notice The Vertex slow mode fee
+    uint256 public slowModeFee;
+
     /// @notice Vertex's Endpoint contract.
     IEndpoint public endpoint;
 
-    /// @notice Bytes of vault's subaccount.
-    bytes32 public contractSubaccount;
-
     /// @notice Fee payment token for slow mode transactions through Vertex.
     IERC20Metadata public paymentToken;
+
+    /// @notice Bytes of vault's subaccount.
+    bytes32 public contractSubaccount;
 
     /// @notice The pause status of deposits.
     bool public depositPaused;
@@ -109,6 +112,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param token The token address to update the product ID of.
     /// @param productId The new product ID of the token.
     event TokenUpdated(address indexed token, uint256 indexed productId);
+
+    /// @notice Emitted when the slow mode fee is updated.
+    /// @param newFee The new fee.
+    event SlowModeFeeUpdated(uint256 newFee);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -196,12 +203,16 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice No constructor in upgradable contracts, so initialized with this function.
     /// @param _endpoint The address of the Vertex Endpoint contract.
     /// @param _externalAccount The address of the external account to link to the Vertex Endpoint.
-    function initialize(address _endpoint, address _externalAccount) public initializer {
+    /// @param _slowModeFee The fee to pay Vertex for slow mode transactions.
+    function initialize(address _endpoint, address _externalAccount, uint256 _slowModeFee) public initializer {
         __UUPSUpgradeable_init();
         __Ownable_init();
 
         // Set Vertex's endpoint address.
         endpoint = IEndpoint(_endpoint);
+        
+        // Set the slow mode fee value.
+        slowModeFee = _slowModeFee;
 
         // It may happen that the quote token of endpoint payments is not the quote token of the vault/product.
         paymentToken = IERC20Metadata(IClearinghouse(endpoint.clearinghouse()).getQuote());
@@ -309,7 +320,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             // Add amount to the user pending balance.
             if (i == feeIndex) {
                 // Calculate the reimburse fee amount for the token.
-                uint256 fee = endpoint.slowModeFees().mulDiv(
+                uint256 fee = slowModeFee.mulDiv(
                     10 ** (18 + IERC20Metadata(token).decimals() - paymentToken.decimals()),
                     getPrice(tokenToProduct[token]),
                     Math.Rounding.Up
@@ -391,7 +402,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Returns the withdrawal fee for a given pool and token.
     /// @param token The token to fetch the fee from.
     function getWithdrawFee(address token) public view returns (uint256) {
-        return endpoint.slowModeFees().mulDiv(
+        return slowModeFee.mulDiv(
             10 ** (18 + IERC20Metadata(token).decimals() - paymentToken.decimals()),
             getPrice(tokenToProduct[token]),
             Math.Rounding.Up
@@ -488,7 +499,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Deposit collateral doens't have fees.
         if (uint8(transaction[0]) != uint8(IEndpoint.TransactionType.DepositCollateral)) {
             // Fetch payment fee from owner. This can be reimbursed on withdrawals after tokens are received.
-            paymentToken.safeTransferFrom(owner(), address(this), endpoint.slowModeFees());
+            paymentToken.safeTransferFrom(owner(), address(this), slowModeFee);
         }
 
         endpoint.submitSlowModeTransaction(transaction);
@@ -547,6 +558,14 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         tokenToProduct[token] = productId;
 
         emit TokenUpdated(token, productId);
+    }
+
+    /// @notice Updates the Vertex slow mode fee.
+    /// @param newFee The new fee.
+    function updateSlowModeFee(uint256 newFee) external onlyOwner {
+        slowModeFee = newFee;
+
+        emit SlowModeFeeUpdated(newFee);
     }
 
     /// @notice Apply fees to pooled liquidity.

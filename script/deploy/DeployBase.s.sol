@@ -50,7 +50,7 @@ abstract contract DeployBase is Script {
         );
         require(success);
 
-        manager.initialize(address(endpoint), externalAccount);
+        manager.initialize(address(endpoint), externalAccount, 1000000);
 
         vm.stopBroadcast();
     }

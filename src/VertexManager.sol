@@ -151,6 +151,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The ID of the pool.
     error NotSpotPool(uint256 id);
 
+    /// @notice Emitted when the slippage is too high.
+    /// @param amount1 The amount of quote tokens given.
+    /// @param amount1Low The low limit of the quote amount.
+    /// @param amount1High The high limit of the quote amount.
+    error SlippageTooHigh(uint256 amount1, uint256 amount1Low, uint256 amount1High);
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -392,6 +398,13 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         );
     }
 
+    /// @notice Returns a user's active amounts for a given pool.
+    /// @param id The ID of the pool to fetch the active amounts of.
+    /// @param user The user to fetch the active amounts of.
+    function getUserActiveAmounts(uint256 id, address user) public view returns (uint256[] memory) {
+        return _pools[id].userActiveAmounts[user];
+    }
+
     /// @notice Returns the balanced amount of quote tokens given an amount of base tokens.
     /// @param token0 The base token.
     /// @param token1 The quote token.
@@ -410,7 +423,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The ID of the pool to deposit to.
     /// @param amount0 The amount of base tokens.
     /// @param receiver The receiver of the virtual LP balance.
-    function depositBalanced(uint256 id, uint256 amount0, address receiver) external {
+    function depositBalanced(uint256 id, uint256 amount0, uint256 amount1Low, uint256 amount1High, address receiver) external {
         // Fetch pool data.
         Pool storage pool = _pools[id];
         
@@ -419,6 +432,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Get the balanced amount of quote tokens.
         uint256 amount1 = getBalancedAmount(pool.tokens[0], pool.tokens[1], amount0);
         
+        // Check for slippage based on the given quote amount (amount1) range.
+        if (amount1 < amount1Low || amount1 > amount1High) {
+            revert SlippageTooHigh(amount1, amount1Low, amount1High);
+        }
+
         // Create amounts array.
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = amount0;

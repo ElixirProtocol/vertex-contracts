@@ -421,12 +421,27 @@ contract TestVertexManager is Test {
         BTC.approve(address(vertexManager), amountBTC);
         USDC.approve(address(vertexManager), amountUSDC);
 
-        vertexManager.depositBalanced(1, amountBTC, address(this));
+        vertexManager.depositBalanced(1, amountBTC, 0, type(uint256).max, address(this));
+
+        uint256[] memory expectedAmounts = new uint256[](2);
+        expectedAmounts[0] = amountBTC;
+        expectedAmounts[1] = amountUSDC;
+
+        assertEq(vertexManager.getUserActiveAmounts(1, address(this)), expectedAmounts);
+        assertEq(vertexManager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(vertexManager.pendingBalances(address(this), address(USDC)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
 
+        expectedAmounts[0] = 0;
+        expectedAmounts[1] = 0;
+
         vertexManager.withdrawBalanced(1, amountBTC, 0);
+
+        assertEq(vertexManager.getUserActiveAmounts(1, address(this)), expectedAmounts);
+        assertEq(vertexManager.pendingBalances(address(this), address(BTC)), 1 * 10 ** 6);
+        assertEq(vertexManager.pendingBalances(address(this), address(USDC)), amountUSDC);
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
@@ -439,6 +454,9 @@ contract TestVertexManager is Test {
 
         vertexManager.claim(address(this), tokens);
 
+        assertEq(vertexManager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(vertexManager.pendingBalances(address(this), address(USDC)), 0);
+
         vertexManager.claimFees(tokens);
     }
 
@@ -446,10 +464,20 @@ contract TestVertexManager is Test {
         perpDepositSetUp();
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.NotSpotPool.selector, 2));
-        vertexManager.depositBalanced(2, 69, address(this));
+        vertexManager.depositBalanced(2, 69, 0, type(uint256).max, address(this));
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.NotSpotPool.selector, 2));
         vertexManager.withdrawBalanced(2, 69, 0);
+    }
+
+    function testSingleDepositBalancedSlippage() public {
+        depositSetUp();
+
+        uint256 amountBTC = 1 * 10 ** 6 + vertexManager.getWithdrawFee(address(BTC));
+        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.SlippageTooHigh.selector, amountUSDC, amountUSDC * 2, amountUSDC * 4));
+        vertexManager.depositBalanced(1, amountBTC, amountUSDC * 2, amountUSDC * 4, address(this));
     }
 
     /*//////////////////////////////////////////////////////////////

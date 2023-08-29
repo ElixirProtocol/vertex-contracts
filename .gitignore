@@ -18,3 +18,4 @@ docs/
 .DS_Store
 .AppleDouble
 .LSOverride
+lcov.info

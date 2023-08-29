@@ -409,6 +409,49 @@ contract TestVertexManager is Test {
         vertexManager.claimFees(tokens);
     }
 
+    function testSingleDepositSpotBalanced() public {
+        depositSetUp();
+
+        uint256 amountBTC = 1 * 10 ** 6 + vertexManager.getWithdrawFee(address(BTC));
+        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        BTC.approve(address(vertexManager), amountBTC);
+        USDC.approve(address(vertexManager), amountUSDC);
+
+        vertexManager.depositBalanced(1, amountBTC, address(this));
+
+        // Advance time for deposit slow-mode tx.
+        processSlowModeTxs();
+
+        vertexManager.withdrawBalanced(1, amountBTC, 0);
+
+        // Advance time for withdraw slow-mode tx.
+        processSlowModeTxs();
+        deal(address(USDC), address(vertexManager), amountUSDC);
+
+        // Create tokens to claim
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(BTC);
+        tokens[1] = address(USDC);
+
+        vertexManager.claim(address(this), tokens);
+
+        vertexManager.claimFees(tokens);
+    }
+
+    function testSingleDepositBalanced() public {
+        perpDepositSetUp();
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.NotSpotPool.selector, 2));
+        vertexManager.depositBalanced(2, 69, address(this));
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.NotSpotPool.selector, 2));
+        vertexManager.withdrawBalanced(2, 69, 0);
+    }
+
     /*//////////////////////////////////////////////////////////////
                             POOL MANAGE TESTS
     //////////////////////////////////////////////////////////////*/

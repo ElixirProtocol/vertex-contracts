@@ -147,6 +147,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param fee The fee amount.
     error FeeTooHigh(uint256 activeAmount, uint256 fee);
 
+    /// @notice Emitted when the pool is not a spot pool.
+    /// @param id The ID of the pool.
+    error NotSpotPool(uint256 id);
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -218,7 +222,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The pool ID to deposit tokens to.
     /// @param amounts The list of token amounts to deposit.
     /// @param receiver The receiver of the virtual LP balance.
-    function deposit(uint256 id, uint256[] memory amounts, address receiver) external whenDepositNotPaused nonReentrant {
+    function deposit(uint256 id, uint256[] memory amounts, address receiver) public whenDepositNotPaused nonReentrant {
         Pool storage pool = _pools[id];
 
         if (amounts.length == 0 || pool.tokens.length != amounts.length) revert InvalidAmountsLength(amounts);
@@ -272,7 +276,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The pool ID to withdraw tokens from.
     /// @param amounts The list of token amounts to withdraw.
     /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
-    function withdraw(uint256 id, uint256[] memory amounts, uint256 feeIndex) external whenWithdrawNotPaused nonReentrant {
+    function withdraw(uint256 id, uint256[] memory amounts, uint256 feeIndex) public whenWithdrawNotPaused nonReentrant {
         Pool storage pool = _pools[id];
 
         if (amounts.length == 0 || pool.tokens.length != amounts.length || feeIndex > amounts.length) {
@@ -400,6 +404,50 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         return amount0.mulDiv(
             getPrice(tokenToProduct[address(token0)]), 10 ** (18 + (IERC20Metadata(token0).decimals() - IERC20Metadata(token1).decimals())), Math.Rounding.Down
         );
+    }
+
+    /// @notice Helper function to deposit balaned amounts for spot pool, given an amount of base tokens.
+    /// @param id The ID of the pool to deposit to.
+    /// @param amount0 The amount of base tokens.
+    /// @param receiver The receiver of the virtual LP balance.
+    function depositBalanced(uint256 id, uint256 amount0, address receiver) external {
+        // Fetch pool data.
+        Pool storage pool = _pools[id];
+        
+        if (pool.tokens.length != 2) revert NotSpotPool(id);
+
+        // Get the balanced amount of quote tokens.
+        uint256 amount1 = getBalancedAmount(pool.tokens[0], pool.tokens[1], amount0);
+        
+        // Create amounts array.
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amount0;
+        amounts[1] = amount1;
+
+        // Call the deposit function.
+        deposit(id, amounts, receiver);
+    }
+
+    /// @notice Helper function to withdraw balaned amounts from spot pool, given an amount of base tokens.
+    /// @param id The ID of the pool to withdraw from.
+    /// @param amount0 The amount of base tokens.
+    /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
+    function withdrawBalanced(uint256 id, uint256 amount0, uint256 feeIndex) external {
+        // Fetch pool data.
+        Pool storage pool = _pools[id];
+        
+        if (pool.tokens.length != 2) revert NotSpotPool(id);
+
+        // Get the balanced amount of quote tokens.
+        uint256 amount1 = getBalancedAmount(pool.tokens[0], pool.tokens[1], amount0);
+        
+        // Create amounts array.
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amount0;
+        amounts[1] = amount1;
+
+        // Call the deposit function.
+        withdraw(id, amounts, feeIndex);
     }
 
     /// @notice Returns true if the given amounts of base and quote tokes are balanced.

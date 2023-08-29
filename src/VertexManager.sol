@@ -210,7 +210,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // Set Vertex's endpoint address.
         endpoint = IEndpoint(_endpoint);
-        
+
         // Set the slow mode fee value.
         slowModeFee = _slowModeFee;
 
@@ -293,7 +293,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The pool ID to withdraw tokens from.
     /// @param amounts The list of token amounts to withdraw.
     /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
-    function withdraw(uint256 id, uint256[] memory amounts, uint256 feeIndex) public whenWithdrawNotPaused nonReentrant {
+    function withdraw(uint256 id, uint256[] memory amounts, uint256 feeIndex)
+        public
+        whenWithdrawNotPaused
+        nonReentrant
+    {
         Pool storage pool = _pools[id];
 
         if (amounts.length == 0 || pool.tokens.length != amounts.length || feeIndex > amounts.length) {
@@ -302,7 +306,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // If the length of amounts is 2 (base abd quote tokens), it means that the pool targets a spot pair.
         // Then, check if the input amounts are balanced.
-        if (amounts.length == 2 && !checkBalanced( pool.tokens, amounts)) {
+        if (amounts.length == 2 && !checkBalanced(pool.tokens, amounts)) {
             revert UnbalancedAmounts(id, amounts);
         }
 
@@ -420,29 +424,31 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param token0 The base token.
     /// @param token1 The quote token.
     /// @param amount0 The amount of base tokens.
-    function getBalancedAmount(address token0, address token1, uint256 amount0)
-        public
-        view
-        returns (uint256)
-    {
+    function getBalancedAmount(address token0, address token1, uint256 amount0) public view returns (uint256) {
         return amount0.mulDiv(
-            getPrice(tokenToProduct[address(token0)]), 10 ** (18 + (IERC20Metadata(token0).decimals() - IERC20Metadata(token1).decimals())), Math.Rounding.Down
+            getPrice(tokenToProduct[address(token0)]),
+            10 ** (18 + (IERC20Metadata(token0).decimals() - IERC20Metadata(token1).decimals())),
+            Math.Rounding.Down
         );
     }
 
     /// @notice Helper function to deposit balaned amounts for spot pool, given an amount of base tokens.
     /// @param id The ID of the pool to deposit to.
     /// @param amount0 The amount of base tokens.
+    /// @param amount1Low The low limit of the quote amount.
+    /// @param amount1High The high limit of the quote amount.
     /// @param receiver The receiver of the virtual LP balance.
-    function depositBalanced(uint256 id, uint256 amount0, uint256 amount1Low, uint256 amount1High, address receiver) external {
+    function depositBalanced(uint256 id, uint256 amount0, uint256 amount1Low, uint256 amount1High, address receiver)
+        external
+    {
         // Fetch pool data.
         Pool storage pool = _pools[id];
-        
+
         if (pool.tokens.length != 2) revert NotSpotPool(id);
 
         // Get the balanced amount of quote tokens.
         uint256 amount1 = getBalancedAmount(pool.tokens[0], pool.tokens[1], amount0);
-        
+
         // Check for slippage based on the given quote amount (amount1) range.
         if (amount1 < amount1Low || amount1 > amount1High) {
             revert SlippageTooHigh(amount1, amount1Low, amount1High);
@@ -464,12 +470,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     function withdrawBalanced(uint256 id, uint256 amount0, uint256 feeIndex) external {
         // Fetch pool data.
         Pool storage pool = _pools[id];
-        
+
         if (pool.tokens.length != 2) revert NotSpotPool(id);
 
         // Get the balanced amount of quote tokens.
         uint256 amount1 = getBalancedAmount(pool.tokens[0], pool.tokens[1], amount0);
-        
+
         // Create amounts array.
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = amount0;

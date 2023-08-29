@@ -21,6 +21,11 @@ In order to run all tests, run:
 forge test
 ```
 
+You can run Slither with the following command:
+```sh
+slither . --exclude-dependencies --filter-paths "openzeppelin|test|script"
+```
+
 ### Deploy Contracts
 
 In order to deploy the contracts, set the relevant constants in the respective chain script, and run the following command(s):

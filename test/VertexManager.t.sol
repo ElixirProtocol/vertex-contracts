@@ -476,7 +476,9 @@ contract TestVertexManager is Test {
         uint256 amountBTC = 1 * 10 ** 8 + vertexManager.getWithdrawFee(address(BTC));
         uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.SlippageTooHigh.selector, amountUSDC, amountUSDC * 2, amountUSDC * 4));
+        vm.expectRevert(
+            abi.encodeWithSelector(VertexManager.SlippageTooHigh.selector, amountUSDC, amountUSDC * 2, amountUSDC * 4)
+        );
         vertexManager.depositBalanced(1, amountBTC, amountUSDC * 2, amountUSDC * 4, address(this));
     }
 

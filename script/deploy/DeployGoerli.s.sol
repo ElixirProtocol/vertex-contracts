@@ -21,6 +21,8 @@ contract DeployGoerli is DeployBase {
     function run() external {
         setup();
 
+        vm.startBroadcast(deployerKey);
+
         address BTC = 0x5Cc7c91690b2cbAEE19A513473D73403e13fb431;
         address USDC = 0x179522635726710Dd7D2035a81d856de4Aa7836c;
         address ETH = 0xCC59686e3a32Fb104C8ff84DD895676265eFb8a6;
@@ -57,5 +59,7 @@ contract DeployGoerli is DeployBase {
         for (uint256 i = 0; i < tokens.length; i++) {
             manager.addPoolToken(2, tokens[i], hardcaps[i]);
         }
+
+        vm.stopBroadcast();
     }
 }

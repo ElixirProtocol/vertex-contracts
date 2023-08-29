@@ -163,16 +163,6 @@ contract TestVertexManager is Test {
         vm.stopPrank();
     }
 
-    function getBalancedAmount(uint32 id, IERC20Metadata token0, IERC20Metadata token1, uint256 amount0)
-        public
-        view
-        returns (uint256)
-    {
-        return amount0.mulDiv(
-            vertexManager.getPrice(id), 10 ** (18 + (token0.decimals() - token1.decimals())), Math.Rounding.Down
-        );
-    }
-
     function processSlowModeTxs() public {
         // Clear any external slow-mode txs from the Vertex queue.
         vm.warp(block.timestamp + 259200);
@@ -217,7 +207,7 @@ contract TestVertexManager is Test {
         depositSetUp();
 
         // Calculate USDC needed.
-        uint256 amountUSDC = getBalancedAmount(1, BTC, USDC, amountBTC);
+        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC);
         deal(address(USDC), address(this), amountUSDC);
@@ -236,7 +226,7 @@ contract TestVertexManager is Test {
         if (amountBTC == 0) amountBTC = 1;
         depositSetUp();
 
-        uint256 amountUSDC = getBalancedAmount(1, BTC, USDC, amountBTC);
+        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = amountBTC;
@@ -249,7 +239,7 @@ contract TestVertexManager is Test {
         depositSetUp();
 
         uint256 amountBTC = 1 * 10 ** 6;
-        uint256 amountUSDC = getBalancedAmount(1, BTC, USDC, amountBTC);
+        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = amountBTC;
@@ -283,7 +273,7 @@ contract TestVertexManager is Test {
         vertexManager.updatePoolHardcaps(1, hardcaps);
 
         uint256 amountBTC = 1 * 10 ** 6;
-        uint256 amountUSDC = getBalancedAmount(1, BTC, USDC, amountBTC);
+        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = amountBTC;
@@ -297,7 +287,7 @@ contract TestVertexManager is Test {
         depositSetUp();
 
         uint256 amountBTC = 1 * 10 ** 6 + vertexManager.getWithdrawFee(address(BTC));
-        uint256 amountUSDC = getBalancedAmount(1, BTC, USDC, amountBTC);
+        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC);
         deal(address(USDC), address(this), amountUSDC);
@@ -318,6 +308,7 @@ contract TestVertexManager is Test {
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
+        deal(address(USDC), address(vertexManager), amountUSDC);
 
         // Create tokens to claim
         address[] memory tokens = new address[](2);
@@ -326,10 +317,6 @@ contract TestVertexManager is Test {
 
         vertexManager.claim(address(this), tokens);
 
-        vm.expectRevert();
-        vertexManager.claimFees(tokens);
-
-        vm.prank(OWNER);
         vertexManager.claimFees(tokens);
     }
 
@@ -337,7 +324,7 @@ contract TestVertexManager is Test {
         depositSetUp();
 
         uint256 amountBTC = 1 * 10 ** 6;
-        uint256 amountUSDC = getBalancedAmount(1, BTC, USDC, amountBTC);
+        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC * 2);
         deal(address(USDC), address(this), amountUSDC * 2);
@@ -360,7 +347,7 @@ contract TestVertexManager is Test {
         processSlowModeTxs();
 
         amountBTC = 1 * 10 ** 6;
-        amountUSDC = getBalancedAmount(1, BTC, USDC, amountBTC);
+        amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
@@ -378,7 +365,6 @@ contract TestVertexManager is Test {
 
         vertexManager.claim(address(this), tokens);
 
-        vm.prank(OWNER);
         vertexManager.claimFees(tokens);
     }
 
@@ -420,10 +406,6 @@ contract TestVertexManager is Test {
 
         vertexManager.claim(address(this), tokens);
 
-        vm.expectRevert();
-        vertexManager.claimFees(tokens);
-
-        vm.prank(OWNER);
         vertexManager.claimFees(tokens);
     }
 
@@ -560,7 +542,7 @@ contract TestVertexManager is Test {
         depositSetUp();
 
         uint256 amountBTC = 1 * 10 ** 6 + vertexManager.getWithdrawFee(address(BTC));
-        uint256 amountUSDC = getBalancedAmount(1, BTC, USDC, amountBTC);
+        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC);
         deal(address(USDC), address(this), amountUSDC);
@@ -586,7 +568,7 @@ contract TestVertexManager is Test {
         depositSetUp();
 
         uint256 amountBTC = 1 * 10 ** 6 + vertexManager.getWithdrawFee(address(BTC));
-        uint256 amountUSDC = getBalancedAmount(1, BTC, USDC, amountBTC);
+        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC);
         deal(address(USDC), address(this), amountUSDC);
@@ -614,7 +596,13 @@ contract TestVertexManager is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testInitialize() public {
-        VertexManager tempVertexManager = new VertexManager();
+        // Deploy proxy contract and point it to implementation
+        ERC1967Proxy tempProxy = new ERC1967Proxy(address(vertexManagerImplementation), "");
+        VertexManager tempVertexManager = VertexManager(address(tempProxy));
+
+        // Expect revert by trying to initliaze the implementation contract.
+        vm.expectRevert();
+        vertexManagerImplementation.initialize(address(0), address(0));
 
         // Expect revert for not enough funds to set up linked signer.
         vm.expectRevert();

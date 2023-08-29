@@ -4,6 +4,7 @@ pragma solidity 0.8.19;
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "openzeppelin/utils/math/Math.sol";
+import {ReentrancyGuard} from "openzeppelin/security/ReentrancyGuard.sol";
 
 import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -15,7 +16,7 @@ import {IEndpoint} from "./interfaces/IEndpoint.sol";
 /// @title Elixir pool manager for Vertex
 /// @author The Elixir Team
 /// @notice Pool manager contract to provide liquidity for spot and perp market making on Vertex Protocol.
-contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard {
     using Math for uint256;
     using SafeERC20 for IERC20Metadata;
 
@@ -97,7 +98,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /// @param id The ID of the pool to update.
     /// @param token The token to add.
     /// @param hardcap The hardcap for the token.
-    event PoolTokenAdded(uint256 id, address token, uint256 hardcap);
+    event PoolTokenAdded(uint256 id, address indexed token, uint256 hardcap);
 
     /// @notice Emitted when the hardcaps of a pool are updated.
     /// @param id The ID of the pool to update.
@@ -169,6 +170,16 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     /*//////////////////////////////////////////////////////////////
+                               CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Prevent the implementation contract from being initialized.
+    /// @dev The proxy contract state will still be able to call this function because the constructor does not affect the proxy state.
+    constructor() {
+        _disableInitializers();
+    }
+
+    /*//////////////////////////////////////////////////////////////
                                INITIALIZER
     //////////////////////////////////////////////////////////////*/
 
@@ -207,21 +218,19 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /// @param id The pool ID to deposit tokens to.
     /// @param amounts The list of token amounts to deposit.
     /// @param receiver The receiver of the virtual LP balance.
-    function deposit(uint256 id, uint256[] memory amounts, address receiver) external whenDepositNotPaused {
+    function deposit(uint256 id, uint256[] memory amounts, address receiver) external whenDepositNotPaused nonReentrant {
         Pool storage pool = _pools[id];
 
         if (amounts.length == 0 || pool.tokens.length != amounts.length) revert InvalidAmountsLength(amounts);
 
         // If the length of amounts is 2 (base abd quote tokens), it means that the pool targets a spot pair.
         // Then, check if the input amounts are balanced.
-        if (amounts.length == 2 && !checkBalanced(uint32(id), pool.tokens, amounts)) {
+        if (amounts.length == 2 && !checkBalanced(pool.tokens, amounts)) {
             revert UnbalancedAmounts(id, amounts);
         }
 
         // Loop over amounts to fetch and redirect tokens.
         for (uint256 i = 0; i < amounts.length; i++) {
-            // if (amounts[i] == 0) continue;
-
             // Get the token address.
             address token = pool.tokens[i];
 
@@ -233,7 +242,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             // Transfer tokens from the caller to this contract.
             IERC20Metadata(token).safeTransferFrom(msg.sender, address(this), amounts[i]);
 
-            // Build Vertex deposit payload.
+            // Create Vertex deposit payload request.
             IEndpoint.DepositCollateral memory depositPayload =
                 IEndpoint.DepositCollateral(contractSubaccount, tokenToProduct[token], uint128(amounts[i]));
 
@@ -263,7 +272,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /// @param id The pool ID to withdraw tokens from.
     /// @param amounts The list of token amounts to withdraw.
     /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
-    function withdraw(uint256 id, uint256[] memory amounts, uint256 feeIndex) external whenWithdrawNotPaused {
+    function withdraw(uint256 id, uint256[] memory amounts, uint256 feeIndex) external whenWithdrawNotPaused nonReentrant {
         Pool storage pool = _pools[id];
 
         if (amounts.length == 0 || pool.tokens.length != amounts.length || feeIndex > amounts.length) {
@@ -272,24 +281,14 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         // If the length of amounts is 2 (base abd quote tokens), it means that the pool targets a spot pair.
         // Then, check if the input amounts are balanced.
-        if (amounts.length == 2 && !checkBalanced(uint32(id), pool.tokens, amounts)) {
+        if (amounts.length == 2 && !checkBalanced( pool.tokens, amounts)) {
             revert UnbalancedAmounts(id, amounts);
         }
 
         // Loop over amounts and send withdraw requests to Vertex.
         for (uint256 i = 0; i < amounts.length; i++) {
-            // if (amounts[i] == 0) continue;
-
             // Get the token address.
             address token = pool.tokens[i];
-
-            IEndpoint.WithdrawCollateral memory withdrawPayload =
-                IEndpoint.WithdrawCollateral(contractSubaccount, tokenToProduct[token], uint128(amounts[i]), 0);
-
-            // Send withdraw requests to Vertex.
-            _submitSlowModeTransaction(
-                abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
-            );
 
             // Substract amount from the active market making balance.
             pool.userActiveAmounts[msg.sender][i] -= amounts[i];
@@ -313,6 +312,15 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             } else {
                 pendingBalances[msg.sender][token] += amounts[i];
             }
+
+            // Create Vertex withdraw payload request.
+            IEndpoint.WithdrawCollateral memory withdrawPayload =
+                IEndpoint.WithdrawCollateral(contractSubaccount, tokenToProduct[token], uint128(amounts[i]), 0);
+
+            // Send withdraw requests to Vertex.
+            _submitSlowModeTransaction(
+                abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
+            );
         }
 
         emit Withdraw(msg.sender, id, amounts);
@@ -321,7 +329,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /// @notice Claims received tokens from the pending balance.
     /// @param user The address to claim the tokens for.
     /// @param tokens The tokens to claim.
-    function claim(address user, address[] memory tokens) external whenClaimNotPaused {
+    function claim(address user, address[] memory tokens) external whenClaimNotPaused nonReentrant {
         // Loop over tokens and claim them if there is a pending balance and they are available.
         for (uint256 i = 0; i < tokens.length; i++) {
             // No danger if amount is 0.
@@ -335,6 +343,22 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
 
         emit Claim(user, tokens);
+    }
+
+    /// @notice Claim reimbursed fees to Elixir.
+    /// @param tokens The tokens to claim fees for.
+    function claimFees(address[] memory tokens) external {
+        // Loop over tokens and claim them if there is a pending balance and they are available.
+        for (uint256 i = 0; i < tokens.length; i++) {
+            // Fetch the fee amount.
+            uint256 fee = fees[tokens[i]];
+
+            // Resets the fee amount.
+            fees[tokens[i]] = 0;
+
+            // Transfers the tokens after to prevent reentrancy.
+            IERC20Metadata(tokens[i]).safeTransfer(owner(), fee);
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -364,17 +388,26 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         );
     }
 
+    /// @notice Returns the balanced amount of quote tokens given an amount of base tokens.
+    /// @param token0 The base token.
+    /// @param token1 The quote token.
+    /// @param amount0 The amount of base tokens.
+    function getBalancedAmount(address token0, address token1, uint256 amount0)
+        public
+        view
+        returns (uint256)
+    {
+        return amount0.mulDiv(
+            getPrice(tokenToProduct[address(token0)]), 10 ** (18 + (IERC20Metadata(token0).decimals() - IERC20Metadata(token1).decimals())), Math.Rounding.Down
+        );
+    }
+
     /// @notice Returns true if the given amounts of base and quote tokes are balanced.
-    /// @param id The ID of the product to fetch the price from.
     /// @param tokens The list of tokens to check the balance of. First item must be the base and the second the quote.
     /// @param amounts The list of amounts to check the balance of. First item msut be the base amount and the second the quote amount.
-    function checkBalanced(uint32 id, address[] memory tokens, uint256[] memory amounts) public view returns (bool) {
+    function checkBalanced(address[] memory tokens, uint256[] memory amounts) public view returns (bool) {
         // Get the price of the product on Vertex and calculate the expected quote amount, rounding down.
-        return amounts[0].mulDiv(
-            getPrice(id),
-            10 ** (18 + (IERC20Metadata(tokens[0]).decimals() - IERC20Metadata(tokens[1]).decimals())),
-            Math.Rounding.Down
-        ) == amounts[1];
+        return getBalancedAmount(tokens[0], tokens[1], amounts[0]) == amounts[1];
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -389,7 +422,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         // Deposit collateral doens't have fees.
         if (uint8(transaction[0]) != uint8(IEndpoint.TransactionType.DepositCollateral)) {
             // Fetch payment fee from owner. This can be reimbursed on withdrawals after tokens are received.
-            paymentToken.transferFrom(owner(), address(this), endpoint.slowModeFees());
+            paymentToken.safeTransferFrom(owner(), address(this), endpoint.slowModeFees());
         }
 
         endpoint.submitSlowModeTransaction(transaction);
@@ -470,20 +503,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
             // Substract amount from the active pool market making balance.
             pool.activeAmounts[i] -= _fees[i];
-        }
-    }
-
-    /// @notice Claim reimbursed fees.
-    /// @param tokens The tokens to claim fees for.
-    function claimFees(address[] memory tokens) external onlyOwner {
-        // Loop over tokens and claim them if there is a pending balance and they are available.
-        for (uint256 i = 0; i < tokens.length; i++) {
-            // Fetch the fee amount.
-            uint256 fee = fees[tokens[i]];
-            // Resets the fee amount.
-            fees[tokens[i]] = 0;
-            // Transfers the tokens after to prevent reentrancy.
-            IERC20Metadata(tokens[i]).safeTransfer(owner(), fee);
         }
     }
 

@@ -1,4 +1,29 @@
+<img align="right" width="150" height="150" top="100" style="border-radius:99%" src="https://i.imgur.com/H5aZQMA.jpg">
+
 # Elixir <> Vertex Integration Contracts • [![CI](https://github.com/ElixirProtocol/vertex-contracts/actions/workflows/test.yml/badge.svg)](https://github.com/ElixirProtocol/elixir-contracts/actions/workflows/test.yml)
+
+Art Gobblers is an experimental decentralized art factory by Justin Roiland and Paradigm.
+
+## Background
+
+This project contains the smart contracts for the Elixir Protocol integration on top of Vertex Protocol.
+
+See the [documentation](docs/introduction.md), the [Elixir Protocol documentation](https://docs.elixir.finance/), and the [Vertex Protocol documentation](https://vertex-protocol.gitbook.io/docs/) for more information.
+
+## Deployments
+
+
+<table>
+<tr>
+<th>Network</th>
+<th>Vertex Manager</th>
+</tr>
+<tr>
+<td>Arbitrum Goerli</td>
+<td><code>0xD38A5e15eACB4f8F46626AFaC5Aa0de0f041b36d</code></td>
+</tr>
+</table>
+
 
 ## Usage
 
@@ -13,17 +38,50 @@ forge install
 forge build
 ```
 
+## Documentation
+
+You can find the technical documentation and references of the smart contracts [here](docs/docs.md). 
+
+## Usage
+
+You will need a copy of [Foundry](https://github.com/foundry-rs/foundry) installed before proceeding. See the [installation guide](https://github.com/foundry-rs/foundry#installation) for details.
+
+To build the contracts:
+
+```sh
+git clone https://github.com/ElixirProtocol/vertex-contracts.git
+cd vertex-contracts
+forge install
+```
+
 ### Run Tests
 
-In order to run all tests, run:
+In order to run unit tests, run:
 
 ```sh
 forge test
 ```
 
-You can run Slither with the following command:
+For longer fuzz campaigns, run:
+
 ```sh
-slither . --exclude-dependencies --filter-paths "openzeppelin|test|script"
+FOUNDRY_PROFILE="intense" forge test
+```
+
+### Run Slither
+
+After [installing Slither](https://github.com/crytic/slither#how-to-install), run:
+
+```sh
+slither src/ --solc-remaps 'forge-std/=lib/forge-std/src/ ds-test/=lib/ds-test/src/ openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/ openzeppelin/=lib/openzeppelin-contracts/contracts/'
+```
+
+### Update Gas Snapshots
+
+To update the gas snapshots, run:
+
+```sh
+forge snapshot
 ```
 
 ### Deploy Contracts

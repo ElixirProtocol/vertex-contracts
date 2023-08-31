@@ -117,6 +117,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param newFee The new fee.
     event SlowModeFeeUpdated(uint256 newFee);
 
+    /// @notice Emitted when fees are applied to a user.
+    /// @param id The pool ID to apply fees to.
+    /// @param user The user to apply fees to.
+    /// @param fees The fees to apply.
+    event FeesApplied(uint256 id, address indexed user, uint256[] fees);
+
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -595,6 +601,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             // Substract amount from the active pool market making balance.
             pool.activeAmounts[i] -= _fees[i];
         }
+
+        emit FeesApplied(id, user, _fees);
     }
 
     /*//////////////////////////////////////////////////////////////

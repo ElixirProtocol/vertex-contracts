@@ -8,7 +8,7 @@ Overview of Elixir's smart contract architecture integrating to Vertex Protocol.
 - [Overview](#overview)
 - [Sequence of Events](#sequence-of-events)
 - [Lifecycle](#example-lifecycle-journey)
-- [Expected Behaviour](#expected-behaviour)
+- [Incident Response & Monitoring](#incident-response--monitoring)
 - [Aspects](#aspects)
 
 ## Background
@@ -25,7 +25,7 @@ More information:
 
 ## Overview
 
-This integration comprises one Elixir smart contract, called Vertex Manager, that allows users to deposit and withdraw liquidity for spot and perpetual (perp) products on Vertex. By depositing liquidity, users earn VRTX rewards from the market-making done by the Elixir validator network off-chain. Rewards, denominated in the VRTX token, are distributed via epochs lasting 28 days and serve as the sustainability of the APRs. On the Vertex Smart contract, each product is associated with a pool structure, which contains data like active amounts, balances, and more. Regarding Vertex, the Elixir smart contract interacts mainly with the Endpoint smart contract.
+This integration comprises one Elixir smart contract with a singleton architecture, called Vertex Manager, that allows users to deposit and withdraw liquidity for spot and perpetual (perp) products on Vertex. By depositing liquidity, users earn VRTX rewards from the market-making done by the Elixir validator network off-chain. Rewards, denominated in the VRTX token, are distributed via epochs lasting 28 days and serve as the sustainability of the APRs. On the Vertex Smart contract, each product is associated with a pool structure, which contains data like active amounts, balances, and more. Regarding Vertex, the Elixir smart contract interacts mainly with the Endpoint smart contract.
 
 - [VertexManager](src/VertexManager.sol): Elixir smart contract to deposit, withdraw, claim and manage product pools.
 - [Endpoint](https://github.com/vertex-protocol/vertex-contracts/blob/main/contracts/Endpoint.sol): Vertex smart contract that serves as the entry point for all actions and interactions with their protocol.
@@ -85,7 +85,7 @@ After the Vertex sequencer fulfills a withdrawal request, the funds will be avai
    - Transfer the token amount to the user.
 3. Emit the `Claim` event.
 
-> Note: As pending balances are not stored sequentially, users are able to claim funds in any order as they arrive to the Elixir smart contract. This is expected behaviour and does not affect the user's funds as the Vertex sequencer will continue to fulfill withdraw requests, which can also be manually processed after days of inactivity by the Vertex sequencer. Read more in the expected behaviour section.
+> Note: As pending balances are not stored sequentially, users are able to claim funds in any order as they arrive to the Elixir smart contract. This is expected behaviour and does not affect the user's funds as the Vertex sequencer will continue to fulfill withdraw requests, which can also be manually processed after days of inactivity by the Vertex sequencer.
 
 ### Reward Distribution (Pending)
 By market-making (creating and filling orders on the Vertex order book), the Elixir validator network earns VRTX rewards. These rewards would be distributed to the users who deposited liquidity on the Vertex Manager smart contract, depending on the amount and time of their liquidity. Vertex hasn't implemented the functionality to claim rewards yet, but the Elixir smart contract is ready to support it thanks to its upgradeability. Until then, reward balances are stored off-chain and will be synchronized and distributed to users when the Vertex functionality to claim is available.
@@ -131,25 +131,49 @@ Learn more about the VRTX reward mechanism [here](https://vertex-protocol.gitboo
 - The `withdraw` function performs a series of check and sends the withdraw requests to Vertex.
 - After the Vertex sequencer fulfills some withdraw requests and funds are available on the Vertex Manager contract, the user can call the `claim` function to claim their funds. Note that this step will most likely be performed by us (or any other third-party) on behalf of the user.
 
-## Expected Behaviour
+## Incident Response & Monitoring
 
 ## Aspects
 
 ### Arithmetic
 
+The codebase does not rely on complex arithmetic. Most of the arithmetic-related complexity is located in the `getBalancedAmount` and `getWithdrawFee` functions. However, fuzzing and invariant tests are applied to check for expected results and increase confidence in the arithmetic operations.
+
 ### Auditing
+
+Throughout the codebase, events are emitted to maximize transparency and allow us or third-parties to monitor the smart contract. All state-modifying functions emit events with the necessary data. Additionally, the incident response and monitoring section explains how we monitor the smart contract and respond to incidents.
 
 ### Authentication / Access Control
 
+Appropiate access controls are in place for all priviliged operations. The only privliged role in the smart contract is the owner, which is the Elixir 4/5 Multisig. As the Vertex protocol is completely upgradeable, the owner role is needed to perform operations and actions in case any aspect needs to be updated. The capabilities of the owner are the following:
+
+- `pause`: Update the pause status of deposits, withdraws, and claims in case of malicious activity or incidents. Allows to pause each operation modularly; for example, pause deposits but allow withdrawals and claims.
+- `addPoolToken`: Add a new token to a pool. This is needed in case Vertex updates or release new products (spot or perps). This function appends data instead of rewriting it, maximizing transparency and security.
+- `updatePoolHardcaps`: Update the hardcaps of a pool. Used to limit and manage market making activity on Vertex for scaling purposes. An alternative to pausing deposits too.
+- `updateToken`: Update the Vertex product ID of a token address. Used when new tokens are supported on Vertex products.
+- `updateSlowModeFee`: Update the slow mode fee in case the Vertex sequencer fee changes. Denominated on the `paymentToken`.
+- `applyFees`: Apply Elixir fees to a user balance depending on traded volume, which is data available off-chain. Limited to 10% of the available balance. These Elixir fees are claimed directly on Vertex and not through the Vertex Manager smart contract.
+
 ### Complexity Management
+
+The codebase is broken down into appropriate components, and the logic is straightforward to understand relative to what the code does. The code is overall well documented through NatSpec comments and in-line comments. The codebase also contains a single, smart contract with a singleton architecture approach, minimizing complexity compared to a factory-based approach.
 
 ### Decentralization
 
+Privileged operations go through a 4/5 multi-signature wallet composed of active core members of the Elixir team. Due to this, emergencies and operations can be addressed quickly and safely. There are plans to decentralize the owner role by building a smart contract on top of the Vertex Manager to support different roles for each type of operation and task, which can be further improved with a DAO governance structure -- in this case, the owner role would be transferred from the multi-sig to this role-based smart contract.
+
 ### Documentation
+
+Thorough user and developer documentation can be found in this document and throughout the codebase. Information like diagrams, formulas, system parameters, privileged roles, and more can also be found here.
 
 ### Front-running Resistance
 
+The Arbitrum network provides strong MEV and front-running protection, yet the smart contract is equipped with a series of protective measures against such types of attacks. The initialization of the smart contract is executed in robust deployment scripts that protect against front-running. Additionally, as explained in previous sections, the smart contract provides a completely flexible approach to pending balances, allowing users to claim their funds in any order as they arrive at the smart contract. For balanced deposits, slippage protection is also in place.
+
 ### Low-level manipulation
+
+The codebase does not include any in-line assembly or dangerous low-level calls. Moreover, supported tokens must be ERC20-compliant.
 
 ### Testing and Verification
 
+The protocol benefits from in-depth Foundry-based testing of arithmetic operations and functions through fuzzing, invariant, and differential testing. Real-world end-to-end testing was also conducted in the Arbitrum Goerli testnet over several weeks. Tools like OpenZeppelin Code App, Slither, and Echidna were used to analyze and test the codebase.

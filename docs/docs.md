@@ -8,16 +8,16 @@ Overview of Elixir's smart contract architecture integrating to Vertex Protocol.
 - [Overview](#overview)
 - [Sequence of Events](#sequence-of-events)
 - [Lifecycle](#lifecycle)
-- [Known Limitations And Workarounds](#known-limitations-and-workarounds)
+- [Expected Behaviour](#expected-behaviour)
 - [Aspects](#aspects)
 
 ## Background
 
-Elixir is building the industry's decentralized, algorithmic market making protocol. The protocol algorithmically deploys supplied liquidity on the orderbooks, utilizing the orderbook equivalent of x*y=k curves to build up liquidity and tighten the bid/ask spread. ​Elixir is fully composable: enabling decentralized exchanges (DEXs) to natively integrate Elixir into their core infrastructure to unlock retail liquidity for algorithmic market making. The protocol serves as crucial decentralized infrastructure allowing for exchanges and protocols to easily bootstrap liquidity to their books. It also enables crypto projects to incentivize liquidity to their centralized exchange pairs via LP tokens.
+Elixir is building the industry's decentralized, algorithmic market-making protocol. The protocol algorithmically deploys supplied liquidity on the order books, utilizing the equivalent of x*y=k curves to build liquidity and tighten the bid/ask spread. The protocol provides crucial decentralized infrastructure, allowing exchanges and protocols to easily bootstrap liquidity to their books. It also enables crypto projects to incentivize liquidity to their centralized exchange pairs via LP tokens.
 
-This set of smart contracts power the first native integration of Elixir into Vertex Protocol, a cross-margined DEX protocol offering spot, perpetuals, and an integrated money market bundled into one vertically integrated application on Arbitrum. Vertex is powered by a hybrid unified central limit order book (CLOB) and integrated automated market maker (AMM), whose liquidity is augmented as positions from pairwise LP markets populate the orderbook. Gas fees and MEV are minimized on Vertex due to the batched transaction and optimistic rollup model of the underlying Arbitrum layer two (L2), where Vertex’s smart contracts control the risk engine and core products.
+This repository contains the smart contracts to power the first native integration between Elixir and Vertex, a cross-margined DEX protocol offering spot, perpetuals, and an integrated money market bundled into one vertical application on Arbitrum. Vertex is powered by a hybrid unified central limit order book (CLOB) and integrated automated market maker (AMM). Gas fees and MEV are minimized on Vertex due to the batched transaction and optimistic rollup model of the underlying Arbitrum Layer 2, where Vertex's smart contracts control the risk engine and core products.
 
-For this integration, the most important aspect about Vertex Protocol to understand is their orderbook, a centralized “sequencer” that operates as an off-chain node layered on top of their smart contracts and contained within the Arbitrum protocol layer. Due to this nature of the underlying integration, the Elixir smart contracts have a series of unique features and functions that allow to build on top of it.
+This integration aims to unlock retail liquidity for algorithmic market-making on Vertex. Due to the nature of the underlying integration, the Elixir smart contracts have unique features and functions that allow building on top of it. For example, an important aspect of Vertex Protocol is their orderbook, a centralized "sequencer" that operates as an off-chain node layered on top of their smart contracts and contained within the Arbitrum protocol layer.
 
 More information:
 - [Elixir Protocol Documentation](https://docs.elixir.finance/)
@@ -25,11 +25,73 @@ More information:
 
 ## Overview
 
+This integration comprises one Elixir smart contract, called Vertex Manager, that allows users to deposit and withdraw liquidity for spot and perp products on Vertex. By depositing liquidity, users earn VRTX rewards from the market-making done by the Elixir validator network off-chain. Rewards, denominated in the VRTX token, are distributed via epochs lasting 28 days and serve as the sustainability of the APRs. On the Vertex Smart contract, each product is associated with a pool structure, which contains data like active amounts, balances, and more. Regarding Vertex, the Elixir smart contract interacts mainly with the Endpoint smart contract.
+
+- [VertexManager](src/VertexManager.sol): Elixir smart contract to deposit, withdraw, claim and manage product pools.
+- [Endpoint](https://github.com/vertex-protocol/vertex-contracts/blob/main/contracts/Endpoint.sol): Vertex smart contract that serves as the entry point for all actions and interactions with their protocol.
+- [Clearinghouse](https://github.com/vertex-protocol/vertex-contracts/blob/main/contracts/Clearinghouse.sol): Vertex smart contract that serves as the clearinghouse for all trades and positions, storing the liquidity (TVL) of their protocol. Only used in Vertex Manager initialization to fetch the fee token address.
+
 ## Sequence of Events
+
+### Deposit Liquidity
+Liquidity can be deposited into the Vertex Manager smart contract by calling the `deposit` or `depositBalanced` functions. Every spot product is composed by two tokens, the base token and the quote token, which is usually USDC. For this reason, liquidity for a spot product has to be deposited in a balanced way, meaning that the amount of base and quote tokens have to be equal in value. To check this, product prices are fetched from the Vertex Endpoint smart contract by calling its `getPriceX18` function, which provides the price in 18 decimals for a given product. Therefore, the Vertex Manager smart contract provides the `depositBalanced` function, which takes in a fixed base token amount and a range of quote token amounts to deposit. The function will then calculate the amount of quote tokens needed to perform a balanced deposit given the amount of base tokens. If this calculated amount of quote tokens is out of the given range, the function will revert due to slippage. The `deposit` function can still be used to deposit liquidity for a spot product, but there's a small probability that the transaciton reverts if the price of the product changes between the time the price is fetched and the time the transaction is confirmed. For perp products, liquidity can be deposited in an unbalanced way, meaning that the amount of tokens deposited can be different. In any case, the flow of the deposit functions is the following:
+
+1. Check that deposits are not paused.
+2. Check that the reentrancy guard is not active.
+3. Fetch the pool data using the given product ID.
+4. Verify that the length of amounts given match the length of supported tokens in the pool.
+5. Check if the length of amounts given is 2, meaning a spot product.
+   - If so, check that the amount of base tokens is equal in value to the amount of quote tokens.
+6. Loop over the amounts given to fetch the respective tokens and redirect liquidity to Vertex.
+   - Fetch the token address by using the index of the amount in the amounts array and the array of supported tokens in the pool.
+   - Check if the token amount to deposit will exceed the liquidity hardcap in this pool.
+   - Transfer the tokens from the caller to itself.
+   - Build and send the deposit transaction to Vertex, redirecting the received tokens to the Elixir account (EOA, established a linked signer).
+    * The Elixir linked signer allows the off-chain decentralized validator network to create market making requests on behalf of the Elixir smart contract.
+   - Update the pool data with the new amount.
+7. Emit the `Deposit` event.
+
+> Note: Before calling the `deposit` function, the `depositBalanced` function checks that the deposit belongs to a spot product and that the amount of base tokens is equal in value to the amount of quote tokens. If this is not the case, the transaction will revert.
+
+### Withdraw Liquidity
+Due to the nature of Vertex, withdrawing funds requires a two-step process. First, the liquidity has to be withdrawn from Vertex to the Elixir smart contract, which has to be approved by the Vertex sequencer, charging a fee of 1 USDC. Second, the liquidity has to be withdrawn from the Elixir smart contract to the user as there is no callback available via the `claim` function. This function can be called by anyone on behalf of any address, allowing us to monitor pending claims and process them for users. In similar fashion to deposits, withdraws on a spot product have to be balanced. Therefore, the Elixir smart contract provides a helper function called `withdrawBalanced` that faciliates the process. In any case, the flow of the `withdraw` function is the following:
+
+1. Check that withdraws are not paused.
+2. Check that the reentrancy guard is not active.
+3. Fetch the pool data using the given product ID.
+4. Verify that the length of amounts given match the length of supported tokens in the pool.
+5. Check if the length of amounts given is 2, meaning a spot product.
+   - If so, check that the amount of base tokens is equal in value to the amount of quote tokens.
+6. Loop over the amounts given to create and send the respective withdraw requests to Vertex.
+   - Fetch the token address by using the index of the amount in the amounts array and the array of supported tokens in the pool.
+   - Substract the amount of tokens from the user's balance on the pool data. Reverts if the user does not have enough balance.
+   - Check if the loop iteration number matches the fee index, which represents what token to use to pay the Vertex sequencer fee.
+    * If they match, the smart contract calculates the token amount equivalent to 1 USDC. 
+    * This amount is added to the fee balance of Elixir as it will pay the sequencer fee of 1 USDC on behalf of the user. Elixir can reimburse itself via the `claimFees` function.
+    * The fee amount is then substracted from the original token amount to withdraw, and stored as the pending balance for claims afterwads.
+   - Build and send the withdraw request to Vertex.
+7. Emit the `Withdraw` event.
+
+> Note: Before calling the `withdraw` function, the `withdrawBalanced` function checks that the withdraw belongs to a spot product and that the amount of base tokens is equal in value to the amount of quote tokens. If this is not the case, the transaction will revert.
+
+### Claim Liquidity
+After the Vertex sequencer fulfills a withdraw request, the funds will be available to claim on the Elixir smart contract by calling the `claim` function. This function can be called by anyone on behalf of a user, allowing us to monitor the pending claims and process them for users. The flow of the `claim` function is the following:
+
+1. Check that claims are not paused.
+1. Check that the reentrancy guard is not active.
+2. Loop over the list of tokens given.
+   - Fetch and store the pending balance of the user for the token in the iteration.
+   - Reset the pending balance to 0.
+   - Transfer the token amount to the user.
+3. Emit the `Claim` event.
+
+> Note: As pending balances are not stored sequentially, users are able to claim funds in any order as they arrive to the Elixir smart contract. This is expected behaviour and does not affect the user's funds as the Vertex sequencer will continue to fulfill withdraw requests, which can also be manually processed after days of inactivity by the Vertex sequencer. Read more in the expected behaviour section.
 
 ## Example Lifecycle Journey
 
-## Known Limitations and Workarounds
+
+
+## Expected Behaviour
 
 ## Aspects
 

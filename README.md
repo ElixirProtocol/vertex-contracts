@@ -8,7 +8,7 @@ Art Gobblers is an experimental decentralized art factory by Justin Roiland and 
 
 This project contains the smart contracts for the Elixir Protocol integration on top of Vertex Protocol.
 
-See the [documentation](docs/introduction.md), the [Elixir Protocol documentation](https://docs.elixir.finance/), and the [Vertex Protocol documentation](https://vertex-protocol.gitbook.io/docs/) for more information.
+See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https://docs.elixir.finance/), and the [Vertex Protocol documentation](https://vertex-protocol.gitbook.io/docs/) for more information.
 
 ## Deployments
 
@@ -24,20 +24,6 @@ See the [documentation](docs/introduction.md), the [Elixir Protocol documentatio
 </tr>
 </table>
 
-
-## Usage
-
-You will need to install [Foundry](https://github.com/foundry-rs/foundry) before proceeding. See the [installation guide](https://github.com/foundry-rs/foundry#installation) for details.
-
-To build the contracts:
-
-```sh
-git clone https://github.com/ElixirProtocol/vertex-contracts.git
-cd vertex-contracts
-forge install
-forge build
-```
-
 ## Documentation
 
 You can find the technical documentation and references of the smart contracts [here](docs/docs.md). 
@@ -52,6 +38,7 @@ To build the contracts:
 git clone https://github.com/ElixirProtocol/vertex-contracts.git
 cd vertex-contracts
 forge install
+forge build
 ```
 
 ### Run Tests

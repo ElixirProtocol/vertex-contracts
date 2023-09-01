@@ -401,7 +401,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     function getPrice(uint32 id) public view returns (uint256) {
         // Vertex has fixed USDC price of $1.
         if (id == 0) return 1 ether;
-        
+
         return endpoint.getPriceX18(id);
     }
 

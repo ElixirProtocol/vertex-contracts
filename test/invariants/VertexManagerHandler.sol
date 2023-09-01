@@ -16,7 +16,7 @@ uint256 constant USDC_SUPPLY = 3_000_000_000 * 10 ** 18;
 
 contract Handler is CommonBase, StdCheats, StdUtils {
     using LibAddressSet for AddressSet;
-    
+
     VertexManager internal manager;
 
     MockToken internal BTC;
@@ -38,7 +38,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     }
 
     function actors() external returns (address[] memory) {
-      return _actors.addrs;
+        return _actors.addrs;
     }
 
     constructor(VertexManager _manager, MockToken _BTC, MockToken _USDC, MockToken _WETH) {
@@ -100,10 +100,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         return _actors.forEach(func);
     }
 
-    function reduceActors(
-        uint256 acc,
-        function(uint256,address) external returns (uint256) func
-    )
+    function reduceActors(uint256 acc, function(uint256,address) external returns (uint256) func)
         public
         returns (uint256)
     {

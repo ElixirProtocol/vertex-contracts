@@ -11,7 +11,7 @@ contract MockEndpoint {
     MockToken public USDC;
     MockToken public WETH;
 
-    mapping (uint32 => MockToken) public tokens;
+    mapping(uint32 => MockToken) public tokens;
 
     constructor(address quoteToken, MockToken _BTC, MockToken _USDC, MockToken _WETH) {
         clearingHouse = new MockClearinghouse(quoteToken);

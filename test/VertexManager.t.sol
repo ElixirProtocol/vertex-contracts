@@ -297,7 +297,9 @@ contract TestVertexManager is Test {
 
         assertEq(userActiveAmounts, amounts);
         assertEq(activeAmounts, userActiveAmounts);
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 1 * 10 ** 8 - manager.getWithdrawFee(address(BTC)));
+        assertEq(
+            manager.pendingBalances(address(this), address(BTC)), 1 * 10 ** 8 - manager.getWithdrawFee(address(BTC))
+        );
         assertEq(manager.pendingBalances(address(this), address(USDC)), amountUSDC);
 
         manager.withdraw(1, amounts, 0);
@@ -311,7 +313,10 @@ contract TestVertexManager is Test {
 
         assertEq(userActiveAmounts, amountsEmpty);
         assertEq(activeAmounts, userActiveAmounts);
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 2 * (1 * 10 ** 8 - manager.getWithdrawFee(address(BTC))));
+        assertEq(
+            manager.pendingBalances(address(this), address(BTC)),
+            2 * (1 * 10 ** 8 - manager.getWithdrawFee(address(BTC)))
+        );
         assertEq(manager.pendingBalances(address(this), address(USDC)), 2 * amountUSDC);
 
         // Advance time for withdraw slow-mode tx.
@@ -445,7 +450,9 @@ contract TestVertexManager is Test {
 
         assertEq(userActiveAmounts, amountsEmpty);
         assertEq(activeAmounts, userActiveAmounts);
-        assertEq(manager.pendingBalances(address(this), address(BTC)), amounts[0] - manager.getWithdrawFee(address(BTC)));
+        assertEq(
+            manager.pendingBalances(address(this), address(BTC)), amounts[0] - manager.getWithdrawFee(address(BTC))
+        );
         assertEq(manager.pendingBalances(address(this), address(USDC)), amounts[1]);
         assertEq(manager.pendingBalances(address(this), address(WETH)), amounts[2]);
 
@@ -768,6 +775,30 @@ contract TestVertexManager is Test {
         manager.claim(address(this), tokens);
 
         manager.claimFees(tokens);
+    }
+
+    function testInsufficientFee() public {
+        perpDepositSetUp();
+
+        // Deposit 1 BTC, 0 USDC, and 0 WETH
+        uint256 amountBTC = 1 * 10 ** 8;
+        uint256 amountUSDC = 0;
+        uint256 amountWETH = 0;
+
+        deal(address(BTC), address(this), amountBTC);
+
+        BTC.approve(address(manager), amountBTC);
+
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+        amounts[2] = amountWETH;
+
+        manager.deposit(2, amounts, address(this));
+
+        // Try to withdraw and pay fees with USDC, but should revert because there is no USDC, so not enough to pay fees.
+        vm.expectRevert();
+        manager.withdraw(2, amounts, 1);
     }
 
     /*//////////////////////////////////////////////////////////////

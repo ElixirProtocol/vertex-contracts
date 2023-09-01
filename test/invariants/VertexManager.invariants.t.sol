@@ -124,25 +124,16 @@ contract TestVertexManagerInvariants is Test {
     // The BTC active amount should always be equal to the sum of individual active balances.
     function invariant_solvencyDeposits() public {
         (,, uint256[] memory activeAmounts) = manager.getPool(1);
-        assertEq(
-          activeAmounts[0],
-          handler.ghost_depositSum() - handler.ghost_withdrawSum()
-        );
+        assertEq(activeAmounts[0], handler.ghost_depositSum() - handler.ghost_withdrawSum());
     }
 
     // The BTC active amount should always be equal to the sum of individual active balances.
     function invariant_solvencyBalances() public {
-        uint256 sumOfBalances = handler.reduceActors(
-          0,
-          this.accumulateBalance
-        );
+        uint256 sumOfBalances = handler.reduceActors(0, this.accumulateBalance);
 
         (,, uint256[] memory activeAmounts) = manager.getPool(1);
 
-        assertEq(
-            activeAmounts[0],
-            sumOfBalances
-        );
+        assertEq(activeAmounts[0], sumOfBalances);
     }
 
     function accumulateBalance(uint256 balance, address caller) external view returns (uint256) {

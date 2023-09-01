@@ -30,7 +30,7 @@ contract TestVertexManager is Test {
     // Elixir contracts
     VertexManager internal vertexManagerImplementation;
     ERC1967Proxy internal proxy;
-    VertexManager internal vertexManager;
+    VertexManager internal manager;
 
     // Tokens
     IERC20Metadata internal BTC = IERC20Metadata(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
@@ -95,16 +95,16 @@ contract TestVertexManager is Test {
         proxy = new ERC1967Proxy(address(vertexManagerImplementation), "");
 
         // Wrap in ABI to support easier calls
-        vertexManager = VertexManager(address(proxy));
+        manager = VertexManager(address(proxy));
 
         // Approve the manager to move USDC for fee payments.
-        paymentToken.approve(address(vertexManager), type(uint256).max);
+        paymentToken.approve(address(manager), type(uint256).max);
 
         // Deal payment token to the factory, which pays for the slow mode transactions of all the vaults.
         deal(address(paymentToken), OWNER, type(uint256).max);
 
         // Set the endpoint and external account of the contract.
-        vertexManager.initialize(address(endpoint), EXTERNAL_ACCOUNT, 1000000);
+        manager.initialize(address(endpoint), EXTERNAL_ACCOUNT, 1000000);
 
         vm.stopPrank();
 
@@ -112,7 +112,7 @@ contract TestVertexManager is Test {
         processSlowModeTxs();
     }
 
-    function depositSetUp() public {
+    function spotDepositSetUp() public {
         vm.selectFork(networkFork);
         vm.startPrank(OWNER);
 
@@ -126,12 +126,12 @@ contract TestVertexManager is Test {
         hardcaps[1] = type(uint256).max;
 
         for (uint256 i = 0; i < tokens.length; i++) {
-            vertexManager.addPoolToken(1, tokens[i], hardcaps[i]);
+            manager.addPoolToken(1, tokens[i], hardcaps[i]);
         }
 
         // Add token support.
-        vertexManager.updateToken(address(USDC), 0);
-        vertexManager.updateToken(address(BTC), 1);
+        manager.updateToken(address(USDC), 0);
+        manager.updateToken(address(BTC), 1);
 
         vm.stopPrank();
     }
@@ -152,13 +152,13 @@ contract TestVertexManager is Test {
         hardcaps[2] = type(uint256).max;
 
         for (uint256 i = 0; i < tokens.length; i++) {
-            vertexManager.addPoolToken(2, tokens[i], hardcaps[i]);
+            manager.addPoolToken(2, tokens[i], hardcaps[i]);
         }
 
         // Add token support.
-        vertexManager.updateToken(address(USDC), 0);
-        vertexManager.updateToken(address(BTC), 1);
-        vertexManager.updateToken(address(WETH), 3);
+        manager.updateToken(address(USDC), 0);
+        manager.updateToken(address(BTC), 1);
+        manager.updateToken(address(WETH), 3);
 
         vm.stopPrank();
     }
@@ -171,201 +171,231 @@ contract TestVertexManager is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                         DEPOSIT/WITHDRAW TESTS
+                        DEPOSIT/WITHDRAWAL TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testDepositInvalidInputs() public {
-        vm.selectFork(networkFork);
-
-        uint256[] memory amounts = new uint256[](0);
-
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidAmountsLength.selector, amounts));
-
-        vertexManager.deposit(0, amounts, address(this));
-
-        amounts = new uint256[](2);
-
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidAmountsLength.selector, amounts));
-        vertexManager.deposit(0, amounts, address(this));
-    }
-
-    function testUnbalancedDeposit() public {
-        depositSetUp();
-
-        uint256[] memory amounts = new uint256[](2);
-        // 1 BTC
-        amounts[0] = 1 ether;
-        // 1 USDC
-        amounts[1] = 1;
-
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.UnbalancedAmounts.selector, 1, amounts));
-        vertexManager.deposit(1, amounts, address(this));
-    }
-
-    function testFailDepositWithNotEnoughApproval(uint256 amountBTC) public {
-        if (amountBTC == 0) amountBTC = 1;
-        depositSetUp();
-
-        // Calculate USDC needed.
-        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
-
-        deal(address(BTC), address(this), amountBTC);
-        deal(address(USDC), address(this), amountUSDC);
-
-        BTC.approve(address(vertexManager), amountBTC / 2);
-        USDC.approve(address(vertexManager), amountUSDC / 2);
-
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = amountBTC;
-        amounts[1] = amountUSDC;
-
-        vertexManager.deposit(1, amounts, address(this));
-    }
-
-    function testFailWithdrawWithNoBalance(uint256 amountBTC) public {
-        if (amountBTC == 0) amountBTC = 1;
-        depositSetUp();
-
-        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
-
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = amountBTC;
-        amounts[1] = amountUSDC;
-
-        vertexManager.withdraw(1, amounts, 0);
-    }
-
-    function testWithdrawInvalidFee() public {
-        depositSetUp();
-
-        uint256 amountBTC = 1 * 10 ** 8;
-        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
-
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = amountBTC;
-        amounts[1] = amountUSDC;
-
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidAmountsLength.selector, amounts));
-        vertexManager.withdraw(1, amounts, 69);
-    }
-
-    function testUnbalancedWithdraw() public {
-        depositSetUp();
-
-        uint256[] memory amounts = new uint256[](2);
-        // 1 BTC
-        amounts[0] = 1 ether;
-        // 1 USDC
-        amounts[1] = 1;
-
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.UnbalancedAmounts.selector, 1, amounts));
-        vertexManager.withdraw(1, amounts, 0);
-    }
-
-    function testHardcapReached() public {
-        depositSetUp();
-
-        vm.prank(OWNER);
-        uint256[] memory hardcaps = new uint256[](2);
-        hardcaps[0] = 0;
-        hardcaps[1] = 0;
-
-        vertexManager.updatePoolHardcaps(1, hardcaps);
-
-        uint256 amountBTC = 1 * 10 ** 8;
-        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
-
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = amountBTC;
-        amounts[1] = amountUSDC;
-
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.HardcapReached.selector, address(BTC), 0, 0, amountBTC));
-        vertexManager.deposit(1, amounts, address(this));
-    }
-
     function testSingleDepositSpot() public {
-        depositSetUp();
+        spotDepositSetUp();
 
-        uint256 amountBTC = 1 * 10 ** 8 + vertexManager.getWithdrawFee(address(BTC));
-        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+        uint256 amountBTC = 1 * 10 ** 8 + manager.getWithdrawFee(address(BTC));
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC);
         deal(address(USDC), address(this), amountUSDC);
 
-        BTC.approve(address(vertexManager), amountBTC);
-        USDC.approve(address(vertexManager), amountUSDC);
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
 
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
-        vertexManager.deposit(1, amounts, address(this));
+        manager.deposit(1, amounts, address(this));
+
+        (,, uint256[] memory activeAmounts) = manager.getPool(1);
+        uint256[] memory userActiveAmounts = manager.getUserActiveAmounts(1, address(this));
+
+        assertEq(userActiveAmounts, amounts);
+        assertEq(activeAmounts, userActiveAmounts);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
 
-        vertexManager.withdraw(1, amounts, 0);
+        manager.withdraw(1, amounts, 0);
+
+        uint256[] memory amountsEmpty = new uint256[](2);
+        amountsEmpty[0] = 0;
+        amountsEmpty[1] = 0;
+
+        (,, activeAmounts) = manager.getPool(1);
+        userActiveAmounts = manager.getUserActiveAmounts(1, address(this));
+
+        assertEq(userActiveAmounts, amountsEmpty);
+        assertEq(activeAmounts, userActiveAmounts);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 1 * 10 ** 8);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), amounts[1]);
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
-        deal(address(USDC), address(vertexManager), amountUSDC);
+        deal(address(USDC), address(manager), amountUSDC);
 
         // Create tokens to claim
         address[] memory tokens = new address[](2);
         tokens[0] = address(BTC);
         tokens[1] = address(USDC);
 
-        vertexManager.claim(address(this), tokens);
+        manager.claim(address(this), tokens);
 
-        vertexManager.claimFees(tokens);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(BTC.balanceOf(address(this)), 1 * 10 ** 8);
+        assertEq(USDC.balanceOf(address(this)), amounts[1]);
+
+        manager.claimFees(tokens);
+
+        assertEq(BTC.balanceOf(OWNER), manager.getWithdrawFee(address(BTC)));
     }
 
     function testDoubleDepositSpot() public {
-        depositSetUp();
+        spotDepositSetUp();
 
         uint256 amountBTC = 1 * 10 ** 8;
-        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC * 2);
         deal(address(USDC), address(this), amountUSDC * 2);
 
-        BTC.approve(address(vertexManager), amountBTC * 2);
-        USDC.approve(address(vertexManager), amountUSDC * 2);
+        BTC.approve(address(manager), amountBTC * 2);
+        USDC.approve(address(manager), amountUSDC * 2);
 
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
-        vertexManager.deposit(1, amounts, address(this));
+        manager.deposit(1, amounts, address(this));
+
+        (,, uint256[] memory activeAmounts) = manager.getPool(1);
+        uint256[] memory userActiveAmounts = manager.getUserActiveAmounts(1, address(this));
+
+        assertEq(userActiveAmounts, amounts);
+        assertEq(activeAmounts, userActiveAmounts);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
 
-        vertexManager.deposit(1, amounts, address(this));
+        manager.deposit(1, amounts, address(this));
+
+        (,, activeAmounts) = manager.getPool(1);
+        userActiveAmounts = manager.getUserActiveAmounts(1, address(this));
+
+        uint256[] memory amountsDoubled = new uint256[](2);
+        amountsDoubled[0] = amountBTC * 2;
+        amountsDoubled[1] = amountUSDC * 2;
+
+        assertEq(userActiveAmounts, amountsDoubled);
+        assertEq(activeAmounts, userActiveAmounts);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
 
         amountBTC = 1 * 10 ** 8;
-        amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+        amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
-        vertexManager.withdraw(1, amounts, 0);
+        manager.withdraw(1, amounts, 0);
+
+        (,, activeAmounts) = manager.getPool(1);
+        userActiveAmounts = manager.getUserActiveAmounts(1, address(this));
+
+        assertEq(userActiveAmounts, amounts);
+        assertEq(activeAmounts, userActiveAmounts);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 1 * 10 ** 8 - manager.getWithdrawFee(address(BTC)));
+        assertEq(manager.pendingBalances(address(this), address(USDC)), amountUSDC);
+
+        manager.withdraw(1, amounts, 0);
+
+        (,, activeAmounts) = manager.getPool(1);
+        userActiveAmounts = manager.getUserActiveAmounts(1, address(this));
+
+        uint256[] memory amountsEmpty = new uint256[](2);
+        amountsEmpty[0] = 0;
+        amountsEmpty[1] = 0;
+
+        assertEq(userActiveAmounts, amountsEmpty);
+        assertEq(activeAmounts, userActiveAmounts);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 2 * (1 * 10 ** 8 - manager.getWithdrawFee(address(BTC))));
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 2 * amountUSDC);
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
-        deal(address(USDC), address(vertexManager), amountUSDC * 2);
+        deal(address(USDC), address(manager), amountUSDC * 2);
 
         // Create tokens to claim
         address[] memory tokens = new address[](2);
         tokens[0] = address(BTC);
         tokens[1] = address(USDC);
 
-        vertexManager.claim(address(this), tokens);
+        manager.claim(address(this), tokens);
 
-        vertexManager.claimFees(tokens);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(BTC.balanceOf(address(this)), 2 * (1 * 10 ** 8 - manager.getWithdrawFee(address(BTC))));
+        assertEq(USDC.balanceOf(address(this)), 2 * amountUSDC);
+
+        manager.claimFees(tokens);
+
+        assertEq(BTC.balanceOf(OWNER), 2 * manager.getWithdrawFee(address(BTC)));
+    }
+
+    function testSingleDepositSpotBalanced() public {
+        spotDepositSetUp();
+
+        uint256 amountBTC = 1 * 10 ** 8 + manager.getWithdrawFee(address(BTC));
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+
+        manager.depositBalanced(1, amountBTC, 0, type(uint256).max, address(this));
+
+        uint256[] memory expectedAmounts = new uint256[](2);
+        expectedAmounts[0] = amountBTC;
+        expectedAmounts[1] = amountUSDC;
+
+        (,, uint256[] memory activeAmounts) = manager.getPool(1);
+        uint256[] memory userActiveAmounts = manager.getUserActiveAmounts(1, address(this));
+
+        assertEq(userActiveAmounts, expectedAmounts);
+        assertEq(activeAmounts, userActiveAmounts);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+
+        // Advance time for deposit slow-mode tx.
+        processSlowModeTxs();
+
+        expectedAmounts[0] = 0;
+        expectedAmounts[1] = 0;
+
+        manager.withdrawBalanced(1, amountBTC, 0);
+
+        (,, activeAmounts) = manager.getPool(1);
+        userActiveAmounts = manager.getUserActiveAmounts(1, address(this));
+
+        assertEq(userActiveAmounts, expectedAmounts);
+        assertEq(activeAmounts, userActiveAmounts);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 1 * 10 ** 8);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), amountUSDC);
+
+        // Advance time for withdraw slow-mode tx.
+        processSlowModeTxs();
+        deal(address(USDC), address(manager), amountUSDC);
+
+        // Create tokens to claim
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(BTC);
+        tokens[1] = address(USDC);
+
+        manager.claim(address(this), tokens);
+
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(BTC.balanceOf(address(this)), 1 * 10 ** 8);
+        assertEq(USDC.balanceOf(address(this)), amountUSDC);
+
+        manager.claimFees(tokens);
+
+        assertEq(BTC.balanceOf(OWNER), manager.getWithdrawFee(address(BTC)));
     }
 
     function testSingleDepositPerp() public {
@@ -380,56 +410,98 @@ contract TestVertexManager is Test {
         deal(address(USDC), address(this), amountUSDC);
         deal(address(WETH), address(this), amountWETH);
 
-        BTC.approve(address(vertexManager), amountBTC);
-        USDC.approve(address(vertexManager), amountUSDC);
-        WETH.approve(address(vertexManager), amountWETH);
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+        WETH.approve(address(manager), amountWETH);
 
         uint256[] memory amounts = new uint256[](3);
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
         amounts[2] = amountWETH;
 
-        vertexManager.deposit(2, amounts, address(this));
+        manager.deposit(2, amounts, address(this));
+
+        (,, uint256[] memory activeAmounts) = manager.getPool(2);
+        uint256[] memory userActiveAmounts = manager.getUserActiveAmounts(2, address(this));
+
+        assertEq(userActiveAmounts, amounts);
+        assertEq(activeAmounts, userActiveAmounts);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(WETH)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
 
-        vertexManager.withdraw(2, amounts, 0);
+        manager.withdraw(2, amounts, 0);
+
+        (,, activeAmounts) = manager.getPool(2);
+        userActiveAmounts = manager.getUserActiveAmounts(2, address(this));
+
+        uint256[] memory amountsEmpty = new uint256[](3);
+        amountsEmpty[0] = 0;
+        amountsEmpty[1] = 0;
+        amountsEmpty[2] = 0;
+
+        assertEq(userActiveAmounts, amountsEmpty);
+        assertEq(activeAmounts, userActiveAmounts);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), amounts[0] - manager.getWithdrawFee(address(BTC)));
+        assertEq(manager.pendingBalances(address(this), address(USDC)), amounts[1]);
+        assertEq(manager.pendingBalances(address(this), address(WETH)), amounts[2]);
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
 
-        // Create tokens to claim
-        address[] memory tokens = new address[](2);
+        // Create tokens to claim.
+        address[] memory tokens = new address[](3);
         tokens[0] = address(BTC);
         tokens[1] = address(USDC);
+        tokens[2] = address(WETH);
 
-        vertexManager.claim(address(this), tokens);
+        manager.claim(address(this), tokens);
 
-        vertexManager.claimFees(tokens);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(WETH)), 0);
+        assertEq(BTC.balanceOf(address(this)), amounts[0] - manager.getWithdrawFee(address(BTC)));
+        assertEq(USDC.balanceOf(address(this)), amounts[1]);
+        assertEq(WETH.balanceOf(address(this)), amounts[2]);
+
+        manager.claimFees(tokens);
+
+        assertEq(BTC.balanceOf(OWNER), manager.getWithdrawFee(address(BTC)));
     }
 
-    function testSingleDepositSpotBalanced() public {
-        depositSetUp();
+    function testSingleDepositSpotBalancedOtherReceiver() public {
+        spotDepositSetUp();
 
-        uint256 amountBTC = 1 * 10 ** 8 + vertexManager.getWithdrawFee(address(BTC));
-        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+        uint256 amountBTC = 1 * 10 ** 8 + manager.getWithdrawFee(address(BTC));
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC);
         deal(address(USDC), address(this), amountUSDC);
 
-        BTC.approve(address(vertexManager), amountBTC);
-        USDC.approve(address(vertexManager), amountUSDC);
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
 
-        vertexManager.depositBalanced(1, amountBTC, 0, type(uint256).max, address(this));
+        manager.depositBalanced(1, amountBTC, 0, type(uint256).max, address(0x69));
 
         uint256[] memory expectedAmounts = new uint256[](2);
         expectedAmounts[0] = amountBTC;
         expectedAmounts[1] = amountUSDC;
 
-        assertEq(vertexManager.getUserActiveAmounts(1, address(this)), expectedAmounts);
-        assertEq(vertexManager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(vertexManager.pendingBalances(address(this), address(USDC)), 0);
+        (,, uint256[] memory activeAmounts) = manager.getPool(1);
+        uint256[] memory userActiveAmountsCaller = manager.getUserActiveAmounts(1, address(this));
+        uint256[] memory userActiveAmountsReceiver = manager.getUserActiveAmounts(1, address(0x69));
+        uint256[] memory amountsVoid = new uint256[](0);
+
+        assertEq(userActiveAmountsCaller, amountsVoid);
+        assertEq(userActiveAmountsReceiver, expectedAmounts);
+        assertEq(activeAmounts, userActiveAmountsReceiver);
+        assertEq(manager.pendingBalances(address(0x69), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(0x69), address(USDC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
@@ -437,49 +509,265 @@ contract TestVertexManager is Test {
         expectedAmounts[0] = 0;
         expectedAmounts[1] = 0;
 
-        vertexManager.withdrawBalanced(1, amountBTC, 0);
+        vm.prank(address(0x69));
+        manager.withdrawBalanced(1, amountBTC, 0);
 
-        assertEq(vertexManager.getUserActiveAmounts(1, address(this)), expectedAmounts);
-        assertEq(vertexManager.pendingBalances(address(this), address(BTC)), 1 * 10 ** 8);
-        assertEq(vertexManager.pendingBalances(address(this), address(USDC)), amountUSDC);
+        (,, activeAmounts) = manager.getPool(1);
+        userActiveAmountsCaller = manager.getUserActiveAmounts(1, address(this));
+        userActiveAmountsReceiver = manager.getUserActiveAmounts(1, address(0x69));
+
+        uint256[] memory amountsEmpty = new uint256[](2);
+        amountsEmpty[0] = 0;
+        amountsEmpty[1] = 0;
+
+        assertEq(userActiveAmountsCaller, amountsVoid);
+        assertEq(userActiveAmountsReceiver, amountsEmpty);
+        assertEq(activeAmounts, userActiveAmountsReceiver);
+        assertEq(manager.pendingBalances(address(0x69), address(BTC)), 1 * 10 ** 8);
+        assertEq(manager.pendingBalances(address(0x69), address(USDC)), amountUSDC);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
-        deal(address(USDC), address(vertexManager), amountUSDC);
+        deal(address(USDC), address(manager), amountUSDC);
 
         // Create tokens to claim
         address[] memory tokens = new address[](2);
         tokens[0] = address(BTC);
         tokens[1] = address(USDC);
 
-        vertexManager.claim(address(this), tokens);
+        manager.claim(address(0x69), tokens);
 
-        assertEq(vertexManager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(vertexManager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(manager.pendingBalances(address(0x69), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(0x69), address(USDC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
+        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(BTC.balanceOf(address(0x69)), 1 * 10 ** 8);
+        assertEq(USDC.balanceOf(address(0x69)), amountUSDC);
 
-        vertexManager.claimFees(tokens);
+        manager.claimFees(tokens);
+
+        assertEq(BTC.balanceOf(OWNER), manager.getWithdrawFee(address(BTC)));
     }
 
-    function testSingleDepositBalanced() public {
+    /*//////////////////////////////////////////////////////////////
+                 DEPOSIT/WITHDRAWAL SANITY CHECK TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function testDepositWithNotEnoughApproval(uint240 amountBTC) public {
+        vm.assume(amountBTC > 0);
+        spotDepositSetUp();
+
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        BTC.approve(address(manager), amountBTC / 2);
+        USDC.approve(address(manager), amountUSDC / 2);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+
+        vm.expectRevert();
+        manager.deposit(1, amounts, address(this));
+    }
+
+    function testWithdrawWithNotEnoughBalance(uint248 amountBTC) public {
+        vm.assume(amountBTC > 1);
+        spotDepositSetUp();
+
+        deal(address(BTC), address(this), type(uint256).max);
+        deal(address(USDC), address(this), type(uint256).max);
+
+        BTC.approve(address(manager), type(uint256).max);
+        USDC.approve(address(manager), type(uint256).max);
+
+        manager.depositBalanced(1, amountBTC / 2, 1, type(uint256).max, address(this));
+
+        processSlowModeTxs();
+
+        vm.expectRevert();
+        manager.withdrawBalanced(1, amountBTC, 0);
+    }
+
+    function testDepositWithNoBalance(uint240 amountBTC) public {
+        vm.assume(amountBTC > 0);
+        spotDepositSetUp();
+
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+
+        vm.expectRevert();
+        manager.deposit(1, amounts, address(this));
+    }
+
+    function testWithdrawWithNoBalance(uint240 amountBTC) public {
+        vm.assume(amountBTC > 0);
+        spotDepositSetUp();
+
+        vm.expectRevert();
+        manager.withdrawBalanced(1, amountBTC, 0);
+    }
+
+    function testDepositWithNoApproval(uint240 amountBTC) public {
+        vm.assume(amountBTC > 0);
+        spotDepositSetUp();
+
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+
+        vm.expectRevert();
+        manager.deposit(1, amounts, address(this));
+    }
+
+    function testDepositInvalidInputs() public {
+        vm.selectFork(networkFork);
+
+        uint256[] memory amounts = new uint256[](0);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidAmountsLength.selector, amounts));
+
+        manager.deposit(0, amounts, address(this));
+
+        amounts = new uint256[](2);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidAmountsLength.selector, amounts));
+        manager.deposit(0, amounts, address(this));
+    }
+
+    function testUnbalancedDeposit() public {
+        spotDepositSetUp();
+
+        uint256[] memory amounts = new uint256[](2);
+        // 1 BTC
+        amounts[0] = 1 ether;
+        // 1 USDC
+        amounts[1] = 1;
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.UnbalancedAmounts.selector, 1, amounts));
+        manager.deposit(1, amounts, address(this));
+    }
+
+    function testUnbalancedWithdraw() public {
+        spotDepositSetUp();
+
+        uint256[] memory amounts = new uint256[](2);
+        // 1 BTC
+        amounts[0] = 1 ether;
+        // 1 USDC
+        amounts[1] = 1;
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.UnbalancedAmounts.selector, 1, amounts));
+        manager.withdraw(1, amounts, 0);
+    }
+
+    function testWithdrawInvalidFee() public {
+        spotDepositSetUp();
+
+        uint256 amountBTC = 1 * 10 ** 8;
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidAmountsLength.selector, amounts));
+        manager.withdraw(1, amounts, 69);
+    }
+
+    function testHardcapReached() public {
+        spotDepositSetUp();
+
+        vm.prank(OWNER);
+        uint256[] memory hardcaps = new uint256[](2);
+        hardcaps[0] = 0;
+        hardcaps[1] = 0;
+
+        manager.updatePoolHardcaps(1, hardcaps);
+
+        uint256 amountBTC = 1 * 10 ** 8;
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.HardcapReached.selector, address(BTC), 0, 0, amountBTC));
+        manager.deposit(1, amounts, address(this));
+    }
+
+    function testNotSpotPool() public {
         perpDepositSetUp();
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.NotSpotPool.selector, 2));
-        vertexManager.depositBalanced(2, 69, 0, type(uint256).max, address(this));
+        manager.depositBalanced(2, 69, 0, type(uint256).max, address(this));
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.NotSpotPool.selector, 2));
-        vertexManager.withdrawBalanced(2, 69, 0);
+        manager.withdrawBalanced(2, 69, 0);
     }
 
     function testSingleDepositBalancedSlippage() public {
-        depositSetUp();
+        spotDepositSetUp();
 
-        uint256 amountBTC = 1 * 10 ** 8 + vertexManager.getWithdrawFee(address(BTC));
-        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+        uint256 amountBTC = 1 * 10 ** 8 + manager.getWithdrawFee(address(BTC));
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         vm.expectRevert(
             abi.encodeWithSelector(VertexManager.SlippageTooHigh.selector, amountUSDC, amountUSDC * 2, amountUSDC * 4)
         );
-        vertexManager.depositBalanced(1, amountBTC, amountUSDC * 2, amountUSDC * 4, address(this));
+        manager.depositBalanced(1, amountBTC, amountUSDC * 2, amountUSDC * 4, address(this));
+    }
+
+    function testWithdrawUSDCFee() public {
+        spotDepositSetUp();
+
+        uint256 amountBTC = 1 * 10 ** 8 + manager.getWithdrawFee(address(BTC));
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+
+        manager.deposit(1, amounts, address(this));
+
+        // Advance time for deposit slow-mode tx.
+        processSlowModeTxs();
+
+        manager.withdraw(1, amounts, 1);
+
+        // Advance time for withdraw slow-mode tx.
+        processSlowModeTxs();
+        deal(address(USDC), address(manager), amountUSDC);
+
+        // Create tokens to claim
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(BTC);
+        tokens[1] = address(USDC);
+
+        manager.claim(address(this), tokens);
+
+        manager.claimFees(tokens);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -500,11 +788,11 @@ contract TestVertexManager is Test {
         hardcaps[1] = type(uint256).max;
 
         for (uint256 i = 0; i < tokens.length; i++) {
-            vertexManager.addPoolToken(1, tokens[i], hardcaps[i]);
+            manager.addPoolToken(1, tokens[i], hardcaps[i]);
         }
 
         // Get the pool data.
-        (address[] memory tokens_, uint256[] memory hardcaps_,) = vertexManager.getPool(1);
+        (address[] memory tokens_, uint256[] memory hardcaps_,) = manager.getPool(1);
 
         assertEq(tokens_, tokens);
         assertEq(hardcaps_, hardcaps);
@@ -512,10 +800,10 @@ contract TestVertexManager is Test {
         hardcaps[0] = 0;
         hardcaps[1] = 0;
 
-        vertexManager.updatePoolHardcaps(1, hardcaps);
+        manager.updatePoolHardcaps(1, hardcaps);
 
         // Get the pool data.
-        (tokens_, hardcaps_,) = vertexManager.getPool(1);
+        (tokens_, hardcaps_,) = manager.getPool(1);
 
         assertEq(tokens_, tokens);
         assertEq(hardcaps_, hardcaps);
@@ -527,17 +815,17 @@ contract TestVertexManager is Test {
         uint256[] memory hardcaps = new uint256[](2);
 
         vm.expectRevert();
-        vertexManager.updatePoolHardcaps(1, hardcaps);
+        manager.updatePoolHardcaps(1, hardcaps);
 
         vm.expectRevert();
-        vertexManager.addPoolToken(1, address(0xdead), 69);
+        manager.addPoolToken(1, address(0xdead), 69);
     }
 
     function testIsPoolAdded() public {
         vm.selectFork(networkFork);
 
         // Get the pool data.
-        (address[] memory tokens_, uint256[] memory hardcaps_,) = vertexManager.getPool(2);
+        (address[] memory tokens_, uint256[] memory hardcaps_,) = manager.getPool(2);
 
         assertTrue(tokens_.length == 0);
         assertTrue(hardcaps_.length == 0);
@@ -549,32 +837,32 @@ contract TestVertexManager is Test {
 
     function testDepositsPaused() public {
         vm.prank(OWNER);
-        vertexManager.pause(true, false, false);
+        manager.pause(true, false, false);
 
         uint256[] memory amounts = new uint256[](2);
 
         vm.expectRevert(VertexManager.DepositsPaused.selector);
-        vertexManager.deposit(1, amounts, address(this));
+        manager.deposit(1, amounts, address(this));
     }
 
     function testWithdrawalsPaused() public {
         vm.prank(OWNER);
-        vertexManager.pause(false, true, false);
+        manager.pause(false, true, false);
 
         uint256[] memory amounts = new uint256[](2);
 
         vm.expectRevert(VertexManager.WithdrawalsPaused.selector);
-        vertexManager.withdraw(1, amounts, 0);
+        manager.withdraw(1, amounts, 0);
     }
 
     function testClaimsPaused() public {
         vm.prank(OWNER);
-        vertexManager.pause(false, false, true);
+        manager.pause(false, false, true);
 
         address[] memory tokens = new address[](2);
 
         vm.expectRevert(VertexManager.ClaimsPaused.selector);
-        vertexManager.claim(address(this), tokens);
+        manager.claim(address(this), tokens);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -584,19 +872,19 @@ contract TestVertexManager is Test {
     function testAddAndUpdateToken() public {
         vm.startPrank(OWNER);
 
-        assertEq(vertexManager.tokenToProduct(address(BTC)), 0);
+        assertEq(manager.tokenToProduct(address(BTC)), 0);
 
-        vertexManager.updateToken(address(BTC), 1);
+        manager.updateToken(address(BTC), 1);
 
-        assertEq(vertexManager.tokenToProduct(address(BTC)), 1);
+        assertEq(manager.tokenToProduct(address(BTC)), 1);
 
-        vertexManager.updateToken(address(BTC), 2);
+        manager.updateToken(address(BTC), 2);
 
-        assertEq(vertexManager.tokenToProduct(address(BTC)), 2);
+        assertEq(manager.tokenToProduct(address(BTC)), 2);
     }
 
     function testFailUpdateToken() public {
-        vertexManager.updateToken(address(BTC), 69);
+        manager.updateToken(address(BTC), 69);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -608,52 +896,52 @@ contract TestVertexManager is Test {
 
         uint256[] memory fees = new uint256[](0);
 
-        vertexManager.applyFees(1, address(0xdead), fees);
+        manager.applyFees(1, address(0xdead), fees);
     }
 
     function testApplyFees() public {
-        depositSetUp();
+        spotDepositSetUp();
 
-        uint256 amountBTC = 1 * 10 ** 8 + vertexManager.getWithdrawFee(address(BTC));
-        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+        uint256 amountBTC = 1 * 10 ** 8 + manager.getWithdrawFee(address(BTC));
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC);
         deal(address(USDC), address(this), amountUSDC);
 
-        BTC.approve(address(vertexManager), amountBTC);
-        USDC.approve(address(vertexManager), amountUSDC);
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
 
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
-        vertexManager.deposit(1, amounts, address(this));
+        manager.deposit(1, amounts, address(this));
 
         uint256[] memory _fees = new uint256[](2);
         _fees[0] = 1;
         _fees[1] = 1;
 
         vm.prank(OWNER);
-        vertexManager.applyFees(1, address(this), _fees);
+        manager.applyFees(1, address(this), _fees);
     }
 
     function testFeesTooHigh() public {
-        depositSetUp();
+        spotDepositSetUp();
 
-        uint256 amountBTC = 1 * 10 ** 8 + vertexManager.getWithdrawFee(address(BTC));
-        uint256 amountUSDC = vertexManager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+        uint256 amountBTC = 1 * 10 ** 8 + manager.getWithdrawFee(address(BTC));
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
         deal(address(BTC), address(this), amountBTC);
         deal(address(USDC), address(this), amountUSDC);
 
-        BTC.approve(address(vertexManager), amountBTC);
-        USDC.approve(address(vertexManager), amountUSDC);
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
 
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
-        vertexManager.deposit(1, amounts, address(this));
+        manager.deposit(1, amounts, address(this));
 
         uint256[] memory _fees = new uint256[](2);
         _fees[0] = type(uint256).max;
@@ -661,7 +949,7 @@ contract TestVertexManager is Test {
 
         vm.prank(OWNER);
         vm.expectRevert();
-        vertexManager.applyFees(1, address(this), _fees);
+        manager.applyFees(1, address(this), _fees);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -691,7 +979,7 @@ contract TestVertexManager is Test {
     }
 
     function testFailDoubleInitiliaze() public {
-        vertexManager.initialize(address(0), address(0), 0);
+        manager.initialize(address(0), address(0), 0);
     }
 
     function testAuthorizedUpgrade() public {
@@ -700,11 +988,11 @@ contract TestVertexManager is Test {
         // Deploy 2nd implementation
         VertexManager vertexManager2 = new VertexManager();
 
-        vertexManager.upgradeTo(address(vertexManager2));
+        manager.upgradeTo(address(vertexManager2));
     }
 
     function testFailUnauthorizedUpgrade() public {
-        vertexManager.upgradeTo(address(0));
+        manager.upgradeTo(address(0));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -713,14 +1001,14 @@ contract TestVertexManager is Test {
 
     function testGetWithdrawFee() public {
         vm.expectRevert();
-        vertexManager.getWithdrawFee(address(0xdead));
+        manager.getWithdrawFee(address(0xdead));
     }
 
     function testUpdateSlowModeFee() public {
         vm.expectRevert();
-        vertexManager.updateSlowModeFee(69);
+        manager.updateSlowModeFee(69);
 
         vm.prank(OWNER);
-        vertexManager.updateSlowModeFee(69);
+        manager.updateSlowModeFee(69);
     }
 }

@@ -5,6 +5,9 @@ libs = ['lib']
 optimizer = true
 fs_permissions = [{ access = "read", path = "./"}]
 
+[invariant]
+fail_on_revert = true
+
 [rpc_endpoints]
 arbitrum = "${ARBITRUM_RPC_URL}"
 goerli = "${GOERLI_RPC_URL}"

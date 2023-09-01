@@ -278,10 +278,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                 abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositPayload))
             );
 
-            // If the user has not deposited to this pool before, initialize the user's active amounts.
-            if (amounts.length != pool.userActiveAmounts[msg.sender].length) {
-                // Push data into the user's active amounts.
-                pool.userActiveAmounts[msg.sender].push(amounts[i]);
+            // If the receiver has not deposited to this pool before, initialize the receiver's active amounts.
+            if (amounts.length != pool.userActiveAmounts[receiver].length) {
+                // Push data into the receiver's active amounts.
+                pool.userActiveAmounts[receiver].push(amounts[i]);
             } else {
                 // Add amount to the active market making balance of receiver.
                 pool.userActiveAmounts[receiver][i] += amounts[i];
@@ -399,6 +399,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Returns the price on Vertex of a given by product.
     /// @param id The ID of the product to get the price of.
     function getPrice(uint32 id) public view returns (uint256) {
+        // Vertex has fixed USDC price of $1.
+        if (id == 0) return 1 ether;
+        
         return endpoint.getPriceX18(id);
     }
 

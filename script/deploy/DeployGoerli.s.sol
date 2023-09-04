@@ -41,9 +41,7 @@ contract DeployGoerli is DeployBase {
         hardcaps[0] = type(uint256).max;
         hardcaps[1] = type(uint256).max;
 
-        for (uint256 i = 0; i < tokens.length; i++) {
-            manager.addPoolToken(1, tokens[i], hardcaps[i]);
-        }
+        manager.addPool(1, externalAccount, tokens, hardcaps);
 
         // Create BTC perp pool with BTC, USDC and ETH as tokens.
         tokens = new address[](3);
@@ -56,9 +54,7 @@ contract DeployGoerli is DeployBase {
         hardcaps[1] = type(uint256).max;
         hardcaps[2] = type(uint256).max;
 
-        for (uint256 i = 0; i < tokens.length; i++) {
-            manager.addPoolToken(2, tokens[i], hardcaps[i]);
-        }
+        manager.addPool(2, externalAccount, tokens, hardcaps);
 
         vm.stopBroadcast();
     }

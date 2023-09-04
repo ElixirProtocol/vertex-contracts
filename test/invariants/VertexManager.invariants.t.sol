@@ -75,7 +75,7 @@ contract TestVertexManagerInvariants is Test {
         endpoint = new MockEndpoint(address(USDC), BTC, USDC, WETH);
 
         // Set the endpoint and external account of the contract.
-        manager.initialize(address(endpoint), address(0x69), 0);
+        manager.initialize(address(endpoint), 0);
 
         // Add token support.
         manager.updateToken(address(USDC), 0);
@@ -91,9 +91,7 @@ contract TestVertexManagerInvariants is Test {
         hardcaps[0] = type(uint256).max;
         hardcaps[1] = type(uint256).max;
 
-        for (uint256 i = 0; i < tokens.length; i++) {
-            manager.addPoolToken(1, tokens[i], hardcaps[i]);
-        }
+        manager.addPool(1, address(0), tokens, hardcaps);
 
         // Create BTC perp pool with BTC, USDC and WETH as tokens.
         tokens = new address[](3);
@@ -106,9 +104,7 @@ contract TestVertexManagerInvariants is Test {
         hardcaps[1] = type(uint256).max;
         hardcaps[2] = type(uint256).max;
 
-        for (uint256 i = 0; i < tokens.length; i++) {
-            manager.addPoolToken(2, tokens[i], hardcaps[i]);
-        }
+        manager.addPool(2, address(0), tokens, hardcaps);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -117,13 +113,13 @@ contract TestVertexManagerInvariants is Test {
 
     // The sum of the Handler's BTC balance plus the BTC active amount should always equal the total BTC_SUPPLY.
     function invariant_conservationOfTokens() public {
-        (,, uint256[] memory activeAmounts) = manager.getPool(1);
+        (,,, uint256[] memory activeAmounts) = manager.getPool(1);
         assertEq(BTC_SUPPLY, BTC.balanceOf(address(handler)) + activeAmounts[0]);
     }
 
     // The BTC active amount should always be equal to the sum of individual active balances.
     function invariant_solvencyDeposits() public {
-        (,, uint256[] memory activeAmounts) = manager.getPool(1);
+        (,,, uint256[] memory activeAmounts) = manager.getPool(1);
         assertEq(activeAmounts[0], handler.ghost_depositSum() - handler.ghost_withdrawSum());
     }
 
@@ -131,7 +127,7 @@ contract TestVertexManagerInvariants is Test {
     function invariant_solvencyBalances() public {
         uint256 sumOfBalances = handler.reduceActors(0, this.accumulateBalance);
 
-        (,, uint256[] memory activeAmounts) = manager.getPool(1);
+        (,,, uint256[] memory activeAmounts) = manager.getPool(1);
 
         assertEq(activeAmounts[0], sumOfBalances);
     }

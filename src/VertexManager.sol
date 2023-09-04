@@ -13,6 +13,8 @@ import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgrade
 import {IClearinghouse} from "./interfaces/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
 
+import {VertexRouter} from "./VertexRouter.sol";
+
 /// @title Elixir pool manager for Vertex
 /// @author The Elixir Team
 /// @notice Pool manager contract to provide liquidity for spot and perp market making on Vertex Protocol.
@@ -26,6 +28,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice The data structure of pools.
     struct Pool {
+        // The router address of the pool.
+        address router;
         // The supported tokens to deposit.
         address[] tokens;
         // The hardcap for supported tokens to deposit.
@@ -37,7 +41,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     }
 
     /// @notice The pools managed by this contract given their ID.
-    mapping(uint256 => Pool) internal _pools;
+    mapping(uint256 => Pool) public pools;
 
     /// @notice The pending balance of users.
     mapping(address => mapping(address => uint256)) public pendingBalances;
@@ -56,9 +60,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Fee payment token for slow mode transactions through Vertex.
     IERC20Metadata public paymentToken;
-
-    /// @notice Bytes of vault's subaccount.
-    bytes32 public contractSubaccount;
 
     /// @notice The pause status of deposits.
     bool public depositPaused;
@@ -97,16 +98,23 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param claimPaused True when claims are paused, false otherwise.
     event PauseUpdated(bool depositPaused, bool withdrawPaused, bool claimPaused);
 
-    /// @notice Emitted when a token is added to a pool.
-    /// @param id The ID of the pool to update.
-    /// @param token The token to add.
-    /// @param hardcap The hardcap for the token.
-    event PoolTokenAdded(uint256 id, address indexed token, uint256 hardcap);
+    /// @notice Emitted when a pool is added.
+    /// @param id The ID of the pool.
+    /// @param router The router address of the pool.
+    /// @param tokens The tokens of the pool.
+    /// @param hardcaps The hardcaps of the pool.
+    event PoolAdded(uint256 indexed id, address indexed router, address[] tokens, uint256[] hardcaps);
 
-    /// @notice Emitted when the hardcaps of a pool are updated.
-    /// @param id The ID of the pool to update.
-    /// @param hardcaps The new list of hardcaps for supported tokens.
-    event PoolHardcapsUpdated(uint256 id, uint256[] hardcaps);
+    /// @notice Emitted when tokens are added to a pool.
+    /// @param id The ID of the pool.
+    /// @param tokens The new tokens of the pool.
+    /// @param hardcaps The hardcaps of the tokens.
+    event PoolTokensAdded(uint256 indexed id, address[] tokens, uint256[] hardcaps);
+
+    /// @notice Emitted when a pool's harcaps are updated.
+    /// @param id The ID of the pool.
+    /// @param hardcaps The new hardcaps of the pool.
+    event PoolHardcapsUpdated(uint256 indexed id, uint256[] hardcaps);
 
     /// @notice Emitted when the Vertex product ID of a token is updated.
     /// @param token The token address to update the product ID of.
@@ -208,9 +216,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice No constructor in upgradable contracts, so initialized with this function.
     /// @param _endpoint The address of the Vertex Endpoint contract.
-    /// @param _externalAccount The address of the external account to link to the Vertex Endpoint.
     /// @param _slowModeFee The fee to pay Vertex for slow mode transactions.
-    function initialize(address _endpoint, address _externalAccount, uint256 _slowModeFee) public initializer {
+    function initialize(address _endpoint, uint256 _slowModeFee) public initializer {
         __UUPSUpgradeable_init();
         __Ownable_init();
 
@@ -222,19 +229,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // It may happen that the quote token of endpoint payments is not the quote token of the vault/product.
         paymentToken = IERC20Metadata(IClearinghouse(endpoint.clearinghouse()).getQuote());
-
-        // Allow endpoint to transfer payout token from this vault.
-        paymentToken.approve(address(endpoint), type(uint256).max);
-
-        // Link smart contract to Elixir's signer.
-        contractSubaccount = bytes32(uint256(uint160(address(this))) << 96);
-        bytes32 externalSubaccount = bytes32(uint256(uint160(_externalAccount)) << 96);
-        IEndpoint.LinkSigner memory linkSigner = IEndpoint.LinkSigner(contractSubaccount, externalSubaccount, 0);
-
-        // Submit transaction to Vertex after fetching fee to pay.
-        _submitSlowModeTransaction(
-            abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner))
-        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -246,7 +240,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param amounts The list of token amounts to deposit.
     /// @param receiver The receiver of the virtual LP balance.
     function deposit(uint256 id, uint256[] memory amounts, address receiver) public whenDepositNotPaused nonReentrant {
-        Pool storage pool = _pools[id];
+        Pool storage pool = pools[id];
 
         if (amounts.length == 0 || pool.tokens.length != amounts.length) revert InvalidAmountsLength(amounts);
 
@@ -258,8 +252,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // Loop over amounts to fetch and redirect tokens.
         for (uint256 i = 0; i < amounts.length; i++) {
-            // Get the token address.
+            // Get the token address and pool router.
             address token = pool.tokens[i];
+            VertexRouter router = VertexRouter(pool.router);
 
             // Check if the amount exceeds the hardcap.
             if (pool.activeAmounts[i] + amounts[i] > pool.hardcaps[i]) {
@@ -267,15 +262,15 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             }
 
             // Transfer tokens from the caller to this contract.
-            IERC20Metadata(token).safeTransferFrom(msg.sender, address(this), amounts[i]);
+            IERC20Metadata(token).safeTransferFrom(msg.sender, address(router), amounts[i]);
 
             // Create Vertex deposit payload request.
             IEndpoint.DepositCollateral memory depositPayload =
-                IEndpoint.DepositCollateral(contractSubaccount, tokenToProduct[token], uint128(amounts[i]));
+                IEndpoint.DepositCollateral(router.contractSubaccount(), tokenToProduct[token], uint128(amounts[i]));
 
-            // Send deposit request to Vertex.
-            _submitSlowModeTransaction(
-                abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositPayload))
+            // Send deposit request to router.
+            _sendTransaction(
+                router, abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositPayload))
             );
 
             // If the receiver has not deposited to this pool before, initialize the receiver's active amounts.
@@ -304,7 +299,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         whenWithdrawNotPaused
         nonReentrant
     {
-        Pool storage pool = _pools[id];
+        Pool storage pool = pools[id];
 
         if (amounts.length == 0 || pool.tokens.length != amounts.length || feeIndex > amounts.length) {
             revert InvalidAmountsLength(amounts);
@@ -318,8 +313,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // Loop over amounts and send withdraw requests to Vertex.
         for (uint256 i = 0; i < amounts.length; i++) {
-            // Get the token address.
+            // Get the token address and pool router.
             address token = pool.tokens[i];
+            VertexRouter router = VertexRouter(pool.router);
 
             // Substract amount from the active market making balance.
             pool.userActiveAmounts[msg.sender][i] -= amounts[i];
@@ -346,10 +342,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
             // Create Vertex withdraw payload request.
             IEndpoint.WithdrawCollateral memory withdrawPayload =
-                IEndpoint.WithdrawCollateral(contractSubaccount, tokenToProduct[token], uint128(amounts[i]), 0);
+                IEndpoint.WithdrawCollateral(router.contractSubaccount(), tokenToProduct[token], uint128(amounts[i]), 0);
 
             // Send withdraw requests to Vertex.
-            _submitSlowModeTransaction(
+            _sendTransaction(
+                router,
                 abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
             );
         }
@@ -359,8 +356,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Claims received tokens from the pending balance.
     /// @param user The address to claim the tokens for.
-    /// @param tokens The tokens to claim.
-    function claim(address user, address[] memory tokens) external whenClaimNotPaused nonReentrant {
+    /// @param id The ID of the pool to claim the tokens from.
+    function claim(address user, uint256 id) external whenClaimNotPaused nonReentrant {
+        // Fetch the pool tokens and router.
+        address[] memory tokens = pools[id].tokens;
+        VertexRouter router = VertexRouter(pools[id].router);
+
         // Loop over tokens and claim them if there is a pending balance and they are available.
         for (uint256 i = 0; i < tokens.length; i++) {
             // No danger if amount is 0.
@@ -368,6 +369,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
             // Resets the pending balance of the user.
             pendingBalances[user][tokens[i]] = 0;
+
+            // Fetch the tokens from the Router.
+            router.claimToken(tokens[i], amount);
 
             // Transfers the tokens after to prevent reentrancy.
             IERC20Metadata(tokens[i]).safeTransfer(user, amount);
@@ -377,8 +381,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     }
 
     /// @notice Claim reimbursed fees to Elixir.
-    /// @param tokens The tokens to claim fees for.
-    function claimFees(address[] memory tokens) external {
+    /// @param id The ID of the pool to claim the tokens from.
+    function claimFees(uint256 id) external {
+        // Fetch the pool tokens and router.
+        address[] memory tokens = pools[id].tokens;
+        VertexRouter router = VertexRouter(pools[id].router);
+
         // Loop over tokens and claim them if there is a pending balance and they are available.
         for (uint256 i = 0; i < tokens.length; i++) {
             // Fetch the fee amount.
@@ -386,6 +394,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
             // Resets the fee amount.
             fees[tokens[i]] = 0;
+
+            // Fetch the tokens from the Router.
+            router.claimToken(tokens[i], fee);
 
             // Transfers the tokens after to prevent reentrancy.
             IERC20Metadata(tokens[i]).safeTransfer(owner(), fee);
@@ -407,9 +418,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Returns the data of a pool given its ID.
     /// @param id The ID of the pool to fetch.
-    function getPool(uint256 id) public view returns (address[] memory, uint256[] memory, uint256[] memory) {
-        Pool storage pool = _pools[id];
-        return (pool.tokens, pool.hardcaps, pool.activeAmounts);
+    function getPool(uint256 id) public view returns (address, address[] memory, uint256[] memory, uint256[] memory) {
+        Pool storage pool = pools[id];
+        return (pool.router, pool.tokens, pool.hardcaps, pool.activeAmounts);
     }
 
     /// @notice Returns the withdrawal fee for a given pool and token.
@@ -426,7 +437,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The ID of the pool to fetch the active amounts of.
     /// @param user The user to fetch the active amounts of.
     function getUserActiveAmounts(uint256 id, address user) public view returns (uint256[] memory) {
-        return _pools[id].userActiveAmounts[user];
+        return pools[id].userActiveAmounts[user];
     }
 
     /// @notice Returns the balanced amount of quote tokens given an amount of base tokens.
@@ -451,7 +462,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         external
     {
         // Fetch pool data.
-        Pool storage pool = _pools[id];
+        Pool storage pool = pools[id];
 
         if (pool.tokens.length != 2) revert NotSpotPool(id);
 
@@ -478,7 +489,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
     function withdrawBalanced(uint256 id, uint256 amount0, uint256 feeIndex) external {
         // Fetch pool data.
-        Pool storage pool = _pools[id];
+        Pool storage pool = pools[id];
 
         if (pool.tokens.length != 2) revert NotSpotPool(id);
 
@@ -506,18 +517,17 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                         VERTEX SLOW TRANSACTION
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Submits a slow mode transaction to Vertex.
-    /// @dev More information about slow mode transactions:
-    /// https://vertex-protocol.gitbook.io/docs/developer-resources/api/withdrawing-on-chain
+    /// @notice Sends a slow mode transaction to the pool Router.
+    /// @param router The pool Router.
     /// @param transaction The transaction to submit.
-    function _submitSlowModeTransaction(bytes memory transaction) internal {
+    function _sendTransaction(VertexRouter router, bytes memory transaction) internal {
         // Deposit collateral doens't have fees.
         if (uint8(transaction[0]) != uint8(IEndpoint.TransactionType.DepositCollateral)) {
             // Fetch payment fee from owner. This can be reimbursed on withdrawals after tokens are received.
-            paymentToken.safeTransferFrom(owner(), address(this), slowModeFee);
+            paymentToken.safeTransferFrom(owner(), address(router), slowModeFee);
         }
 
-        endpoint.submitSlowModeTransaction(transaction);
+        router.submitSlowModeTransaction(transaction);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -536,25 +546,76 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         emit PauseUpdated(depositPaused, withdrawPaused, claimPaused);
     }
 
-    /// @notice Add a token to a pool.
-    /// @param id The ID of the pool to update.
-    /// @param token The token to add.
-    /// @param hardcap The hardcap for the token.
-    function addPoolToken(uint256 id, address token, uint256 hardcap) external onlyOwner {
-        // Push to the pool data.
-        _pools[id].tokens.push(token);
-        _pools[id].activeAmounts.push(0);
-        _pools[id].hardcaps.push(hardcap);
+    /// @notice Adds a new pool.
+    /// @dev ID should match Vertex's.
+    /// @param id The ID of the new pool.
+    /// @param externalAccount The external account to link to the Vertex Endpoint.
+    /// @param tokens The tokens to add.
+    /// @param hardcaps The hardcaps for the tokens.
+    function addPool(uint256 id, address externalAccount, address[] memory tokens, uint256[] memory hardcaps)
+        external
+        onlyOwner
+    {
+        // Deploy a new Router contract.
+        VertexRouter router = new VertexRouter(address(endpoint), externalAccount);
 
-        emit PoolTokenAdded(id, token, hardcap);
+        // Approve the fee token to the Router.
+        router.makeApproval(address(paymentToken));
+
+        // Create LinkSigner request for Vertex.
+        IEndpoint.LinkSigner memory linkSigner =
+            IEndpoint.LinkSigner(router.contractSubaccount(), router.externalSubaccount(), 0);
+
+        // Send LinkSigner request to Router.
+        _sendTransaction(router, abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner)));
+
+        // Set the Router address of the pool.
+        pools[id].router = address(router);
+
+        // Loop over tokens to add.
+        for (uint256 i = 0; i < tokens.length; i++) {
+            // Push to the pool data.
+            pools[id].tokens.push(tokens[i]);
+            pools[id].activeAmounts.push(0);
+            pools[id].hardcaps.push(hardcaps[i]);
+
+            // Make router approve tokens to Vertex endpoint.
+            router.makeApproval(tokens[i]);
+        }
+
+        emit PoolAdded(id, address(router), tokens, hardcaps);
     }
 
-    /// @notice Update the hardcaps of a pool.
-    /// @param id The ID of the pool to update.
-    /// @param hardcaps The new list of hardcaps for supported tokens.
+    /// @notice Adds new tokens to a pool.
+    /// @param id The ID of the pool.
+    /// @param tokens The tokens to add.
+    /// @param hardcaps The hardcaps for the tokens.
+    function addPoolTokens(uint256 id, address[] memory tokens, uint256[] memory hardcaps) external onlyOwner {
+        // Fetch the pool Router.
+        VertexRouter router = VertexRouter(pools[id].router);
+
+        // Loop over tokens to add.
+        for (uint256 i = 0; i < tokens.length; i++) {
+            // Push to the pool data.
+            pools[id].tokens.push(tokens[i]);
+            pools[id].activeAmounts.push(0);
+            pools[id].hardcaps.push(hardcaps[i]);
+
+            // Make router approve tokens to Vertex endpoint.
+            router.makeApproval(tokens[i]);
+        }
+
+        emit PoolTokensAdded(id, tokens, hardcaps);
+    }
+
+    /// @notice Updates the hardcaps of a pool.
+    /// @param id The ID of the pool.
+    /// @param hardcaps The hardcaps for the tokens.
     function updatePoolHardcaps(uint256 id, uint256[] memory hardcaps) external onlyOwner {
-        // Update the pool's harcaps.
-        _pools[id].hardcaps = hardcaps;
+        // Loop over hardcaps to update.
+        for (uint256 i = 0; i < hardcaps.length; i++) {
+            pools[id].hardcaps[i] = hardcaps[i];
+        }
 
         emit PoolHardcapsUpdated(id, hardcaps);
     }
@@ -589,7 +650,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param user The user to apply fees to.
     /// @param _fees The fees to apply.
     function applyFees(uint256 id, address user, uint256[] memory _fees) external onlyOwner {
-        Pool storage pool = _pools[id];
+        Pool storage pool = pools[id];
 
         // Loop over fees to apply.
         for (uint256 i = 0; i < _fees.length; i++) {

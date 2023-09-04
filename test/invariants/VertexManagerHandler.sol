@@ -37,7 +37,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         _;
     }
 
-    function actors() external returns (address[] memory) {
+    function actors() external view returns (address[] memory) {
         return _actors.addrs;
     }
 

@@ -16,47 +16,51 @@ import {VertexManager} from "../src/VertexManager.sol";
 contract TestVertexManager is Test {
     using Math for uint256;
 
-    Utils internal utils;
-
     /*//////////////////////////////////////////////////////////////
                                 CONTRACTS
     //////////////////////////////////////////////////////////////*/
 
     // Arbitrum mainnet addresses
-    IEndpoint internal endpoint = IEndpoint(0xbbEE07B3e8121227AfCFe1E2B82772246226128e);
-    IERC20Metadata internal paymentToken;
-    IClearinghouse internal clearingHouse;
+    IEndpoint public endpoint = IEndpoint(0xbbEE07B3e8121227AfCFe1E2B82772246226128e);
+    IERC20Metadata public paymentToken;
+    IClearinghouse public clearingHouse;
 
     // Elixir contracts
-    VertexManager internal vertexManagerImplementation;
-    ERC1967Proxy internal proxy;
-    VertexManager internal manager;
+    VertexManager public vertexManagerImplementation;
+    ERC1967Proxy public proxy;
+    VertexManager public manager;
 
     // Tokens
-    IERC20Metadata internal BTC = IERC20Metadata(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
-    IERC20Metadata internal USDC = IERC20Metadata(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
-    IERC20Metadata internal WETH = IERC20Metadata(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
+    IERC20Metadata public BTC = IERC20Metadata(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
+    IERC20Metadata public USDC = IERC20Metadata(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
+    IERC20Metadata public WETH = IERC20Metadata(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     /*//////////////////////////////////////////////////////////////
                                   USERS
     //////////////////////////////////////////////////////////////*/
 
     // Neutral users
-    address internal ALICE;
-    address internal BOB;
+    address public alice;
+    address public bob;
 
     // Elixir users
-    address internal OWNER;
+    address public owner;
 
     /*//////////////////////////////////////////////////////////////
                                   MISC
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal networkFork;
-    string internal NETWORK_RPC_URL = vm.envString("ARBITRUM_RPC_URL");
+    // Utils contract.
+    Utils public utils;
+
+    // Network fork ID.
+    uint256 public networkFork;
+
+    // RPC URL for Arbitrum fork.
+    string public networkRpcUrl = vm.envString("ARBITRUM_RPC_URL");
 
     // Off-chain validator account that makes request on behalf of the vaults.
-    address internal EXTERNAL_ACCOUNT;
+    address public externalAccount;
 
     /*//////////////////////////////////////////////////////////////
                                  HELPERS
@@ -66,19 +70,19 @@ contract TestVertexManager is Test {
         utils = new Utils();
         address payable[] memory users = utils.createUsers(4);
 
-        ALICE = users[0];
-        vm.label(ALICE, "Alice");
+        alice = users[0];
+        vm.label(alice, "Alice");
 
-        BOB = users[1];
-        vm.label(BOB, "Bob");
+        bob = users[1];
+        vm.label(bob, "Bob");
 
-        OWNER = users[2];
-        vm.label(OWNER, "Owner");
+        owner = users[2];
+        vm.label(owner, "Owner");
 
-        EXTERNAL_ACCOUNT = users[3];
-        vm.label(EXTERNAL_ACCOUNT, "External Account");
+        externalAccount = users[3];
+        vm.label(externalAccount, "External Account");
 
-        networkFork = vm.createFork(NETWORK_RPC_URL);
+        networkFork = vm.createFork(networkRpcUrl);
 
         vm.selectFork(networkFork);
 
@@ -86,7 +90,7 @@ contract TestVertexManager is Test {
 
         paymentToken = IERC20Metadata(clearingHouse.getQuote());
 
-        vm.startPrank(OWNER);
+        vm.startPrank(owner);
 
         // Deploy Manager implementation
         vertexManagerImplementation = new VertexManager();
@@ -101,7 +105,7 @@ contract TestVertexManager is Test {
         paymentToken.approve(address(manager), type(uint256).max);
 
         // Deal payment token to the factory, which pays for the slow mode transactions of all the vaults.
-        deal(address(paymentToken), OWNER, type(uint256).max);
+        deal(address(paymentToken), owner, type(uint256).max);
 
         // Set the endpoint and external account of the contract.
         manager.initialize(address(endpoint), 1000000);
@@ -113,7 +117,7 @@ contract TestVertexManager is Test {
     }
 
     function spotDepositSetUp() public {
-        vm.startPrank(OWNER);
+        vm.startPrank(owner);
 
         // Create BTC spot pool with BTC and USDC as tokens.
         address[] memory tokens = new address[](2);
@@ -125,7 +129,7 @@ contract TestVertexManager is Test {
         hardcaps[1] = type(uint256).max;
 
         // Add spot pool.
-        manager.addPool(1, EXTERNAL_ACCOUNT, tokens, hardcaps);
+        manager.addPool(1, externalAccount, tokens, hardcaps);
 
         // Add token support.
         manager.updateToken(address(USDC), 0);
@@ -135,7 +139,7 @@ contract TestVertexManager is Test {
     }
 
     function perpDepositSetUp() public {
-        vm.startPrank(OWNER);
+        vm.startPrank(owner);
 
         // Create BTC PERP pool with BTC, USDC, and ETH as tokens.
         address[] memory tokens = new address[](3);
@@ -149,7 +153,7 @@ contract TestVertexManager is Test {
         hardcaps[2] = type(uint256).max;
 
         // Add perp pool.
-        manager.addPool(2, EXTERNAL_ACCOUNT, tokens, hardcaps);
+        manager.addPool(2, externalAccount, tokens, hardcaps);
 
         // Add token support.
         manager.updateToken(address(USDC), 0);
@@ -227,7 +231,7 @@ contract TestVertexManager is Test {
 
         manager.claimFees(1);
 
-        assertEq(BTC.balanceOf(OWNER), manager.getWithdrawFee(address(BTC)));
+        assertEq(BTC.balanceOf(owner), manager.getWithdrawFee(address(BTC)));
     }
 
     function testDoubleDepositSpot() public {
@@ -325,7 +329,7 @@ contract TestVertexManager is Test {
 
         manager.claimFees(1);
 
-        assertEq(BTC.balanceOf(OWNER), 2 * manager.getWithdrawFee(address(BTC)));
+        assertEq(BTC.balanceOf(owner), 2 * manager.getWithdrawFee(address(BTC)));
     }
 
     function testSingleDepositSpotBalanced() public {
@@ -384,7 +388,7 @@ contract TestVertexManager is Test {
 
         manager.claimFees(1);
 
-        assertEq(BTC.balanceOf(OWNER), manager.getWithdrawFee(address(BTC)));
+        assertEq(BTC.balanceOf(owner), manager.getWithdrawFee(address(BTC)));
     }
 
     function testSingleDepositPerp() public {
@@ -455,7 +459,7 @@ contract TestVertexManager is Test {
 
         manager.claimFees(2);
 
-        assertEq(BTC.balanceOf(OWNER), manager.getWithdrawFee(address(BTC)));
+        assertEq(BTC.balanceOf(owner), manager.getWithdrawFee(address(BTC)));
     }
 
     function testSingleDepositSpotBalancedOtherReceiver() public {
@@ -530,7 +534,7 @@ contract TestVertexManager is Test {
 
         manager.claimFees(1);
 
-        assertEq(BTC.balanceOf(OWNER), manager.getWithdrawFee(address(BTC)));
+        assertEq(BTC.balanceOf(owner), manager.getWithdrawFee(address(BTC)));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -673,21 +677,49 @@ contract TestVertexManager is Test {
     function testHardcapReached() public {
         spotDepositSetUp();
 
-        vm.prank(OWNER);
         uint256[] memory hardcaps = new uint256[](2);
         hardcaps[0] = 0;
         hardcaps[1] = 0;
 
+        vm.prank(owner);
         manager.updatePoolHardcaps(1, hardcaps);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 0;
+        amounts[1] = 0;
+
+        // Deposit should succeed because amounts are 0 and hardcap is 0 too.
+        manager.deposit(1, amounts, address(this));
 
         uint256 amountBTC = 1 * 10 ** 8;
         uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
-        uint256[] memory amounts = new uint256[](2);
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.HardcapReached.selector, address(BTC), 0, 0, amountBTC));
+        manager.deposit(1, amounts, address(this));
+
+        hardcaps[0] = type(uint256).max;
+        hardcaps[1] = 0;
+
+        vm.prank(owner);
+        manager.updatePoolHardcaps(1, hardcaps);
+
+        deal(address(BTC), address(this), amountBTC);
+        BTC.approve(address(manager), amountBTC);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.HardcapReached.selector, address(USDC), 0, 0, amountUSDC));
+        manager.deposit(1, amounts, address(this));
+
+        hardcaps[1] = type(uint256).max;
+
+        vm.prank(owner);
+        manager.updatePoolHardcaps(1, hardcaps);
+
+        deal(address(USDC), address(this), amountUSDC);
+        USDC.approve(address(manager), amountUSDC);
+
         manager.deposit(1, amounts, address(this));
     }
 
@@ -778,7 +810,7 @@ contract TestVertexManager is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testAddAndUpdatePool() public {
-        vm.startPrank(OWNER);
+        vm.startPrank(owner);
 
         // Create BTC spot pool with BTC and USDC as tokens.
         address[] memory tokens = new address[](2);
@@ -789,7 +821,7 @@ contract TestVertexManager is Test {
         hardcaps[0] = type(uint256).max;
         hardcaps[1] = type(uint256).max;
 
-        manager.addPool(1, EXTERNAL_ACCOUNT, tokens, hardcaps);
+        manager.addPool(1, externalAccount, tokens, hardcaps);
 
         // Get the pool data.
         (, address[] memory tokens_, uint256[] memory hardcaps_,) = manager.getPool(1);
@@ -822,7 +854,7 @@ contract TestVertexManager is Test {
 
     function testAddPoolTokens() public {
         spotDepositSetUp();
-        vm.startPrank(OWNER);
+        vm.startPrank(owner);
 
         address[] memory tokens = new address[](1);
         tokens[0] = address(WETH);
@@ -843,7 +875,7 @@ contract TestVertexManager is Test {
     }
 
     function testPoolAdd() public {
-        vm.startPrank(OWNER);
+        vm.startPrank(owner);
 
         address[] memory tokens = new address[](2);
         tokens[0] = address(BTC);
@@ -858,12 +890,12 @@ contract TestVertexManager is Test {
 
         // Expect revert when trying to create a pool as owner doesn't have funds to cover LinkedSigner fee.
         vm.expectRevert();
-        manager.addPool(1, EXTERNAL_ACCOUNT, tokens, hardcaps);
+        manager.addPool(1, externalAccount, tokens, hardcaps);
 
         // Approve the manager to move USDC for fee payments.
         paymentToken.approve(address(manager), type(uint256).max);
 
-        manager.addPool(1, EXTERNAL_ACCOUNT, tokens, hardcaps);
+        manager.addPool(1, externalAccount, tokens, hardcaps);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -871,7 +903,7 @@ contract TestVertexManager is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testDepositsPaused() public {
-        vm.prank(OWNER);
+        vm.prank(owner);
         manager.pause(true, false, false);
 
         uint256[] memory amounts = new uint256[](2);
@@ -881,7 +913,7 @@ contract TestVertexManager is Test {
     }
 
     function testWithdrawalsPaused() public {
-        vm.prank(OWNER);
+        vm.prank(owner);
         manager.pause(false, true, false);
 
         uint256[] memory amounts = new uint256[](2);
@@ -891,7 +923,7 @@ contract TestVertexManager is Test {
     }
 
     function testClaimsPaused() public {
-        vm.prank(OWNER);
+        vm.prank(owner);
         manager.pause(false, false, true);
 
         vm.expectRevert(VertexManager.ClaimsPaused.selector);
@@ -903,7 +935,7 @@ contract TestVertexManager is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testUpdateToken() public {
-        vm.startPrank(OWNER);
+        vm.startPrank(owner);
 
         assertEq(manager.tokenToProduct(address(BTC)), 0);
 
@@ -937,7 +969,7 @@ contract TestVertexManager is Test {
     }
 
     function testAuthorizedUpgrade() public {
-        vm.startPrank(OWNER);
+        vm.startPrank(owner);
 
         // Deploy 2nd implementation
         VertexManager vertexManager2 = new VertexManager();
@@ -962,7 +994,7 @@ contract TestVertexManager is Test {
         vm.expectRevert();
         manager.updateSlowModeFee(69);
 
-        vm.prank(OWNER);
+        vm.prank(owner);
         manager.updateSlowModeFee(69);
     }
 

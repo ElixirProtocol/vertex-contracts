@@ -17,6 +17,7 @@ import {VertexRouter} from "./VertexRouter.sol";
 
 /// @title Elixir pool manager for Vertex
 /// @author The Elixir Team
+/// @custom:security-contact security@elixir.finance
 /// @notice Pool manager contract to provide liquidity for spot and perp market making on Vertex Protocol.
 contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard {
     using Math for uint256;
@@ -37,20 +38,20 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // The active market making balances of the pool.
         uint256[] activeAmounts;
         // The active market making balance of users.
-        mapping(address => uint256[]) userActiveAmounts;
+        mapping(address user => uint256[] amounts) userActiveAmounts;
     }
 
     /// @notice The pools managed by this contract given their ID.
-    mapping(uint256 => Pool) public pools;
+    mapping(uint256 id => Pool pool) public pools;
 
     /// @notice The pending balance of users.
-    mapping(address => mapping(address => uint256)) public pendingBalances;
+    mapping(address user => mapping(address token => uint256 balance)) public pendingBalances;
 
     /// @notice The Vertex product ID of token addresses.
-    mapping(address => uint32) public tokenToProduct;
+    mapping(address token => uint32 id) public tokenToProduct;
 
     /// @notice The Elixir fee reimbursements per token address.
-    mapping(address => uint256) public fees;
+    mapping(address token => uint256 amount) public fees;
 
     /// @notice The Vertex slow mode fee
     uint256 public slowModeFee;

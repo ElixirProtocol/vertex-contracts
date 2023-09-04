@@ -4,11 +4,11 @@ pragma solidity 0.8.19;
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "openzeppelin/token/ERC20/utils/SafeERC20.sol";
 
-import {IClearinghouse} from "./interfaces/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
 
 /// @title Elixir pool router for Vertex
 /// @author The Elixir Team
+/// @custom:security-contact security@elixir.finance
 /// @dev This contract is needed because an address can only have one Vertex linked signer at a time,
 /// which is incompatible with the VertexManager singleton approach.
 /// @notice Pool router contract to send slow-mode transactions to Vertex.

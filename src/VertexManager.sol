@@ -130,9 +130,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Emitted when a claim function is entered with a pending balance of zero for the quote or base tokens.
-    error ZeroClaim();
-
     /// @notice Emitted when deposits (deposit and mint) are paused.
     error DepositsPaused();
 
@@ -157,11 +154,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param activeAmount The active amount of tokens in the pool.
     /// @param amount The amount of tokens being deposited.
     error HardcapReached(address token, uint256 hardcap, uint256 activeAmount, uint256 amount);
-
-    /// @notice Emitted when the fee amount is too high.
-    /// @param activeAmount The active amount of tokens in the pool.
-    /// @param fee The fee amount.
-    error FeeTooHigh(uint256 activeAmount, uint256 fee);
 
     /// @notice Emitted when the pool is not a spot pool.
     /// @param id The ID of the pool.

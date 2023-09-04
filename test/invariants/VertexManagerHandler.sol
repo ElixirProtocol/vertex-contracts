@@ -11,25 +11,35 @@ import {VertexManager} from "../../src/VertexManager.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
-uint256 constant BTC_SUPPLY = 100_000 * 10 ** 18;
-uint256 constant USDC_SUPPLY = 3_000_000_000 * 10 ** 18;
-
 contract Handler is CommonBase, StdCheats, StdUtils {
     using LibAddressSet for AddressSet;
 
-    VertexManager internal manager;
+    /*//////////////////////////////////////////////////////////////
+                                VARIABLES
+    //////////////////////////////////////////////////////////////*/
 
-    MockToken internal BTC;
-    MockToken internal USDC;
-    MockToken internal WETH;
+    // Elixir contracts
+    VertexManager public manager;
 
-    uint256 public ghost_depositSum;
-    uint256 public ghost_withdrawSum;
-    uint256 public ghost_forcePushSum;
+    // Tokens
+    MockToken public BTC;
+    MockToken public USDC;
+    MockToken public WETH;
 
+    // Ghost balances
+    mapping(address => uint256) public ghost_deposits;
+    mapping(address => uint256) public ghost_withdraws;
+    mapping(address => uint256) public ghost_claims;
+
+    // Current actor
+    address public currentActor;
+
+    // Actors
     AddressSet internal _actors;
 
-    address internal currentActor;
+    /*//////////////////////////////////////////////////////////////
+                                MODIFIERS
+    //////////////////////////////////////////////////////////////*/
 
     modifier createActor() {
         currentActor = msg.sender;
@@ -37,19 +47,20 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         _;
     }
 
-    function actors() external view returns (address[] memory) {
-        return _actors.addrs;
-    }
+    /*//////////////////////////////////////////////////////////////
+                               CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
 
     constructor(VertexManager _manager, MockToken _BTC, MockToken _USDC, MockToken _WETH) {
         manager = _manager;
         BTC = _BTC;
         USDC = _USDC;
         WETH = _WETH;
-
-        BTC.mint(address(this), BTC_SUPPLY);
-        USDC.mint(address(this), USDC_SUPPLY);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                                FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
     function deposit(uint256 amountBTC) public createActor {
         amountBTC = bound(amountBTC, 0, BTC.balanceOf(address(this)));
@@ -72,10 +83,11 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         vm.stopPrank();
 
-        ghost_depositSum += amountBTC;
+        ghost_deposits[address(BTC)] += amountBTC;
+        ghost_deposits[address(USDC)] += amountUSDC;
     }
 
-    function withdraw(uint256 amountBTC) public createActor {
+    function withdrawFeeBTC(uint256 amountBTC) public createActor {
         amountBTC = bound(amountBTC, 0, BTC.balanceOf(address(this)));
 
         uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
@@ -84,13 +96,47 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         manager.withdrawBalanced(1, amountBTC, 1);
 
-        _pay(address(this), BTC, amountBTC);
-        _pay(address(this), USDC, amountUSDC);
+        vm.stopPrank();
+
+        ghost_withdraws[address(BTC)] += amountBTC;
+        ghost_withdraws[address(USDC)] += amountUSDC;
+    }
+
+    function withdrawFeeUSDC(uint256 amountBTC) public createActor {
+        amountBTC = bound(amountBTC, 0, BTC.balanceOf(address(this)));
+
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        vm.startPrank(currentActor);
+
+        manager.withdrawBalanced(1, amountBTC, 0);
 
         vm.stopPrank();
 
-        ghost_withdrawSum += amountBTC;
+        ghost_withdraws[address(BTC)] += amountBTC;
+        ghost_withdraws[address(USDC)] += amountUSDC;
     }
+
+    function claim() public createActor {
+        vm.startPrank(currentActor);
+
+        manager.claim(currentActor, 1);
+
+        uint256 receivedBTC = BTC.balanceOf(currentActor);
+        uint256 receivedUSDC = USDC.balanceOf(currentActor);
+
+        _pay(address(this), BTC, receivedBTC);
+        _pay(address(this), USDC, receivedUSDC);
+
+        vm.stopPrank();
+
+        ghost_claims[address(BTC)] += receivedBTC;
+        ghost_claims[address(USDC)] += receivedUSDC;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                HELPERS
+    //////////////////////////////////////////////////////////////*/
 
     function _pay(address to, MockToken token, uint256 amount) internal {
         token.transfer(to, amount);
@@ -105,6 +151,10 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         returns (uint256)
     {
         return _actors.reduce(acc, func);
+    }
+
+    function actors() external view returns (address[] memory) {
+        return _actors.addrs;
     }
 
     // Exclude from coverage report

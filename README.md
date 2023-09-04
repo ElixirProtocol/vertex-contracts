@@ -60,7 +60,7 @@ FOUNDRY_PROFILE="intense" forge test
 After [installing Slither](https://github.com/crytic/slither#how-to-install), run:
 
 ```sh
-slither src/ --solc-remaps 'forge-std/=lib/forge-std/src/ ds-test/=lib/ds-test/src/ openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/ openzeppelin/=lib/openzeppelin-contracts/contracts/'
+slither src/
 ```
 
 ### Check coverage

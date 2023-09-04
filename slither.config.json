@@ -1,0 +1,4 @@
+{
+    "filter_paths": "(script/|test/|lib/)",
+    "solc_remaps": "forge-std/=lib/forge-std/src/ ds-test/=lib/ds-test/src/ openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/ openzeppelin/=lib/openzeppelin-contracts/contracts/"
+}

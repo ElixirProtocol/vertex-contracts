@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.19;
+pragma solidity 0.8.18;
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "openzeppelin/token/ERC20/utils/SafeERC20.sol";
@@ -20,16 +20,16 @@ contract VertexRouter {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Vertex's Endpoint contract.
-    IEndpoint public endpoint;
+    IEndpoint public immutable endpoint;
 
     /// @notice Bytes of this contract's subaccount.
-    bytes32 public contractSubaccount;
+    bytes32 public immutable contractSubaccount;
 
     /// @notice Bytes of the external account's subaccount.
-    bytes32 public externalSubaccount;
+    bytes32 public immutable externalSubaccount;
 
     /// @notice The Manager contract associated with this Router.
-    address public manager;
+    address public immutable manager;
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS

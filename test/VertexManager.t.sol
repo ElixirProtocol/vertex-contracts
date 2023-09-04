@@ -221,16 +221,13 @@ contract TestVertexManager is Test {
         processSlowModeTxs();
         deal(address(USDC), router, amountUSDC);
 
-        // Claim tokens.
+        // Claim tokens for user and owner.
         manager.claim(address(this), 1);
 
         assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
         assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
         assertEq(BTC.balanceOf(address(this)), 1 * 10 ** 8);
         assertEq(USDC.balanceOf(address(this)), amounts[1]);
-
-        manager.claimFees(1);
-
         assertEq(BTC.balanceOf(owner), manager.getWithdrawFee(address(BTC)));
     }
 
@@ -319,16 +316,13 @@ contract TestVertexManager is Test {
         processSlowModeTxs();
         deal(address(USDC), address(router), amountUSDC * 2);
 
-        // Claim tokens.
+        // Claim tokens for user and owner.
         manager.claim(address(this), 1);
 
         assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
         assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
         assertEq(BTC.balanceOf(address(this)), 2 * (1 * 10 ** 8 - manager.getWithdrawFee(address(BTC))));
         assertEq(USDC.balanceOf(address(this)), 2 * amountUSDC);
-
-        manager.claimFees(1);
-
         assertEq(BTC.balanceOf(owner), 2 * manager.getWithdrawFee(address(BTC)));
     }
 
@@ -378,16 +372,13 @@ contract TestVertexManager is Test {
         processSlowModeTxs();
         deal(address(USDC), router, amountUSDC);
 
-        // Claim tokens.
+        // Claim tokens for user and owner.
         manager.claim(address(this), 1);
 
         assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
         assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
         assertEq(BTC.balanceOf(address(this)), 1 * 10 ** 8);
         assertEq(USDC.balanceOf(address(this)), amountUSDC);
-
-        manager.claimFees(1);
-
         assertEq(BTC.balanceOf(owner), manager.getWithdrawFee(address(BTC)));
     }
 
@@ -447,7 +438,7 @@ contract TestVertexManager is Test {
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
 
-        // Claim tokens.
+        // Claim tokens for user and owner.
         manager.claim(address(this), 2);
 
         assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
@@ -456,9 +447,6 @@ contract TestVertexManager is Test {
         assertEq(BTC.balanceOf(address(this)), amounts[0] - manager.getWithdrawFee(address(BTC)));
         assertEq(USDC.balanceOf(address(this)), amounts[1]);
         assertEq(WETH.balanceOf(address(this)), amounts[2]);
-
-        manager.claimFees(2);
-
         assertEq(BTC.balanceOf(owner), manager.getWithdrawFee(address(BTC)));
     }
 
@@ -522,7 +510,7 @@ contract TestVertexManager is Test {
         processSlowModeTxs();
         deal(address(USDC), router, amountUSDC);
 
-        // Claim tokens.
+        // Claim tokens for user and owner.
         manager.claim(address(0x69), 1);
 
         assertEq(manager.pendingBalances(address(0x69), address(BTC)), 0);
@@ -531,9 +519,6 @@ contract TestVertexManager is Test {
         assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
         assertEq(BTC.balanceOf(address(0x69)), 1 * 10 ** 8);
         assertEq(USDC.balanceOf(address(0x69)), amountUSDC);
-
-        manager.claimFees(1);
-
         assertEq(BTC.balanceOf(owner), manager.getWithdrawFee(address(BTC)));
     }
 
@@ -775,10 +760,8 @@ contract TestVertexManager is Test {
         processSlowModeTxs();
         deal(address(USDC), router, amountUSDC);
 
-        // Claim tokens.
+        // Claim tokens for user and owner.
         manager.claim(address(this), 1);
-
-        manager.claimFees(1);
     }
 
     function testInsufficientFee() public {

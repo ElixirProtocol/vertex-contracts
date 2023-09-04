@@ -341,7 +341,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         emit Withdraw(msg.sender, id, amounts);
     }
 
-    /// @notice Claims received tokens from the pending balance.
+    /// @notice Claims received tokens from the pending balance and fees.
     /// @param user The address to claim the tokens for.
     /// @param id The ID of the pool to claim the tokens from.
     function claim(address user, uint256 id) external whenClaimNotPaused nonReentrant {
@@ -351,43 +351,27 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // Loop over tokens and claim them if there is a pending balance and they are available.
         for (uint256 i = 0; i < tokens.length; i++) {
-            // No danger if amount is 0.
+            // Fetch the user's pending balance. No danger if amount is 0.
             uint256 amount = pendingBalances[user][tokens[i]];
+
+            // Fetch Elixir's pending fee balance.
+            uint256 fee = fees[tokens[i]];
 
             // Resets the pending balance of the user.
             pendingBalances[user][tokens[i]] = 0;
 
+            // Resets the Elixir pending fee balance.
+            fees[tokens[i]] = 0;
+
             // Fetch the tokens from the Router.
-            router.claimToken(tokens[i], amount);
+            router.claimToken(tokens[i], amount + fee);
 
             // Transfers the tokens after to prevent reentrancy.
+            IERC20Metadata(tokens[i]).safeTransfer(owner(), fee);
             IERC20Metadata(tokens[i]).safeTransfer(user, amount);
         }
 
         emit Claim(user, tokens);
-    }
-
-    /// @notice Claim reimbursed fees to Elixir.
-    /// @param id The ID of the pool to claim the tokens from.
-    function claimFees(uint256 id) external {
-        // Fetch the pool tokens and router.
-        address[] memory tokens = pools[id].tokens;
-        VertexRouter router = VertexRouter(pools[id].router);
-
-        // Loop over tokens and claim them if there is a pending balance and they are available.
-        for (uint256 i = 0; i < tokens.length; i++) {
-            // Fetch the fee amount.
-            uint256 fee = fees[tokens[i]];
-
-            // Resets the fee amount.
-            fees[tokens[i]] = 0;
-
-            // Fetch the tokens from the Router.
-            router.claimToken(tokens[i], fee);
-
-            // Transfers the tokens after to prevent reentrancy.
-            IERC20Metadata(tokens[i]).safeTransfer(owner(), fee);
-        }
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -47,4 +47,7 @@ contract MockEndpoint {
     function slowModeFees() external pure returns (uint256) {
         return 0;
     }
+
+    // Exclude from coverage report
+    function test() public {}
 }

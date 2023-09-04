@@ -9,4 +9,7 @@ contract MockToken is ERC20 {
     function mint(address a, uint256 b) public {
         _mint(a, b);
     }
+
+    // Exclude from coverage report
+    function test() public {}
 }

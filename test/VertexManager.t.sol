@@ -3,7 +3,7 @@ pragma solidity 0.8.19;
 
 import "forge-std/Test.sol";
 
-import {Utils} from "./utils/Utils.t.sol";
+import {Utils} from "./utils/Utils.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
@@ -113,7 +113,6 @@ contract TestVertexManager is Test {
     }
 
     function spotDepositSetUp() public {
-        vm.selectFork(networkFork);
         vm.startPrank(OWNER);
 
         // Create BTC spot pool with BTC and USDC as tokens.
@@ -136,7 +135,6 @@ contract TestVertexManager is Test {
     }
 
     function perpDepositSetUp() public {
-        vm.selectFork(networkFork);
         vm.startPrank(OWNER);
 
         // Create BTC PERP pool with BTC, USDC, and ETH as tokens.
@@ -620,8 +618,6 @@ contract TestVertexManager is Test {
     }
 
     function testDepositInvalidInputs() public {
-        vm.selectFork(networkFork);
-
         uint256[] memory amounts = new uint256[](0);
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidAmountsLength.selector, amounts));
@@ -782,7 +778,6 @@ contract TestVertexManager is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testAddAndUpdatePool() public {
-        vm.selectFork(networkFork);
         vm.startPrank(OWNER);
 
         // Create BTC spot pool with BTC and USDC as tokens.
@@ -815,8 +810,6 @@ contract TestVertexManager is Test {
     }
 
     function testUnauthorizedAddAndUpdate() public {
-        vm.selectFork(networkFork);
-
         address[] memory tokens = new address[](0);
         uint256[] memory hardcaps = new uint256[](0);
 
@@ -827,9 +820,21 @@ contract TestVertexManager is Test {
         manager.addPoolTokens(1, tokens, hardcaps);
     }
 
-    function testIsPoolAdded() public {
-        vm.selectFork(networkFork);
+    function testAddPoolTokens() public {
+        spotDepositSetUp();
+        vm.startPrank(OWNER);
 
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(WETH);
+
+        uint256[] memory hardcaps = new uint256[](1);
+        hardcaps[0] = type(uint256).max;
+
+        // Convert spot pool to perp by adding WETH as a new token.
+        manager.addPoolTokens(1, tokens, hardcaps);
+    }
+
+    function testIsPoolAdded() public {
         // Get the pool data.
         (, address[] memory tokens_, uint256[] memory hardcaps_,) = manager.getPool(2);
 
@@ -838,7 +843,6 @@ contract TestVertexManager is Test {
     }
 
     function testPoolAdd() public {
-        vm.selectFork(networkFork);
         vm.startPrank(OWNER);
 
         address[] memory tokens = new address[](2);
@@ -898,7 +902,7 @@ contract TestVertexManager is Test {
                               TOKEN TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testAddAndUpdateToken() public {
+    function testUpdateToken() public {
         vm.startPrank(OWNER);
 
         assertEq(manager.tokenToProduct(address(BTC)), 0);
@@ -914,71 +918,6 @@ contract TestVertexManager is Test {
 
     function testFailUpdateToken() public {
         manager.updateToken(address(BTC), 69);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                              FEES TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    function testFailApplyFees() public {
-        vm.selectFork(networkFork);
-
-        uint256[] memory fees = new uint256[](0);
-
-        manager.applyFees(1, address(0xdead), fees);
-    }
-
-    function testApplyFees() public {
-        spotDepositSetUp();
-
-        uint256 amountBTC = 1 * 10 ** 8 + manager.getWithdrawFee(address(BTC));
-        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
-
-        deal(address(BTC), address(this), amountBTC);
-        deal(address(USDC), address(this), amountUSDC);
-
-        BTC.approve(address(manager), amountBTC);
-        USDC.approve(address(manager), amountUSDC);
-
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = amountBTC;
-        amounts[1] = amountUSDC;
-
-        manager.deposit(1, amounts, address(this));
-
-        uint256[] memory _fees = new uint256[](2);
-        _fees[0] = 1;
-        _fees[1] = 1;
-
-        vm.prank(OWNER);
-        manager.applyFees(1, address(this), _fees);
-    }
-
-    function testFeesTooHigh() public {
-        spotDepositSetUp();
-
-        uint256 amountBTC = 1 * 10 ** 8 + manager.getWithdrawFee(address(BTC));
-        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
-
-        deal(address(BTC), address(this), amountBTC);
-        deal(address(USDC), address(this), amountUSDC);
-
-        BTC.approve(address(manager), amountBTC);
-        USDC.approve(address(manager), amountUSDC);
-
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = amountBTC;
-        amounts[1] = amountUSDC;
-
-        manager.deposit(1, amounts, address(this));
-
-        uint256[] memory _fees = new uint256[](2);
-        _fees[0] = type(uint256).max;
-        _fees[1] = 1;
-
-        vm.prank(OWNER);
-        vm.expectRevert();
-        manager.applyFees(1, address(this), _fees);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1025,5 +964,39 @@ contract TestVertexManager is Test {
 
         vm.prank(OWNER);
         manager.updateSlowModeFee(69);
+    }
+
+    function testPrice() public {
+        spotDepositSetUp();
+
+        // Revert for non-created pool.
+        vm.expectRevert();
+        manager.getPrice(69);
+
+        manager.getPrice(1);
+    }
+
+    function testBalanced() public {
+        spotDepositSetUp();
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(0x69);
+        tokens[1] = address(USDC);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1 * 10 ** 8;
+        amounts[1] = 1;
+
+        // Revert for non-supported token.
+        vm.expectRevert();
+        manager.checkBalanced(tokens, amounts);
+
+        tokens[0] = address(BTC);
+
+        assertFalse(manager.checkBalanced(tokens, amounts));
+
+        amounts[1] = manager.getBalancedAmount(address(BTC), address(USDC), amounts[0]);
+
+        assertTrue(manager.checkBalanced(tokens, amounts));
     }
 }

@@ -63,6 +63,14 @@ After [installing Slither](https://github.com/crytic/slither#how-to-install), ru
 slither src/ --solc-remaps 'forge-std/=lib/forge-std/src/ ds-test/=lib/ds-test/src/ openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/ openzeppelin/=lib/openzeppelin-contracts/contracts/'
 ```
 
+### Check coverage
+
+To check the test coverage, run:
+
+```sh
+forge coverage
+```
+
 ### Update Gas Snapshots
 
 To update the gas snapshots, run:

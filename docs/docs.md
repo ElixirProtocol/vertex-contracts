@@ -148,11 +148,11 @@ Throughout the codebase, events are emitted to maximize transparency and allow u
 Appropiate access controls are in place for all priviliged operations. The only privliged role in the smart contract is the owner, which is the Elixir 4/5 Multisig. As the Vertex protocol is completely upgradeable, the owner role is needed to perform operations and actions in case any aspect needs to be updated. The capabilities of the owner are the following:
 
 - `pause`: Update the pause status of deposits, withdraws, and claims in case of malicious activity or incidents. Allows to pause each operation modularly; for example, pause deposits but allow withdrawals and claims.
-- `addPoolToken`: Add a new token to a pool. This is needed in case Vertex updates or release new products (spot or perps). This function appends data instead of rewriting it, maximizing transparency and security.
+- `addPool`: Adds a new pool. This deploys a new router for the pool, which is unique for this pool. The reason is that Vertex only allows one linked signer per smart contract, which goes against the singleton design of the Manager contract.
+- `addPoolTokens`: Adds a new token to a pool.
 - `updatePoolHardcaps`: Update the hardcaps of a pool. Used to limit and manage market making activity on Vertex for scaling purposes. An alternative to pausing deposits too.
 - `updateToken`: Update the Vertex product ID of a token address. Used when new tokens are supported on Vertex products.
 - `updateSlowModeFee`: Update the slow mode fee in case the Vertex sequencer fee changes. Denominated on the `paymentToken`.
-- `applyFees`: Apply Elixir fees to a user balance depending on traded volume, which is data available off-chain. Limited to 10% of the available balance. These Elixir fees are claimed directly on Vertex and not through the Vertex Manager smart contract.
 
 ### Complexity Management
 

@@ -58,4 +58,7 @@ contract DeployGoerli is DeployBase {
 
         vm.stopBroadcast();
     }
+
+    // Exclude from coverage report
+    function test() public override {}
 }

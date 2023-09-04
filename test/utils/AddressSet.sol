@@ -45,4 +45,7 @@ library LibAddressSet {
         }
         return acc;
     }
+
+    // Exclude from coverage report
+    function test() public {}
 }

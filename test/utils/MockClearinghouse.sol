@@ -11,4 +11,7 @@ contract MockClearinghouse {
     function getQuote() external view returns (address) {
         return quoteToken;
     }
+
+    // Exclude from coverage report
+    function test() public {}
 }

@@ -29,4 +29,7 @@ contract UpgradeContract is Script {
 
         vm.stopBroadcast();
     }
+
+    // Exclude from coverage report
+    function test() public {}
 }

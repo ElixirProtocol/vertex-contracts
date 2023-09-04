@@ -125,12 +125,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param newFee The new fee.
     event SlowModeFeeUpdated(uint256 newFee);
 
-    /// @notice Emitted when fees are applied to a user.
-    /// @param id The pool ID to apply fees to.
-    /// @param user The user to apply fees to.
-    /// @param fees The fees to apply.
-    event FeesApplied(uint256 id, address indexed user, uint256[] fees);
-
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -624,12 +618,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param token The token to update.
     /// @param productId The new Vertex product ID to represent this token.
     function updateToken(address token, uint32 productId) external onlyOwner {
-        // Check if this is a new token being added.
-        if (tokenToProduct[token] == 0) {
-            // Approve Vertex to transfer tokens when depositing.
-            IERC20Metadata(token).approve(address(endpoint), type(uint256).max);
-        }
-
         // Update the token to product ID mapping.
         tokenToProduct[token] = productId;
 
@@ -642,31 +630,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         slowModeFee = newFee;
 
         emit SlowModeFeeUpdated(newFee);
-    }
-
-    /// @notice Apply fees to pooled liquidity.
-    /// @dev After applying fees, they should be extracted via Vertex directly.
-    /// @param id The pool ID to apply fees to.
-    /// @param user The user to apply fees to.
-    /// @param _fees The fees to apply.
-    function applyFees(uint256 id, address user, uint256[] memory _fees) external onlyOwner {
-        Pool storage pool = pools[id];
-
-        // Loop over fees to apply.
-        for (uint256 i = 0; i < _fees.length; i++) {
-            // Fee cannot be higher than 10% of the active amount.
-            if (pool.userActiveAmounts[user][i].mulDiv(10, 100, Math.Rounding.Up) < _fees[i]) {
-                revert FeeTooHigh(pool.userActiveAmounts[user][i], _fees[i]);
-            }
-
-            // Substract amount from the active market making balance.
-            pool.userActiveAmounts[user][i] -= _fees[i];
-
-            // Substract amount from the active pool market making balance.
-            pool.activeAmounts[i] -= _fees[i];
-        }
-
-        emit FeesApplied(id, user, _fees);
     }
 
     /*//////////////////////////////////////////////////////////////

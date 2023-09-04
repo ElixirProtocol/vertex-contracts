@@ -3,7 +3,7 @@ pragma solidity 0.8.19;
 
 import "forge-std/Test.sol";
 
-import {Utils} from "../utils/Utils.t.sol";
+import {Utils} from "../utils/Utils.sol";
 import {MockToken} from "../utils/MockToken.sol";
 import {MockEndpoint} from "../utils/MockEndpoint.sol";
 
@@ -135,4 +135,7 @@ contract TestVertexManagerInvariants is Test {
     function accumulateBalance(uint256 balance, address caller) external view returns (uint256) {
         return balance + (manager.getUserActiveAmounts(1, caller))[0];
     }
+
+    // Exclude from coverage report
+    function test() public {}
 }

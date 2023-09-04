@@ -7,9 +7,11 @@ import {SafeERC20} from "openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import {IClearinghouse} from "./interfaces/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
 
-/// @title Elixir pool manager for Vertex
+/// @title Elixir pool router for Vertex
 /// @author The Elixir Team
-/// @notice Pool manager contract to provide liquidity for spot and perp market making on Vertex Protocol.
+/// @dev This contract is needed because an address can only have one Vertex linked signer at a time,
+/// which is incompatible with the VertexManager singleton approach.
+/// @notice Pool router contract to send slow-mode transactions to Vertex.
 contract VertexRouter {
     using SafeERC20 for IERC20Metadata;
 
@@ -28,10 +30,6 @@ contract VertexRouter {
 
     /// @notice The Manager contract associated with this Router.
     address public manager;
-
-    /*//////////////////////////////////////////////////////////////
-                                 EVENTS
-    //////////////////////////////////////////////////////////////*/
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -54,7 +52,7 @@ contract VertexRouter {
                                CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice TODO
+    /// @notice Set the manager, Vertex Endpoint, and subaccounts.
     /// @param _endpoint The address of the Vertex Endpoint contract.
     /// @param _externalAccount The address of the external account to link to the Vertex Endpoint.
     constructor(address _endpoint, address _externalAccount) {

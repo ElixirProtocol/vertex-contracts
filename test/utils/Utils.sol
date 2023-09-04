@@ -29,4 +29,7 @@ contract Utils is Test {
         uint256 targetBlock = block.number + numBlocks;
         vm.roll(targetBlock);
     }
+
+    // Exclude from coverage report
+    function test() public {}
 }

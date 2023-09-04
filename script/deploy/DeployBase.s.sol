@@ -54,4 +54,7 @@ abstract contract DeployBase is Script {
 
         vm.stopBroadcast();
     }
+
+    // Exclude from coverage report
+    function test() virtual public {}
 }

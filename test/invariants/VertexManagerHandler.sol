@@ -106,4 +106,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     {
         return _actors.reduce(acc, func);
     }
+
+    // Exclude from coverage report
+    function test() public {}
 }

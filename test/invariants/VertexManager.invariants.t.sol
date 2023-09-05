@@ -193,7 +193,7 @@ contract TestVertexManagerInvariants is Test {
 
         assertLe(activeAmounts[0], BTC.totalSupply());
         assertLe(activeAmounts[1], USDC.totalSupply());
-    } 
+    }
 
     function accumulateActiveBalanceBTC(uint256 balance, address caller) external view returns (uint256) {
         return balance + (manager.getUserActiveAmounts(1, caller))[0];

@@ -56,5 +56,5 @@ abstract contract DeployBase is Script {
     }
 
     // Exclude from coverage report
-    function test() virtual public {}
+    function test() public virtual {}
 }

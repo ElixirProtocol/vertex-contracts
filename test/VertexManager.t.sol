@@ -11,7 +11,9 @@ import {Math} from "openzeppelin/utils/math/Math.sol";
 
 import {IClearinghouse} from "../src/interfaces/IClearinghouse.sol";
 import {IEndpoint} from "../src/interfaces/IEndpoint.sol";
+
 import {VertexManager} from "../src/VertexManager.sol";
+import {VertexRouter} from "../src/VertexRouter.sol";
 
 contract TestVertexManager is Test {
     using Math for uint256;

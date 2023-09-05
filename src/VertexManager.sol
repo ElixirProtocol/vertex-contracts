@@ -12,6 +12,7 @@ import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgrade
 
 import {IClearinghouse} from "./interfaces/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
+import {IEngine} from "../src/interfaces/IEngine.sol";
 
 import {VertexRouter} from "./VertexRouter.sol";
 
@@ -300,9 +301,15 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // Loop over amounts and send withdraw requests to Vertex.
         for (uint256 i = 0; i < amounts.length; i++) {
+            // Skip zero amounts if not fee index.
+            if (amounts[i] == 0 && i != feeIndex) continue;
+
             // Get the token address and pool router.
             address token = pool.tokens[i];
             VertexRouter router = VertexRouter(pool.router);
+
+            // Calculate the amount to receive.
+            uint256 amountToReceive = getWithdrawAmount(uint32(id), token, amounts[i], pool.activeAmounts[i]);
 
             // Substract amount from the active market making balance.
             pool.userActiveAmounts[msg.sender][i] -= amounts[i];
@@ -322,14 +329,15 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                 // Add fee to the Elixir balance.
                 fees[token] += fee;
 
-                pendingBalances[msg.sender][token] += (amounts[i] - fee);
+                pendingBalances[msg.sender][token] += (amountToReceive - fee);
             } else {
-                pendingBalances[msg.sender][token] += amounts[i];
+                pendingBalances[msg.sender][token] += amountToReceive;
             }
 
             // Create Vertex withdraw payload request.
-            IEndpoint.WithdrawCollateral memory withdrawPayload =
-                IEndpoint.WithdrawCollateral(router.contractSubaccount(), tokenToProduct[token], uint128(amounts[i]), 0);
+            IEndpoint.WithdrawCollateral memory withdrawPayload = IEndpoint.WithdrawCollateral(
+                router.contractSubaccount(), tokenToProduct[token], uint128(amountToReceive), 0
+            );
 
             // Send withdraw requests to Vertex.
             _sendTransaction(
@@ -411,6 +419,77 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         return pools[id].userActiveAmounts[user];
     }
 
+    /// @notice Returns the pool balance of a product on Vertex.
+    /// @param id The ID of the pool to fetch the balance of.
+    /// @param token The token to fetch the balance of.
+    function getVertexBalance(uint32 id, address token) public view returns (uint256) {
+        IEngine.Balance memory balance = IEngine(
+            IClearinghouse(endpoint.clearinghouse()).getEngineByProduct(tokenToProduct[token])
+        ).getBalance(tokenToProduct[token], VertexRouter(pools[id].router).contractSubaccount());
+
+        // Format the balance back to the original decimals, as Vertex uses 18 decimals and rounds down.
+        uint256 decimals = 10 ** (18 - IERC20Metadata(token).decimals());
+        // Add 1 when decimals is 1 to round up.
+        uint256 formattedBalance = uint256(decimals == 1 ? balance.amount + 1 : balance.amount).ceilDiv(decimals);
+
+        // Substract or add pending balance changes in Vertex sequencer queue.
+        IEndpoint.SlowModeConfig memory queue = endpoint.slowModeConfig();
+
+        // Loop over queue and check transaction.
+        for (uint64 i = queue.txUpTo; i < queue.txCount; i++) {
+            // Fetch the transaction.
+            (, address sender, bytes memory transaction) = endpoint.slowModeTxs(i);
+
+            // Decode the transaction type.
+            (uint8 txType, bytes memory payload) = this.decodeTx(transaction);
+
+            if (sender != address(pools[id].router)) continue;
+
+            // If the transaction is a withdraw, substract the amount from the balance.
+            if (txType == uint8(IEndpoint.TransactionType.WithdrawCollateral)) {
+                // Decode the withdraw payload.
+                IEndpoint.WithdrawCollateral memory withdrawPayload =
+                    abi.decode(payload, (IEndpoint.WithdrawCollateral));
+
+                // If the withdraw is for the pool, substract the amount from the balance.
+                if (withdrawPayload.productId == tokenToProduct[token]) {
+                    formattedBalance -= withdrawPayload.amount;
+                }
+            }
+            // If the transaction is a deposit, add the amount to the balance.
+            else if (txType == uint8(IEndpoint.TransactionType.DepositCollateral)) {
+                // Decode the deposit payload.
+                IEndpoint.DepositCollateral memory depositPayload = abi.decode(payload, (IEndpoint.DepositCollateral));
+
+                // If the deposit is for the pool, add the amount to the balance.
+                if (depositPayload.productId == tokenToProduct[token]) {
+                    formattedBalance -= depositPayload.amount;
+                }
+            } else {
+                continue;
+            }
+        }
+
+        return formattedBalance;
+    }
+
+    /// @notice Returns the calculated amount of tokens to receive when withdrawing, given an amount of tokens and the pool balance on Vertex.
+    /// @param id The ID of the pool to fetch the balance of.
+    /// @param token The token to fetch the balance of.
+    /// @param amount The amount of tokens withdrawing.
+    /// @param activeAmount The active amount of tokens in the pool.
+    function getWithdrawAmount(uint32 id, address token, uint256 amount, uint256 activeAmount)
+        public
+        view
+        returns (uint256)
+    {
+        // Fetch the balances of the market maker on Vertex,
+        uint256 balance = getVertexBalance(id, token);
+
+        // Calculate the amount to receive via percentage of ownership, accounting for any trading losses.
+        return amount.mulDiv(balance, activeAmount, Math.Rounding.Down);
+    }
+
     /// @notice Returns the balanced amount of quote tokens given an amount of base tokens.
     /// @param token0 The base token.
     /// @param token1 The quote token.
@@ -421,6 +500,20 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             10 ** (18 + (IERC20Metadata(token0).decimals() - IERC20Metadata(token1).decimals())),
             Math.Rounding.Down
         );
+    }
+
+    /// @notice Returns the type and payload of a Vertex slow-mode transaction.
+    /// @param transaction The transaction to decode.
+    function decodeTx(bytes calldata transaction) public pure returns (uint8, bytes memory) {
+        return (uint8(transaction[0]), transaction[1:]);
+    }
+
+    /// @notice Returns true if the given amounts of base and quote tokes are balanced.
+    /// @param tokens The list of tokens to check the balance of. First item must be the base and the second the quote.
+    /// @param amounts The list of amounts to check the balance of. First item msut be the base amount and the second the quote amount.
+    function checkBalanced(address[] memory tokens, uint256[] memory amounts) public view returns (bool) {
+        // Get the price of the product on Vertex and calculate the expected quote amount, rounding down.
+        return getBalancedAmount(tokens[0], tokens[1], amounts[0]) == amounts[1];
     }
 
     /// @notice Helper function to deposit balaned amounts for spot pool, given an amount of base tokens.
@@ -474,14 +567,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // Call the deposit function.
         withdraw(id, amounts, feeIndex);
-    }
-
-    /// @notice Returns true if the given amounts of base and quote tokes are balanced.
-    /// @param tokens The list of tokens to check the balance of. First item must be the base and the second the quote.
-    /// @param amounts The list of amounts to check the balance of. First item msut be the base amount and the second the quote amount.
-    function checkBalanced(address[] memory tokens, uint256[] memory amounts) public view returns (bool) {
-        // Get the price of the product on Vertex and calculate the expected quote amount, rounding down.
-        return getBalancedAmount(tokens[0], tokens[1], amounts[0]) == amounts[1];
     }
 
     /*//////////////////////////////////////////////////////////////

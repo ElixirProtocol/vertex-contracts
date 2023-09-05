@@ -1016,4 +1016,30 @@ contract TestVertexManager is Test {
 
         assertTrue(manager.checkBalanced(tokens, amounts));
     }
+
+    function testVertexBalance() public {
+        spotDepositSetUp();
+        perpDepositSetUp();
+
+        uint256 amountBTC = 1 * 10 ** 8;
+
+        IEndpoint.DepositCollateral memory depositPayload = IEndpoint.DepositCollateral(bytes32(abi.encodePacked(address(this), bytes12(0))), 1, uint128(amountBTC));
+
+        deal(address(BTC), address(this), amountBTC * 2);
+        BTC.approve(address(endpoint), amountBTC);
+        BTC.approve(address(manager), amountBTC);
+
+        endpoint.submitSlowModeTransaction(abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositPayload)));
+
+        manager.getVertexBalance(1, address(BTC));
+
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = amountBTC;
+        amounts[1] = 0;
+        amounts[2] = 0;
+
+        manager.deposit(2, amounts, address(this));
+
+        manager.getVertexBalance(1, address(BTC));
+    }
 }

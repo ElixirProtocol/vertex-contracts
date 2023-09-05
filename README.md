@@ -2,8 +2,6 @@
 
 # Elixir <> Vertex Integration Contracts • [![CI](https://github.com/ElixirProtocol/vertex-contracts/actions/workflows/test.yml/badge.svg)](https://github.com/ElixirProtocol/elixir-contracts/actions/workflows/test.yml)
 
-Art Gobblers is an experimental decentralized art factory by Justin Roiland and Paradigm.
-
 ## Background
 
 This project contains the smart contracts for the Elixir Protocol integration on top of Vertex Protocol.

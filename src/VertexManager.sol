@@ -463,7 +463,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
                 // If the deposit is for the pool, add the amount to the balance.
                 if (depositPayload.productId == tokenToProduct[token]) {
-                    formattedBalance -= depositPayload.amount;
+                    formattedBalance += depositPayload.amount;
                 }
             } else {
                 continue;

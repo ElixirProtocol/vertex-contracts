@@ -611,13 +611,13 @@ contract TestVertexManager is Test {
     function testDepositInvalidInputs() public {
         uint256[] memory amounts = new uint256[](0);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidAmountsLength.selector, amounts));
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidLength.selector, amounts, 0));
 
         manager.deposit(0, amounts, address(this));
 
         amounts = new uint256[](2);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidAmountsLength.selector, amounts));
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidLength.selector, amounts, 0));
         manager.deposit(0, amounts, address(this));
     }
 
@@ -657,7 +657,7 @@ contract TestVertexManager is Test {
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidAmountsLength.selector, amounts));
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidLength.selector, amounts, 1));
         manager.withdraw(1, amounts, 69);
     }
 
@@ -1023,13 +1023,16 @@ contract TestVertexManager is Test {
 
         uint256 amountBTC = 1 * 10 ** 8;
 
-        IEndpoint.DepositCollateral memory depositPayload = IEndpoint.DepositCollateral(bytes32(abi.encodePacked(address(this), bytes12(0))), 1, uint128(amountBTC));
+        IEndpoint.DepositCollateral memory depositPayload =
+            IEndpoint.DepositCollateral(bytes32(abi.encodePacked(address(this), bytes12(0))), 1, uint128(amountBTC));
 
         deal(address(BTC), address(this), amountBTC * 2);
         BTC.approve(address(endpoint), amountBTC);
         BTC.approve(address(manager), amountBTC);
 
-        endpoint.submitSlowModeTransaction(abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositPayload)));
+        endpoint.submitSlowModeTransaction(
+            abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositPayload))
+        );
 
         manager.getVertexBalance(1, address(BTC));
 

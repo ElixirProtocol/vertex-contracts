@@ -166,7 +166,7 @@ contract TestVertexManagerInvariants is Test {
         assertGe(sumOfDepositsUSDC, sumOfWithdrawsUSDC);
     }
 
-    // The sum of the pending balances must always be less than the sum of ghost withdraws.
+    // The sum of the pending balances must always be less than the sum of ghost withdrawals.
     function invariant_pendingBalances() public {
         uint256 sumOfPendingBalancesBTC = handler.reduceActors(0, this.accumulatePendingBalanceBTC);
         uint256 sumOfPendingBalancesUSDC = handler.reduceActors(0, this.accumulatePendingBalanceUSDC);
@@ -175,7 +175,7 @@ contract TestVertexManagerInvariants is Test {
         assertLe(sumOfPendingBalancesUSDC, handler.ghost_withdraws(address(USDC)));
     }
 
-    // The sum of the claims must always be less than the sum of the ghost withdras.
+    // The sum of the claims must always be less than the sum of the ghost withdrawals.
     function invariant_claims() public {
         uint256 sumOfClaimsBTC = handler.ghost_claims(address(BTC));
         uint256 sumOfClaimsUSDC = handler.ghost_claims(address(USDC));

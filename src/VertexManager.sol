@@ -140,9 +140,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Emitted when claims are paused.
     error ClaimsPaused();
 
-    /// @notice Emitted when the amount of tokens given don't match the amount of tokens expected.
-    /// @param amounts The list of amounts given.
-    error InvalidAmountsLength(uint256[] amounts);
+    /// @notice Emitted when the length of an array input doesn't match number of pool tokes supported.
+    /// @param array The array given with the incorrect length.
+    /// @param id The pool ID giving the conflict.
+    error InvalidLength(uint256[] array, uint256 id);
 
     /// @notice Emitted when the amount of tokens given are for a spot product and are not balanced.
     /// @param id The ID of the pool.
@@ -165,6 +166,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param amount1Low The low limit of the quote amount.
     /// @param amount1High The high limit of the quote amount.
     error SlippageTooHigh(uint256 amount1, uint256 amount1Low, uint256 amount1High);
+
+    /// @notice Emitted when the pool ID is not valid.
+    /// @param id The ID of the pool.
+    error InvalidPool(uint256 id);
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
@@ -230,7 +235,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     function deposit(uint256 id, uint256[] memory amounts, address receiver) public whenDepositNotPaused nonReentrant {
         Pool storage pool = pools[id];
 
-        if (amounts.length == 0 || pool.tokens.length != amounts.length) revert InvalidAmountsLength(amounts);
+        if (amounts.length == 0 || pool.tokens.length != amounts.length) revert InvalidLength(amounts, id);
 
         // If the length of amounts is 2 (base abd quote tokens), it means that the pool targets a spot pair.
         // Then, check if the input amounts are balanced.
@@ -238,11 +243,13 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             revert UnbalancedAmounts(id, amounts);
         }
 
-        // Loop over amounts to fetch and redirect tokens.
+        // Fetch the router of the pool.
+        VertexRouter router = VertexRouter(pool.router);
+
+        // Loop over amounts to fetch and redirect tokens to Vertex.
         for (uint256 i = 0; i < amounts.length; i++) {
-            // Get the token address and pool router.
+            // Get the token address.
             address token = pool.tokens[i];
-            VertexRouter router = VertexRouter(pool.router);
 
             // Check if the amount exceeds the hardcap.
             if (pool.activeAmounts[i] + amounts[i] > pool.hardcaps[i]) {
@@ -290,7 +297,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         Pool storage pool = pools[id];
 
         if (amounts.length == 0 || pool.tokens.length != amounts.length || feeIndex > amounts.length) {
-            revert InvalidAmountsLength(amounts);
+            revert InvalidLength(amounts, id);
         }
 
         // If the length of amounts is 2 (base abd quote tokens), it means that the pool targets a spot pair.
@@ -320,11 +327,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             // Add amount to the user pending balance.
             if (i == feeIndex) {
                 // Calculate the reimburse fee amount for the token.
-                uint256 fee = slowModeFee.mulDiv(
-                    10 ** (18 + IERC20Metadata(token).decimals() - paymentToken.decimals()),
-                    getPrice(tokenToProduct[token]),
-                    Math.Rounding.Up
-                );
+                uint256 fee = getWithdrawFee(token);
 
                 // Add fee to the Elixir balance.
                 fees[token] += fee;
@@ -353,6 +356,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param user The address to claim the tokens for.
     /// @param id The ID of the pool to claim the tokens from.
     function claim(address user, uint256 id) external whenClaimNotPaused nonReentrant {
+        // Check if the pool exists.
+        if (pools[id].router == address(0)) revert InvalidPool(id);
+
         // Fetch the pool tokens and router.
         address[] memory tokens = pools[id].tokens;
         VertexRouter router = VertexRouter(pools[id].router);
@@ -668,6 +674,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The ID of the pool.
     /// @param hardcaps The hardcaps for the tokens.
     function updatePoolHardcaps(uint256 id, uint256[] memory hardcaps) external onlyOwner {
+        // Check that the length of the hardcaps array matches the pool tokens length.
+        if (hardcaps.length != pools[id].tokens.length) revert InvalidLength(hardcaps, id);
+
         // Loop over hardcaps to update.
         for (uint256 i = 0; i < hardcaps.length; i++) {
             pools[id].hardcaps[i] = hardcaps[i];

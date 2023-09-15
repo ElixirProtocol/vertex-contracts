@@ -125,17 +125,20 @@ contract TestVertexManagerInvariants is Test {
 
     // The sum of the Handler's BTC balance plus the BTC active amount should always equal the total BTC_SUPPLY. Same for USDC.
     function invariant_conservationOfTokens() public {
-        (,,, uint256[] memory activeAmounts) = manager.getPool(1);
-        assertEq(BTC_SUPPLY, BTC.balanceOf(address(handler)) + activeAmounts[0]);
-        assertEq(USDC_SUPPLY, USDC.balanceOf(address(handler)) + activeAmounts[1]);
+        (, uint256 activeAmountBTC,,) = manager.getPool(1, address(BTC));
+        (, uint256 activeAmountUSDC,,) = manager.getPool(1, address(USDC));
+
+        assertEq(BTC_SUPPLY, BTC.balanceOf(address(handler)) + activeAmountBTC);
+        assertEq(USDC_SUPPLY, USDC.balanceOf(address(handler)) + activeAmountUSDC);
     }
 
     // The BTC active amount should always be equal to the sum of individual active balances. Same for USDC.
     function invariant_solvencyDeposits() public {
-        (,,, uint256[] memory activeAmounts) = manager.getPool(1);
+        (, uint256 activeAmountBTC,,) = manager.getPool(1, address(BTC));
+        (, uint256 activeAmountUSDC,,) = manager.getPool(1, address(USDC));
 
-        assertEq(activeAmounts[0], handler.ghost_deposits(address(BTC)) - handler.ghost_withdraws(address(BTC)));
-        assertEq(activeAmounts[1], handler.ghost_deposits(address(USDC)) - handler.ghost_withdraws(address(USDC)));
+        assertEq(activeAmountBTC, handler.ghost_deposits(address(BTC)) - handler.ghost_withdraws(address(BTC)));
+        assertEq(activeAmountUSDC, handler.ghost_deposits(address(USDC)) - handler.ghost_withdraws(address(USDC)));
     }
 
     // The BTC active amount should always be equal to the sum of individual active balances. Same for USDC.
@@ -143,10 +146,11 @@ contract TestVertexManagerInvariants is Test {
         uint256 sumOfActiveBalancesBTC = handler.reduceActors(0, this.accumulateActiveBalanceBTC);
         uint256 sumOfActiveBalancesUSDC = handler.reduceActors(0, this.accumulateActiveBalanceUSDC);
 
-        (,,, uint256[] memory activeAmounts) = manager.getPool(1);
+        (, uint256 activeAmountBTC,,) = manager.getPool(1, address(BTC));
+        (, uint256 activeAmountUSDC,,) = manager.getPool(1, address(USDC));
 
-        assertEq(activeAmounts[0], sumOfActiveBalancesBTC);
-        assertEq(activeAmounts[1], sumOfActiveBalancesUSDC);
+        assertEq(activeAmountBTC, sumOfActiveBalancesBTC);
+        assertEq(activeAmountUSDC, sumOfActiveBalancesUSDC);
     }
 
     // No individual account balance can exceed the tokens totalSupply().
@@ -188,19 +192,22 @@ contract TestVertexManagerInvariants is Test {
                                 HELPERS
     //////////////////////////////////////////////////////////////*/
 
+    // TODO: What about an invariant that checks the active amount of pools and users?
     function assertAccountBalanceLteTotalSupply(address account) external {
-        uint256[] memory activeAmounts = manager.getUserActiveAmounts(1, account);
+        // Get the BTC and USDC active amount of user.
+        uint256 userActiveAmountBTC = manager.getUserActiveAmount(1, address(BTC), account);
+        uint256 userActiveAmountUSDC = manager.getUserActiveAmount(1, address(USDC), account);
 
-        assertLe(activeAmounts[0], BTC.totalSupply());
-        assertLe(activeAmounts[1], USDC.totalSupply());
+        assertLe(userActiveAmountBTC, BTC.totalSupply());
+        assertLe(userActiveAmountUSDC, USDC.totalSupply());
     }
 
     function accumulateActiveBalanceBTC(uint256 balance, address caller) external view returns (uint256) {
-        return balance + (manager.getUserActiveAmounts(1, caller))[0];
+        return balance + (manager.getUserActiveAmount(1, address(BTC), caller));
     }
 
     function accumulateActiveBalanceUSDC(uint256 balance, address caller) external view returns (uint256) {
-        return balance + (manager.getUserActiveAmounts(1, caller))[1];
+        return balance + (manager.getUserActiveAmount(1, address(USDC), caller));
     }
 
     function accumulatePendingBalanceBTC(uint256 balance, address caller) external view returns (uint256) {

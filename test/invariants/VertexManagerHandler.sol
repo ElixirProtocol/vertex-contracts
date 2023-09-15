@@ -37,6 +37,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     // Actors
     AddressSet internal _actors;
 
+    // Spot tokens
+    address[] public spotTokens;
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -56,6 +59,10 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         BTC = _BTC;
         USDC = _USDC;
         WETH = _WETH;
+
+        spotTokens = new address[](2);
+        spotTokens[0] = address(BTC);
+        spotTokens[1] = address(USDC);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -79,7 +86,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
-        manager.deposit(1, amounts, currentActor);
+        manager.deposit(1, spotTokens, amounts, currentActor);
 
         vm.stopPrank();
 
@@ -94,7 +101,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         vm.startPrank(currentActor);
 
-        manager.withdrawBalanced(1, amountBTC, 1);
+        manager.withdrawBalanced(1, spotTokens, amountBTC, 1);
 
         vm.stopPrank();
 
@@ -109,7 +116,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         vm.startPrank(currentActor);
 
-        manager.withdrawBalanced(1, amountBTC, 0);
+        manager.withdrawBalanced(1, spotTokens, amountBTC, 0);
 
         vm.stopPrank();
 
@@ -120,7 +127,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     function claim() public createActor {
         vm.startPrank(currentActor);
 
-        manager.claim(currentActor, 1);
+        manager.claim(currentActor, spotTokens, 1);
 
         uint256 receivedBTC = BTC.balanceOf(currentActor);
         uint256 receivedUSDC = USDC.balanceOf(currentActor);

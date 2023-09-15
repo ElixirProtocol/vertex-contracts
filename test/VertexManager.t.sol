@@ -1135,7 +1135,14 @@ contract TestVertexManager is Test {
             abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositPayload))
         );
 
-        manager.getVertexBalance(1, address(BTC));
+        uint256 vertexBalanceBTC = manager.getVertexBalance(2, address(BTC));
+        uint256 vertexBalanceUSDC = manager.getVertexBalance(2, address(USDC));
+        uint256 vertexBalanceWETH = manager.getVertexBalance(2, address(WETH));
+
+        // Vertex balance should be 0 as there is no deposit through the VertexManager.
+        assertEq(vertexBalanceBTC, 0);
+        assertEq(vertexBalanceUSDC, 0);
+        assertEq(vertexBalanceWETH, 0);
 
         uint256[] memory amounts = new uint256[](3);
         amounts[0] = amountBTC;
@@ -1144,6 +1151,24 @@ contract TestVertexManager is Test {
 
         manager.deposit(2, perpTokens, amounts, address(this));
 
-        manager.getVertexBalance(1, address(BTC));
+        vertexBalanceBTC = manager.getVertexBalance(2, address(BTC));
+        vertexBalanceUSDC = manager.getVertexBalance(2, address(USDC));
+        vertexBalanceWETH = manager.getVertexBalance(2, address(WETH));
+
+        // Vertex balance should be equal to the BTC deposit (and other tokens equal to 0).
+        assertEq(vertexBalanceBTC, amounts[0]);
+        assertEq(vertexBalanceUSDC, amounts[1]);
+        assertEq(vertexBalanceWETH, amounts[2]);
+
+        manager.withdraw(2, perpTokens, amounts, 0);
+    
+        vertexBalanceBTC = manager.getVertexBalance(2, address(BTC));
+        vertexBalanceUSDC = manager.getVertexBalance(2, address(USDC));
+        vertexBalanceWETH = manager.getVertexBalance(2, address(WETH));
+
+        // Vertex balances should be 0 after withdrawal.
+        assertEq(vertexBalanceBTC, 0);
+        assertEq(vertexBalanceUSDC, 0);
+        assertEq(vertexBalanceWETH, 0);
     }
 }

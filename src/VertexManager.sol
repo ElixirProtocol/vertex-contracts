@@ -494,7 +494,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Format the balance back to the original decimals, as Vertex uses 18 decimals and rounds down.
         uint256 decimals = 10 ** (18 - IERC20Metadata(token).decimals());
         // Add 1 when decimals is 1 to round up.
-        uint256 formattedBalance = uint256(decimals == 1 ? balance.amount + 1 : balance.amount).ceilDiv(decimals);
+        // TODO: Improve this.
+        uint256 formattedBalance = uint256(decimals == 1 && balance.amount != 0 ? balance.amount + 1 : balance.amount).ceilDiv(decimals);
 
         // Substract or add pending balance changes in Vertex sequencer queue.
         IEndpoint.SlowModeConfig memory queue = endpoint.slowModeConfig();
@@ -527,7 +528,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
                 // If the deposit is for the pool, add the amount to the balance.
                 if (depositPayload.productId == tokenToProduct[token]) {
-                    formattedBalance -= depositPayload.amount;
+                    formattedBalance += depositPayload.amount;
                 }
             } else {
                 continue;

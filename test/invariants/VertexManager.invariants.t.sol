@@ -192,7 +192,6 @@ contract TestVertexManagerInvariants is Test {
                                 HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    // TODO: What about an invariant that checks the active amount of pools and users?
     function assertAccountBalanceLteTotalSupply(address account) external {
         // Get the BTC and USDC active amount of user.
         uint256 userActiveAmountBTC = manager.getUserActiveAmount(1, address(BTC), account);

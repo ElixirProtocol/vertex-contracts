@@ -200,7 +200,7 @@ contract TestVertexManager is Test {
 
         manager.deposit(1, spotTokens, amounts, address(this));
 
-        (address router, uint256 activeAmountBTC,,) = manager.getPool(1, address(BTC));
+        (, uint256 activeAmountBTC,,) = manager.getPool(1, address(BTC));
         (, uint256 activeAmountUSDC,,) = manager.getPool(1, address(USDC));
 
         uint256 userActiveAmountBTC = manager.getUserActiveAmount(1, address(BTC), address(this));
@@ -237,7 +237,6 @@ contract TestVertexManager is Test {
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
-        deal(address(USDC), router, amountUSDC);
 
         // Claim tokens for user and owner.
         manager.claim(address(this), spotTokens, 1);
@@ -352,7 +351,12 @@ contract TestVertexManager is Test {
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
+
+        // TODO: Resolve this deal bug.
+        console.log(USDC.balanceOf(address(router)));
+        console.log(amountUSDC);
         deal(address(USDC), address(router), amountUSDC * 2);
+        console.log(USDC.balanceOf(address(router)));
 
         // Claim tokens for user and owner.
         manager.claim(address(this), spotTokens, 1);
@@ -382,7 +386,7 @@ contract TestVertexManager is Test {
         expectedAmounts[0] = amountBTC;
         expectedAmounts[1] = amountUSDC;
 
-        (address router, uint256 activeAmountBTC,,) = manager.getPool(1, address(BTC));
+        (, uint256 activeAmountBTC,,) = manager.getPool(1, address(BTC));
         (, uint256 activeAmountUSDC,,) = manager.getPool(1, address(USDC));
 
         uint256 userActiveAmountBTC = manager.getUserActiveAmount(1, address(BTC), address(this));
@@ -419,7 +423,6 @@ contract TestVertexManager is Test {
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
-        deal(address(USDC), router, amountUSDC);
 
         // Claim tokens for user and owner.
         manager.claim(address(this), spotTokens, 1);
@@ -454,9 +457,9 @@ contract TestVertexManager is Test {
 
         manager.deposit(2, perpTokens, amounts, address(this));
 
-        (,uint256 activeAmountBTC,,) = manager.getPool(2, address(BTC));
-        (,uint256 activeAmountUSDC,,) = manager.getPool(2, address(USDC));
-        (,uint256 activeAmountWETH,,) = manager.getPool(2, address(WETH));
+        (, uint256 activeAmountBTC,,) = manager.getPool(2, address(BTC));
+        (, uint256 activeAmountUSDC,,) = manager.getPool(2, address(USDC));
+        (, uint256 activeAmountWETH,,) = manager.getPool(2, address(WETH));
 
         uint256 userActiveAmountBTC = manager.getUserActiveAmount(2, address(BTC), address(this));
         uint256 userActiveAmountUSDC = manager.getUserActiveAmount(2, address(USDC), address(this));
@@ -534,8 +537,8 @@ contract TestVertexManager is Test {
         expectedAmounts[0] = amountBTC;
         expectedAmounts[1] = amountUSDC;
 
-        (address router, uint256 activeAmounBTC,,) = manager.getPool(1, address(BTC));
-        (,uint256 activeAmountUSDC,,) = manager.getPool(1, address(USDC));
+        (, uint256 activeAmounBTC,,) = manager.getPool(1, address(BTC));
+        (, uint256 activeAmountUSDC,,) = manager.getPool(1, address(USDC));
 
         uint256 userActiveAmountCallerBTC = manager.getUserActiveAmount(1, address(BTC), address(this));
         uint256 userActiveAmountCallerUSDC = manager.getUserActiveAmount(1, address(USDC), address(this));
@@ -566,8 +569,8 @@ contract TestVertexManager is Test {
         vm.prank(address(0x69));
         manager.withdrawBalanced(1, spotTokens, amountBTC, 0);
 
-        (,activeAmounBTC,,) = manager.getPool(1, address(BTC));
-        (,activeAmountUSDC,,) = manager.getPool(1, address(USDC));
+        (, activeAmounBTC,,) = manager.getPool(1, address(BTC));
+        (, activeAmountUSDC,,) = manager.getPool(1, address(USDC));
 
         userActiveAmountCallerBTC = manager.getUserActiveAmount(1, address(BTC), address(this));
         userActiveAmountCallerUSDC = manager.getUserActiveAmount(1, address(USDC), address(this));
@@ -594,7 +597,6 @@ contract TestVertexManager is Test {
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
-        deal(address(USDC), router, amountUSDC);
 
         // Claim tokens for user and owner.
         manager.claim(address(0x69), spotTokens, 1);
@@ -845,8 +847,6 @@ contract TestVertexManager is Test {
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
-        // TODO: Check this deal (and throughout codebase).
-        deal(address(USDC), router, amountUSDC);
 
         // Claim tokens for user and owner.
         manager.claim(address(this), spotTokens, 1);
@@ -895,8 +895,10 @@ contract TestVertexManager is Test {
         manager.addPool(1, externalAccount, tokens, hardcaps);
 
         // Get the pool data.
-        (address routerBTC, uint256 activeAmountBTC, uint256 hardcapBTC, bool activeBTC) = manager.getPool(1, address(BTC));
-        (address routerUSDC, uint256 activeAmountUSDC, uint256 hardcapUSDC, bool activeUSDC) = manager.getPool(1, address(USDC));
+        (address routerBTC, uint256 activeAmountBTC, uint256 hardcapBTC, bool activeBTC) =
+            manager.getPool(1, address(BTC));
+        (address routerUSDC, uint256 activeAmountUSDC, uint256 hardcapUSDC, bool activeUSDC) =
+            manager.getPool(1, address(USDC));
 
         assertEq(routerBTC, routerUSDC);
         assertEq(activeAmountBTC, 0);
@@ -948,7 +950,8 @@ contract TestVertexManager is Test {
 
     function testIsPoolAdded() public {
         // Get the pool data.
-        (address routerBTC, uint256 activeAmountBTC, uint256 hardcapBTC, bool activeBTC) = manager.getPool(1, address(BTC));
+        (address routerBTC, uint256 activeAmountBTC, uint256 hardcapBTC, bool activeBTC) =
+            manager.getPool(1, address(BTC));
 
         assertEq(routerBTC, address(0));
         assertEq(activeAmountBTC, 0);
@@ -1135,14 +1138,15 @@ contract TestVertexManager is Test {
             abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositPayload))
         );
 
-        uint256 vertexBalanceBTC = manager.getVertexBalance(2, address(BTC));
-        uint256 vertexBalanceUSDC = manager.getVertexBalance(2, address(USDC));
-        uint256 vertexBalanceWETH = manager.getVertexBalance(2, address(WETH));
+        // Get the router address.
+        (address router,,,) = manager.getPool(2, address(BTC));
+
+        uint256[] memory vertexBalances = manager.getVertexBalances(VertexRouter(router), perpTokens);
 
         // Vertex balance should be 0 as there is no deposit through the VertexManager.
-        assertEq(vertexBalanceBTC, 0);
-        assertEq(vertexBalanceUSDC, 0);
-        assertEq(vertexBalanceWETH, 0);
+        assertEq(vertexBalances[0], 0);
+        assertEq(vertexBalances[1], 0);
+        assertEq(vertexBalances[2], 0);
 
         uint256[] memory amounts = new uint256[](3);
         amounts[0] = amountBTC;
@@ -1151,24 +1155,20 @@ contract TestVertexManager is Test {
 
         manager.deposit(2, perpTokens, amounts, address(this));
 
-        vertexBalanceBTC = manager.getVertexBalance(2, address(BTC));
-        vertexBalanceUSDC = manager.getVertexBalance(2, address(USDC));
-        vertexBalanceWETH = manager.getVertexBalance(2, address(WETH));
+        vertexBalances = manager.getVertexBalances(VertexRouter(router), perpTokens);
 
         // Vertex balance should be equal to the BTC deposit (and other tokens equal to 0).
-        assertEq(vertexBalanceBTC, amounts[0]);
-        assertEq(vertexBalanceUSDC, amounts[1]);
-        assertEq(vertexBalanceWETH, amounts[2]);
+        assertEq(vertexBalances[0], amounts[0]);
+        assertEq(vertexBalances[1], amounts[1]);
+        assertEq(vertexBalances[2], amounts[2]);
 
         manager.withdraw(2, perpTokens, amounts, 0);
-    
-        vertexBalanceBTC = manager.getVertexBalance(2, address(BTC));
-        vertexBalanceUSDC = manager.getVertexBalance(2, address(USDC));
-        vertexBalanceWETH = manager.getVertexBalance(2, address(WETH));
+
+        vertexBalances = manager.getVertexBalances(VertexRouter(router), perpTokens);
 
         // Vertex balances should be 0 after withdrawal.
-        assertEq(vertexBalanceBTC, 0);
-        assertEq(vertexBalanceUSDC, 0);
-        assertEq(vertexBalanceWETH, 0);
+        assertEq(vertexBalances[0], 0);
+        assertEq(vertexBalances[1], 0);
+        assertEq(vertexBalances[2], 0);
     }
 }

@@ -58,6 +58,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice The Vertex product ID of token addresses.
     mapping(address token => uint32 id) public tokenToProduct;
 
+    /// @notice Helper mappings for Vertex balances.
+    mapping(uint32 id => uint256 balance) tokenBalances;
+
     /// @notice The Elixir fee reimbursements per token address.
     mapping(address token => uint256 amount) public fees;
 
@@ -267,6 +270,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             revert UnbalancedAmounts(id, amounts);
         }
 
+        // TODO: What if the user tries to deposit two same tokens in the token array?
+
         // Fetch the router of the pool.
         VertexRouter router = VertexRouter(pool.router);
 
@@ -337,6 +342,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Fetch the router of the pool.
         VertexRouter router = VertexRouter(pool.router);
 
+        // Get the Vertex balances.
+        uint256[] memory balances = getVertexBalances(router, tokens);
+
         // Loop over amounts and send withdraw requests to Vertex.
         for (uint256 i = 0; i < amounts.length; i++) {
             // Skip zero amounts if not fee index.
@@ -352,7 +360,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             // TODO: CHECK THAT TOKEN IS SUPPORTED BY POOL!!!
 
             // Calculate the amount to receive.
-            uint256 amountToReceive = getWithdrawAmount(uint32(id), token, amount, tokenData.activeAmount);
+            uint256 amountToReceive = getWithdrawAmount(balances[i], amount, tokenData.activeAmount);
 
             // Substract requested amount from the active market making balance.
             tokenData.userActiveAmount[msg.sender] -= amount;
@@ -484,31 +492,49 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     }
 
     /// @notice Returns the pool balance of a product on Vertex.
-    /// @param id The ID of the pool to fetch the balance of.
-    /// @param token The token to fetch the balance of.
-    function getVertexBalance(uint32 id, address token) public view returns (uint256) {
-        IEngine.Balance memory balance = IEngine(
-            IClearinghouse(endpoint.clearinghouse()).getEngineByProduct(tokenToProduct[token])
-        ).getBalance(tokenToProduct[token], VertexRouter(pools[id].router).contractSubaccount());
+    /// @param router The router of the pool.
+    /// @param tokens The tokens to fetch the balance of.
+    function getVertexBalances(VertexRouter router, address[] memory tokens)
+        public
+        returns (uint256[] memory balances)
+    {
+        // Set the balances length.
+        balances = new uint256[](tokens.length);
 
-        // Format the balance back to the original decimals, as Vertex uses 18 decimals and rounds down.
-        uint256 decimals = 10 ** (18 - IERC20Metadata(token).decimals());
-        // Add 1 when decimals is 1 to round up.
-        // TODO: Improve this.
-        uint256 formattedBalance = uint256(decimals == 1 && balance.amount != 0 ? balance.amount + 1 : balance.amount).ceilDiv(decimals);
+        // Loop over tokens and get the balances.
+        for (uint256 i = 0; i < tokens.length; i++) {
+            // Get the token address.
+            address token = tokens[i];
+
+            // Get the token Vertex product ID.
+            uint32 productId = tokenToProduct[token];
+
+            // Get the Vertex balance fo the token by product.
+            IEngine.Balance memory balance = IEngine(
+                IClearinghouse(endpoint.clearinghouse()).getEngineByProduct(productId)
+            ).getBalance(productId, router.contractSubaccount());
+
+            // Format the balance back to the original decimals, as Vertex uses 18 decimals and rounds down.
+            uint256 decimals = 10 ** (18 - IERC20Metadata(token).decimals());
+
+            // Add 1 when decimals is 1 to round up.
+            // TODO: Improve this.
+            tokenBalances[productId] = uint256(decimals == 1 && balance.amount != 0 ? balance.amount + 1 : balance.amount).ceilDiv(decimals);
+        }
 
         // Substract or add pending balance changes in Vertex sequencer queue.
         IEndpoint.SlowModeConfig memory queue = endpoint.slowModeConfig();
 
-        // Loop over queue and check transaction.
+        // Loop over queue and check transaction to get the pending balance changes.
         for (uint64 i = queue.txUpTo; i < queue.txCount; i++) {
             // Fetch the transaction.
             (, address sender, bytes memory transaction) = endpoint.slowModeTxs(i);
 
+            // Skip if the router is not the one given.
+            if (sender != address(router)) continue;
+
             // Decode the transaction type.
             (uint8 txType, bytes memory payload) = this.decodeTx(transaction);
-
-            if (sender != address(pools[id].router)) continue;
 
             // If the transaction is a withdraw, substract the amount from the balance.
             if (txType == uint8(IEndpoint.TransactionType.WithdrawCollateral)) {
@@ -516,41 +542,41 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                 IEndpoint.WithdrawCollateral memory withdrawPayload =
                     abi.decode(payload, (IEndpoint.WithdrawCollateral));
 
-                // If the withdraw is for the pool, substract the amount from the balance.
-                if (withdrawPayload.productId == tokenToProduct[token]) {
-                    formattedBalance -= withdrawPayload.amount;
-                }
+                // Substract the amount from the token balance.
+                tokenBalances[withdrawPayload.productId] -= withdrawPayload.amount;
             }
             // If the transaction is a deposit, add the amount to the balance.
             else if (txType == uint8(IEndpoint.TransactionType.DepositCollateral)) {
                 // Decode the deposit payload.
                 IEndpoint.DepositCollateral memory depositPayload = abi.decode(payload, (IEndpoint.DepositCollateral));
 
-                // If the deposit is for the pool, add the amount to the balance.
-                if (depositPayload.productId == tokenToProduct[token]) {
-                    formattedBalance += depositPayload.amount;
-                }
+                // Add the amount to the token balance.
+                tokenBalances[depositPayload.productId] += depositPayload.amount;
             } else {
                 continue;
             }
         }
 
-        return formattedBalance;
+        // Convert the balances mapping to an array.
+        for (uint256 i = 0; i < tokens.length; i++) {
+            // Get the token Vertex product ID.
+            uint32 productId = tokenToProduct[tokens[i]];
+            
+            // Add balance to array index.
+            balances[i] = tokenBalances[productId];
+
+            // Delete the balances mapping.
+            delete tokenBalances[productId];
+        }
+
+        return balances;
     }
 
     /// @notice Returns the calculated amount of tokens to receive when withdrawing, given an amount of tokens and the pool balance on Vertex.
-    /// @param id The ID of the pool to fetch the balance of.
-    /// @param token The token to fetch the balance of.
+    /// @param balance The Vertex balance of the pool.
     /// @param amount The amount of tokens withdrawing.
     /// @param activeAmount The active amount of tokens in the pool.
-    function getWithdrawAmount(uint32 id, address token, uint256 amount, uint256 activeAmount)
-        public
-        view
-        returns (uint256)
-    {
-        // Fetch the balances of the market maker on Vertex,
-        uint256 balance = getVertexBalance(id, token);
-
+    function getWithdrawAmount(uint256 balance, uint256 amount, uint256 activeAmount) public pure returns (uint256) {
         // Calculate the amount to receive via percentage of ownership, accounting for any trading losses.
         return amount.mulDiv(balance, activeAmount, Math.Rounding.Down);
     }

@@ -186,6 +186,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The ID of the pool.
     error UnsupportedToken(address token, uint256 id);
 
+    /// @notice Emitted when the token is not valid because it has more than 18 decimals.
+    /// @param token The address of the token.
+    error InvalidToken(address token);
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -755,22 +759,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Set the Router address of the pool.
         pools[id].router = address(router);
 
-        // TODO: Can we use the logic in the addPoolTokens function to avoid code duplication??
-
-        // Loop over tokens to add.
-        for (uint256 i = 0; i < tokens.length; i++) {
-            // Fetch the token data storage within the pool.
-            Token storage tokenData = pools[id].tokens[tokens[i]];
-
-            // Add the hardcap to the token data.
-            tokenData.hardcap = hardcaps[i];
-
-            // Enable the token support.
-            tokenData.isActive = true;
-
-            // Make router approve tokens to Vertex endpoint.
-            router.makeApproval(tokens[i]);
-        }
+        // Add tokens to pool.
+        addPoolTokens(id, tokens, hardcaps);
 
         emit PoolAdded(id, address(router), tokens, hardcaps);
     }
@@ -779,14 +769,20 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The ID of the pool.
     /// @param tokens The tokens to add.
     /// @param hardcaps The hardcaps for the tokens.
-    function addPoolTokens(uint256 id, address[] memory tokens, uint256[] memory hardcaps) external onlyOwner {
+    function addPoolTokens(uint256 id, address[] memory tokens, uint256[] memory hardcaps) public onlyOwner {
         // Fetch the pool Router.
         VertexRouter router = VertexRouter(pools[id].router);
 
         // Loop over tokens to add.
         for (uint256 i = 0; i < tokens.length; i++) {
+            // Get the token address.
+            address token = tokens[i];
+
+            // Check that the token decimals are below the Vertex maximum.
+            if (IERC20Metadata(token).decimals() > 18) revert InvalidToken(token);
+
             // Fetch the token data storage within the pool.
-            Token storage tokenData = pools[id].tokens[tokens[i]];
+            Token storage tokenData = pools[id].tokens[token];
 
             // Add the hardcap to the token data.
             tokenData.hardcap = hardcaps[i];
@@ -795,7 +791,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             tokenData.isActive = true;
 
             // Make router approve tokens to Vertex endpoint.
-            router.makeApproval(tokens[i]);
+            router.makeApproval(token);
         }
 
         emit PoolTokensAdded(id, tokens, hardcaps);

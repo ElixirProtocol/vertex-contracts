@@ -598,10 +598,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             // Format the balance back to the original decimals, as Vertex uses 18 decimals and rounds down.
             uint256 decimals = 10 ** (18 - IERC20Metadata(token).decimals());
 
-            // Add 1 when decimals is 1 to round up.
-            // TODO: Improve this.
-            tokenBalances[productId] =
-                uint256(decimals == 1 && balance.amount != 0 ? balance.amount + 1 : balance.amount).ceilDiv(decimals);
+            // Convert back to native decimals. Round up if the token has less than 18 decimals.
+            tokenBalances[productId] = decimals == 1 ? uint256(balance.amount) : uint256(balance.amount).ceilDiv(decimals);
         }
 
         // Substract or add pending balance changes in Vertex sequencer queue.

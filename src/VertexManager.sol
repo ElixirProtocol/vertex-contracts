@@ -535,10 +535,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Returns the price on Vertex of a given by product.
     /// @param id The ID of the product to get the price of.
     function getPrice(uint32 id) public view returns (uint256) {
-        // Vertex has fixed USDC price of $1.
-        if (id == 0) return 1 ether;
-
-        return endpoint.getPriceX18(id);
+        return IClearinghouse(endpoint.clearinghouse()).getOraclePriceX18(id);
     }
 
     /// @notice Returns the data a pool and a token within it.
@@ -599,7 +596,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             uint256 decimals = 10 ** (18 - IERC20Metadata(token).decimals());
 
             // Convert back to native decimals. Round up if the token has less than 18 decimals.
-            tokenBalances[productId] = decimals == 1 ? uint256(balance.amount) : uint256(balance.amount).ceilDiv(decimals);
+            tokenBalances[productId] =
+                decimals == 1 ? uint256(balance.amount) : uint256(balance.amount).ceilDiv(decimals);
         }
 
         // Substract or add pending balance changes in Vertex sequencer queue.

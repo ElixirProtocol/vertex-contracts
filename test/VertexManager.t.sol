@@ -647,7 +647,8 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountWETH, activeAmountWETH);
 
         assertEq(
-            manager.pendingBalances(address(this), address(BTC)), 2 * (amounts[0] - manager.getWithdrawFee(address(BTC)))
+            manager.pendingBalances(address(this), address(BTC)),
+            2 * (amounts[0] - manager.getWithdrawFee(address(BTC)))
         );
         assertEq(manager.pendingBalances(address(this), address(USDC)), 2 * amounts[1]);
         assertLe(manager.pendingBalances(address(this), address(WETH)), 2 * amounts[2]);
@@ -760,8 +761,10 @@ contract TestVertexManager is Test {
         assertEq(activeAmountBTC, userActiveAmountCallerBTC + userActiveAmountReceiverBTC);
         assertEq(activeAmountUSDC, userActiveAmountCallerUSDC + userActiveAmountReceiverUSDC);
         assertEq(activeAmountWETH, userActiveAmountCallerWETH + userActiveAmountReceiverWETH);
-        
-        assertEq(manager.pendingBalances(address(0x69), address(BTC)), amounts[0] - manager.getWithdrawFee(address(BTC)));
+
+        assertEq(
+            manager.pendingBalances(address(0x69), address(BTC)), amounts[0] - manager.getWithdrawFee(address(BTC))
+        );
         assertEq(manager.pendingBalances(address(0x69), address(USDC)), amounts[1]);
         assertLe(manager.pendingBalances(address(0x69), address(WETH)), amounts[2]);
         assertEq(manager.pendingBalances(address(this), address(BTC)), 0);

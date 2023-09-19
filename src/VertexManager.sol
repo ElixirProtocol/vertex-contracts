@@ -277,8 +277,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         uint256 amount1High,
         address receiver
     ) external whenDepositNotPaused nonReentrant {
-        // TODO: Check this and also check that the tokens are supported for the pool??
-
         // Check that the pool is a spot pool.
         if (tokens.length != 2) revert InvalidPool(id);
 
@@ -734,6 +732,17 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         external
         onlyOwner
     {
+        // Check that the pool is not already added.
+        if (pools[id].router != address(0)) revert InvalidPool(id);
+
+        // Check that the tokens are not duplicated.
+        // TODO: Add better errors.
+        for (uint256 i = 0; i < tokens.length; i++) {
+            for (uint256 j = i + 1; j < tokens.length; j++) {
+                if (tokens[i] == tokens[j]) revert InvalidLength(new uint256[](0), tokens);
+            }
+        }
+
         // Deploy a new Router contract.
         VertexRouter router = new VertexRouter(address(endpoint), externalAccount);
 

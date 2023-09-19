@@ -188,6 +188,20 @@ contract TestVertexManagerInvariants is Test {
         assertLe(sumOfClaimsUSDC, handler.ghost_withdraws(address(USDC)));
     }
 
+    // Two pools cannot share the same router. Each pool must have a unique and constant router for all tokens supported by it.
+    function invariant_router() public {
+        (address routerBTC1,,,) = manager.getPool(1, address(BTC));
+        (address routerUSDC1,,,) = manager.getPool(1, address(USDC));
+        (address routerBTC2,,,) = manager.getPool(2, address(BTC));
+        (address routerUSDC2,,,) = manager.getPool(2, address(USDC));
+        (address routerWETH2,,,) = manager.getPool(2, address(WETH));
+
+        assertEq(routerBTC1, routerUSDC1);
+        assertEq(routerBTC2, routerUSDC2);
+        assertEq(routerBTC2, routerWETH2);
+        assertTrue(routerBTC1 != routerBTC2);
+    }
+
     /*//////////////////////////////////////////////////////////////
                                 HELPERS
     //////////////////////////////////////////////////////////////*/

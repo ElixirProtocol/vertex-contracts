@@ -171,10 +171,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param amount The amount of tokens being deposited.
     error HardcapReached(address token, uint256 hardcap, uint256 activeAmount, uint256 amount);
 
-    /// @notice Emitted when the pool is not a spot pool.
-    /// @param id The ID of the pool.
-    error NotSpotPool(uint256 id);
-
     /// @notice Emitted when the slippage is too high.
     /// @param amount1 The amount of quote tokens given.
     /// @param amount1Low The low limit of the quote amount.
@@ -247,30 +243,172 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                         DEPOSIT/WITHDRAWAL ENTRY
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Deposits tokens into a pool to market make on Vertex.
+    /// @notice Deposits tokens into a perp pool to market make on Vertex. Amounts can be unbalanced.
     /// @param id The pool ID to deposit tokens to.
     /// @param tokens The list of tokens to deposit.
     /// @param amounts The list of token amounts to deposit.
     /// @param receiver The receiver of the virtual LP balance.
-    function deposit(uint256 id, address[] memory tokens, uint256[] memory amounts, address receiver)
+    function depositPerp(uint256 id, address[] memory tokens, uint256[] memory amounts, address receiver)
         public
         whenDepositNotPaused
         nonReentrant
     {
-        // Fetch the pool data.
-        Pool storage pool = pools[id];
+        // Check that the pool is not a spot pool and that the amounts array is not empty.
+        if (amounts.length == 0 || amounts.length == 2) revert InvalidPool(id);
 
-        // Check that the amounts array is not empty and that it matches the length of the tokens array.
-        if (amounts.length == 0 || tokens.length != amounts.length) revert InvalidLength(amounts, tokens);
+        // Check that the amounts array is not empty nor for a spot pool, and that it matches the length of the tokens array.
+        if (tokens.length != amounts.length) revert InvalidLength(amounts, tokens);
 
-        // // TODO: Check this!
+        _deposit(id, tokens, amounts, receiver);
+    }
+
+    /// @notice Deposits tokens into a spot pool to market make on Vertex. Amounts must be balanced.
+    /// @param id The ID of the pool to deposit to.
+    /// @param tokens The list of tokens to deposit.
+    /// @param amount0 The amount of base tokens.
+    /// @param amount1Low The low limit of the quote amount.
+    /// @param amount1High The high limit of the quote amount.
+    /// @param receiver The receiver of the virtual LP balance.
+    function depositSpot(
+        uint256 id,
+        address[] memory tokens,
+        uint256 amount0,
+        uint256 amount1Low,
+        uint256 amount1High,
+        address receiver
+    ) external whenDepositNotPaused nonReentrant {
+        // TODO: Check this and also check that the tokens are supported for the pool??
+
+        // Check that the pool is a spot pool.
+        if (tokens.length != 2) revert InvalidPool(id);
+
+        // Get the balanced amount of quote tokens.
+        uint256 amount1 = getBalancedAmount(tokens[0], tokens[1], amount0);
+
+        // Check for slippage based on the given quote amount (amount1) range.
+        if (amount1 < amount1Low || amount1 > amount1High) {
+            revert SlippageTooHigh(amount1, amount1Low, amount1High);
+        }
+
+        // Create amounts array.
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amount0;
+        amounts[1] = amount1;
+
+        // Execute the deposit logic.
+        _deposit(id, tokens, amounts, receiver);
+    }
+
+    /// @notice Sends a withdraw request to Vertex for given amounts of tokens.
+    /// @dev After requests are processed by Vertex, user (or anyone on behalf of it) should call the redeem function
+    /// @param id The pool ID to withdraw tokens from.
+    /// @param tokens The list of tokens to withdraw.
+    /// @param amounts The list of token amounts to withdraw.
+    /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
+    function withdrawPerp(uint256 id, address[] memory tokens, uint256[] memory amounts, uint256 feeIndex)
+        public
+        whenWithdrawNotPaused
+        nonReentrant
+    {
+        // Check that the pool is not a spot pool and that the amounts array is not empty.
+        if (amounts.length == 0 || amounts.length == 2) revert InvalidPool(id);
+
+        // Check that the amounts array matches the length of the tokens array and that the feeIndex is within the tokens array.
+        if (tokens.length != amounts.length || feeIndex > tokens.length) revert InvalidLength(amounts, tokens);
+
+        // TODO: Check this!
         // If the length of amounts is 2 (base abd quote tokens), it means that the pool targets a spot pair.
         // Then, check if the input amounts are balanced.
         if (amounts.length == 2 && !checkBalanced(tokens, amounts)) {
             revert UnbalancedAmounts(id, amounts);
         }
 
+        // Execute the withdraw logic.
+        _withdraw(id, tokens, amounts, feeIndex);
+    }
+
+    /// @notice Helper function to withdraw balaned amounts from spot pool, given an amount of base tokens.
+    /// @param id The ID of the pool to withdraw from.
+    /// @param tokens The list of tokens to withdraw.
+    /// @param amount0 The amount of base tokens.
+    /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
+    function withdrawSpot(uint256 id, address[] memory tokens, uint256 amount0, uint256 feeIndex)
+        external
+        whenWithdrawNotPaused
+        nonReentrant
+    {
+        // TODO: SAME CHECKS AS DEPOSIT BALANCED
+        // Check that the pool is not a spot pool and that the amounts array is not empty.
+        if (tokens.length != 2) revert InvalidPool(id);
+
+        // Check that the feeIndex is within the tokens array.
+        // TODO: wat to do with uint256[](0)?
+        if (feeIndex > tokens.length) revert InvalidLength(new uint256[](0), tokens);
+
+        // Get the balanced amount of quote tokens.
+        uint256 amount1 = getBalancedAmount(tokens[0], tokens[1], amount0);
+
+        // Create amounts array.
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amount0;
+        amounts[1] = amount1;
+
+        // Execute the withdraw logic.
+        _withdraw(id, tokens, amounts, feeIndex);
+    }
+
+    /// @notice Claims received tokens from the pending balance and fees.
+    /// @param user The address to claim the tokens for.
+    /// @param tokens The tokens to claim for the user.
+    /// @param id The ID of the pool to claim the tokens from.
+    function claim(address user, address[] memory tokens, uint256 id) external whenClaimNotPaused nonReentrant {
+        // Check if the pool exists.
+        if (pools[id].router == address(0)) revert InvalidPool(id);
+
+        // TODO: Add any check for tokens??
+
+        // Fetch the pool router.
+        VertexRouter router = VertexRouter(pools[id].router);
+
+        // Loop over tokens and claim them if there is a pending balance and they are available.
+        for (uint256 i = 0; i < tokens.length; i++) {
+            // Fetch the user's pending balance. No danger if amount is 0.
+            uint256 amount = pendingBalances[user][tokens[i]];
+
+            // Fetch Elixir's pending fee balance.
+            uint256 fee = fees[tokens[i]];
+
+            // Resets the pending balance of the user.
+            pendingBalances[user][tokens[i]] = 0;
+
+            // Resets the Elixir pending fee balance.
+            fees[tokens[i]] = 0;
+
+            // Fetch the tokens from the Router.
+            router.claimToken(tokens[i], amount + fee);
+
+            // Transfers the tokens after to prevent reentrancy.
+            IERC20Metadata(tokens[i]).safeTransfer(owner(), fee);
+            IERC20Metadata(tokens[i]).safeTransfer(user, amount);
+        }
+
+        emit Claim(user, tokens);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    INTERNAL DEPOSIT/WITHDRAW LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Internal deposit logic for both spot and perp pools.
+    /// @param id The ID of the pool to deposit to.
+    /// @param tokens The list of tokens to deposit.
+    /// @param amounts The list of token amounts to deposit.
+    /// @param receiver The receiver of the virtual LP balance.
+    function _deposit(uint256 id, address[] memory tokens, uint256[] memory amounts, address receiver) private {
         // TODO: What if the user tries to deposit two same tokens in the token array?
+
+        // Fetch the pool data.
+        Pool storage pool = pools[id];
 
         // Fetch the router of the pool.
         VertexRouter router = VertexRouter(pool.router);
@@ -313,31 +451,14 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         emit Deposit(msg.sender, receiver, id, tokens, amounts);
     }
 
-    /// @notice Sends a withdraw request to Vertex for given amounts of tokens.
-    /// @dev After requests are processed by Vertex, user (or anyone on behalf of it) should call the redeem function
-    /// @param id The pool ID to withdraw tokens from.
+    /// @notice Internal withdraw logic for both spot and perp pools.
+    /// @param id The ID of the pool to withdraw from.
     /// @param tokens The list of tokens to withdraw.
     /// @param amounts The list of token amounts to withdraw.
     /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
-    function withdraw(uint256 id, address[] memory tokens, uint256[] memory amounts, uint256 feeIndex)
-        public
-        whenWithdrawNotPaused
-        nonReentrant
-    {
+    function _withdraw(uint256 id, address[] memory tokens, uint256[] memory amounts, uint256 feeIndex) private {
         // Fetch the pool data.
         Pool storage pool = pools[id];
-
-        // Check that the amounts array is not empty, that it matches the length of the tokens array and that the feeIndex is within the tokens array.
-        if (amounts.length == 0 || tokens.length != amounts.length || feeIndex > tokens.length) {
-            revert InvalidLength(amounts, tokens);
-        }
-
-        // TODO: Check this!
-        // If the length of amounts is 2 (base abd quote tokens), it means that the pool targets a spot pair.
-        // Then, check if the input amounts are balanced.
-        if (amounts.length == 2 && !checkBalanced(tokens, amounts)) {
-            revert UnbalancedAmounts(id, amounts);
-        }
 
         // Fetch the router of the pool.
         VertexRouter router = VertexRouter(pool.router);
@@ -407,44 +528,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // pendingBalances[msg.sender][feeToken] -= fee;
 
         emit Withdraw(msg.sender, id, tokens, amounts);
-    }
-
-    /// @notice Claims received tokens from the pending balance and fees.
-    /// @param user The address to claim the tokens for.
-    /// @param tokens The tokens to claim for the user.
-    /// @param id The ID of the pool to claim the tokens from.
-    function claim(address user, address[] memory tokens, uint256 id) external whenClaimNotPaused nonReentrant {
-        // Check if the pool exists.
-        if (pools[id].router == address(0)) revert InvalidPool(id);
-
-        // TODO: Add any check for tokens??
-
-        // Fetch the pool router.
-        VertexRouter router = VertexRouter(pools[id].router);
-
-        // Loop over tokens and claim them if there is a pending balance and they are available.
-        for (uint256 i = 0; i < tokens.length; i++) {
-            // Fetch the user's pending balance. No danger if amount is 0.
-            uint256 amount = pendingBalances[user][tokens[i]];
-
-            // Fetch Elixir's pending fee balance.
-            uint256 fee = fees[tokens[i]];
-
-            // Resets the pending balance of the user.
-            pendingBalances[user][tokens[i]] = 0;
-
-            // Resets the Elixir pending fee balance.
-            fees[tokens[i]] = 0;
-
-            // Fetch the tokens from the Router.
-            router.claimToken(tokens[i], amount + fee);
-
-            // Transfers the tokens after to prevent reentrancy.
-            IERC20Metadata(tokens[i]).safeTransfer(owner(), fee);
-            IERC20Metadata(tokens[i]).safeTransfer(user, amount);
-        }
-
-        emit Claim(user, tokens);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -519,7 +602,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
             // Add 1 when decimals is 1 to round up.
             // TODO: Improve this.
-            tokenBalances[productId] = uint256(decimals == 1 && balance.amount != 0 ? balance.amount + 1 : balance.amount).ceilDiv(decimals);
+            tokenBalances[productId] =
+                uint256(decimals == 1 && balance.amount != 0 ? balance.amount + 1 : balance.amount).ceilDiv(decimals);
         }
 
         // Substract or add pending balance changes in Vertex sequencer queue.
@@ -561,7 +645,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         for (uint256 i = 0; i < tokens.length; i++) {
             // Get the token Vertex product ID.
             uint32 productId = tokenToProduct[tokens[i]];
-            
+
             // Add balance to array index.
             balances[i] = tokenBalances[productId];
 
@@ -605,62 +689,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     function checkBalanced(address[] memory tokens, uint256[] memory amounts) public view returns (bool) {
         // Get the price of the product on Vertex and calculate the expected quote amount, rounding down.
         return getBalancedAmount(tokens[0], tokens[1], amounts[0]) == amounts[1];
-    }
-
-    /// @notice Helper function to deposit balaned amounts for spot pool, given an amount of base tokens.
-    /// @param id The ID of the pool to deposit to.
-    /// @param tokens The list of tokens to deposit.
-    /// @param amount0 The amount of base tokens.
-    /// @param amount1Low The low limit of the quote amount.
-    /// @param amount1High The high limit of the quote amount.
-    /// @param receiver The receiver of the virtual LP balance.
-    function depositBalanced(
-        uint256 id,
-        address[] memory tokens,
-        uint256 amount0,
-        uint256 amount1Low,
-        uint256 amount1High,
-        address receiver
-    ) external {
-        // TODO: Check this and also check that the tokens are supported for the pool??
-        if (tokens.length != 2) revert NotSpotPool(id);
-
-        // Get the balanced amount of quote tokens.
-        uint256 amount1 = getBalancedAmount(tokens[0], tokens[1], amount0);
-
-        // Check for slippage based on the given quote amount (amount1) range.
-        if (amount1 < amount1Low || amount1 > amount1High) {
-            revert SlippageTooHigh(amount1, amount1Low, amount1High);
-        }
-
-        // Create amounts array.
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = amount0;
-        amounts[1] = amount1;
-
-        // Call the deposit function.
-        deposit(id, tokens, amounts, receiver);
-    }
-
-    /// @notice Helper function to withdraw balaned amounts from spot pool, given an amount of base tokens.
-    /// @param id The ID of the pool to withdraw from.
-    /// @param tokens The list of tokens to withdraw.
-    /// @param amount0 The amount of base tokens.
-    /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
-    function withdrawBalanced(uint256 id, address[] memory tokens, uint256 amount0, uint256 feeIndex) external {
-        // TODO: SAME CHECKS AS DEPOSIT BALANCED
-        if (tokens.length != 2) revert NotSpotPool(id);
-
-        // Get the balanced amount of quote tokens.
-        uint256 amount1 = getBalancedAmount(tokens[0], tokens[1], amount0);
-
-        // Create amounts array.
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = amount0;
-        amounts[1] = amount1;
-
-        // Call the deposit function.
-        withdraw(id, tokens, amounts, feeIndex);
     }
 
     /*//////////////////////////////////////////////////////////////

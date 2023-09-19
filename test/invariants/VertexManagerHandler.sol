@@ -86,7 +86,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
-        manager.deposit(1, spotTokens, amounts, currentActor);
+        manager.depositSpot(1, spotTokens, amounts[0], amounts[1], amounts[1], currentActor);
 
         vm.stopPrank();
 
@@ -101,7 +101,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         vm.startPrank(currentActor);
 
-        manager.withdrawBalanced(1, spotTokens, amountBTC, 1);
+        manager.withdrawSpot(1, spotTokens, amountBTC, 1);
 
         vm.stopPrank();
 
@@ -116,7 +116,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         vm.startPrank(currentActor);
 
-        manager.withdrawBalanced(1, spotTokens, amountBTC, 0);
+        manager.withdrawSpot(1, spotTokens, amountBTC, 0);
 
         vm.stopPrank();
 

@@ -190,6 +190,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param token The address of the token.
     error InvalidToken(address token);
 
+    /// @notice Emitted when the new fee is above 100 USDC.
+    /// @param newFee The new fee.
+    error FeeTooHigh(uint256 newFee);
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -827,6 +831,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Updates the Vertex slow mode fee.
     /// @param newFee The new fee.
     function updateSlowModeFee(uint256 newFee) external onlyOwner {
+        // Check that the new fee is no more than 100 USDC.
+        if (newFee > 100000000) revert FeeTooHigh(newFee);
+
         slowModeFee = newFee;
 
         emit SlowModeFeeUpdated(newFee);

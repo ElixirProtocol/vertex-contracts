@@ -61,8 +61,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Helper mappings for Vertex balances.
     mapping(uint32 id => uint256 balance) tokenBalances;
 
-    /// @notice The Elixir fee reimbursements per token address.
-    mapping(address token => uint256 amount) public fees;
+    /// @notice The Elixir fee reimbursements for users and a token address.
+    mapping(address user => mapping(address token => uint256 amount)) public fees;
 
     /// @notice The Vertex slow mode fee
     uint256 public slowModeFee;
@@ -382,13 +382,13 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             uint256 amount = pendingBalances[user][tokens[i]];
 
             // Fetch Elixir's pending fee balance.
-            uint256 fee = fees[tokens[i]];
+            uint256 fee = fees[user][tokens[i]];
 
             // Resets the pending balance of the user.
             pendingBalances[user][tokens[i]] = 0;
 
             // Resets the Elixir pending fee balance.
-            fees[tokens[i]] = 0;
+            fees[user][tokens[i]] = 0;
 
             // Fetch the tokens from the Router.
             router.claimToken(tokens[i], amount + fee);
@@ -501,7 +501,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                 uint256 fee = getWithdrawFee(token);
 
                 // Add fee to the Elixir balance.
-                fees[token] += fee;
+                fees[msg.sender][token] += fee;
 
                 pendingBalances[msg.sender][token] += (amountToReceive - fee);
             } else {
@@ -528,7 +528,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // uint256 fee = getWithdrawFee(feeToken);
 
         // // Add fee to the Elixir balance.
-        // fees[feeToken] += fee;
+        // fees[msg.sender][feeToken] += fee;
 
         // // Substract from the user pending balance of the fee token.
         // pendingBalances[msg.sender][feeToken] -= fee;

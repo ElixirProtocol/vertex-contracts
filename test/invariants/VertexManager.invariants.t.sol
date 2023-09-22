@@ -47,6 +47,12 @@ contract TestVertexManagerInvariants is Test {
     // Utils contract.
     Utils public utils;
 
+    // Pool types.
+    enum PoolType {
+        Spot,
+        Perp
+    }
+
     /*//////////////////////////////////////////////////////////////
                                  HELPERS
     //////////////////////////////////////////////////////////////*/
@@ -103,7 +109,7 @@ contract TestVertexManagerInvariants is Test {
         hardcaps[0] = type(uint256).max;
         hardcaps[1] = type(uint256).max;
 
-        manager.addPool(1, address(0), tokens, hardcaps);
+        manager.addPool(1, tokens, hardcaps, VertexManager.PoolType.Spot, address(0));
 
         // Create BTC perp pool with BTC, USDC and WETH as tokens.
         tokens = new address[](3);
@@ -116,7 +122,7 @@ contract TestVertexManagerInvariants is Test {
         hardcaps[1] = type(uint256).max;
         hardcaps[2] = type(uint256).max;
 
-        manager.addPool(2, address(0), tokens, hardcaps);
+        manager.addPool(2, tokens, hardcaps, VertexManager.PoolType.Perp, address(0));
     }
 
     /*//////////////////////////////////////////////////////////////

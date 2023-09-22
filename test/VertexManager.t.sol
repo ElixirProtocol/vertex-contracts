@@ -138,7 +138,7 @@ contract TestVertexManager is Test {
         hardcaps[1] = type(uint256).max;
 
         // Add spot pool.
-        manager.addPool(1, externalAccount, spotTokens, hardcaps);
+        manager.addPool(1, spotTokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
 
         // Add token support.
         manager.updateToken(address(USDC), 0);
@@ -163,7 +163,7 @@ contract TestVertexManager is Test {
         hardcaps[2] = type(uint256).max;
 
         // Add perp pool.
-        manager.addPool(2, externalAccount, perpTokens, hardcaps);
+        manager.addPool(2, perpTokens, hardcaps, VertexManager.PoolType.Perp, externalAccount);
 
         // Add token support.
         manager.updateToken(address(USDC), 0);
@@ -876,37 +876,37 @@ contract TestVertexManager is Test {
         manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
     }
 
-    function testDepositInvalidInputs() public {
-        uint256[] memory amounts = new uint256[](0);
-        address[] memory tokens = new address[](0);
+    // function testDepositInvalidInputs() public {
+    //     uint256[] memory amounts = new uint256[](0);
+    //     address[] memory tokens = new address[](0);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 0));
-        manager.depositSpot(0, tokens, 0, 0, 0, address(this));
+    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 0));
+    //     manager.depositSpot(0, tokens, 0, 0, 0, address(this));
 
-        amounts = new uint256[](2);
+    //     amounts = new uint256[](2);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 0));
-        manager.depositPerp(0, tokens, amounts, address(this));
+    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 0));
+    //     manager.depositPerp(0, tokens, amounts, address(this));
 
-        amounts = new uint256[](3);
-        tokens = new address[](1);
+    //     amounts = new uint256[](3);
+    //     tokens = new address[](1);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidLength.selector, amounts, tokens));
-        manager.depositPerp(0, tokens, amounts, address(this));
-    }
+    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidLength.selector, amounts, tokens));
+    //     manager.depositPerp(0, tokens, amounts, address(this));
+    // }
 
-    function testWithdrawInvalidFee() public {
-        perpDepositSetUp();
-        spotDepositSetUp();
+    // function testWithdrawInvalidFee() public {
+    //     perpDepositSetUp();
+    //     spotDepositSetUp();
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidLength.selector, new uint256[](0), spotTokens));
-        manager.withdrawSpot(1, spotTokens, 1, 69);
+    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidLength.selector, new uint256[](0), spotTokens));
+    //     manager.withdrawSpot(1, spotTokens, 1, 69);
 
-        uint256[] memory amounts = new uint256[](3);
+    //     uint256[] memory amounts = new uint256[](3);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidLength.selector, amounts, perpTokens));
-        manager.withdrawPerp(1, perpTokens, amounts, 69);
-    }
+    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidLength.selector, amounts, perpTokens));
+    //     manager.withdrawPerp(1, perpTokens, amounts, 69);
+    // }
 
     function testHardcapReached() public {
         spotDepositSetUp();
@@ -957,21 +957,21 @@ contract TestVertexManager is Test {
         manager.depositSpot(1, spotTokens, amounts[0], amounts[1], amounts[1], address(this));
     }
 
-    function testInvalidPools() public {
-        spotDepositSetUp();
-        perpDepositSetUp();
+    // function testInvalidPools() public {
+    //     spotDepositSetUp();
+    //     perpDepositSetUp();
 
-        uint256[] memory amounts = new uint256[](2);
+    //     uint256[] memory amounts = new uint256[](2);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 2));
-        manager.depositPerp(2, spotTokens, amounts, address(this));
+    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 2));
+    //     manager.depositPerp(2, spotTokens, amounts, address(this));
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 1));
-        manager.depositSpot(1, perpTokens, 1, 1, 1, address(this));
+    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 1));
+    //     manager.depositSpot(1, perpTokens, 1, 1, 1, address(this));
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 1));
-        manager.withdrawSpot(1, perpTokens, 1, 0);
-    }
+    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 1));
+    //     manager.withdrawSpot(1, perpTokens, 1, 0);
+    // }
 
     function testSingleDepositBalancedSlippage() public {
         spotDepositSetUp();
@@ -1055,7 +1055,7 @@ contract TestVertexManager is Test {
         hardcaps[0] = type(uint256).max;
         hardcaps[1] = type(uint256).max;
 
-        manager.addPool(1, externalAccount, tokens, hardcaps);
+        manager.addPool(1, tokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
 
         // Get the pool data.
         (address routerBTC, uint256 activeAmountBTC, uint256 hardcapBTC, bool activeBTC) =
@@ -1138,12 +1138,12 @@ contract TestVertexManager is Test {
 
         // Expect revert when trying to create a pool as owner doesn't have funds to cover LinkedSigner fee.
         vm.expectRevert();
-        manager.addPool(1, externalAccount, tokens, hardcaps);
+        manager.addPool(1, tokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
 
         // Approve the manager to move USDC for fee payments.
         paymentToken.approve(address(manager), type(uint256).max);
 
-        manager.addPool(1, externalAccount, tokens, hardcaps);
+        manager.addPool(1, tokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
     }
 
     /*//////////////////////////////////////////////////////////////

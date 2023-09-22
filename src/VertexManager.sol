@@ -28,10 +28,18 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                                 VARIABLES
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice The types of pools supported by this contract.
+    enum PoolType {
+        Spot,
+        Perp
+    }
+
     /// @notice The data structure of pools.
     struct Pool {
         // The router address of the pool.
         address router;
+        // The type of the pool.
+        PoolType poolType;
         // The data of the supported tokens in the pool.
         mapping(address token => Token data) tokens;
     }
@@ -45,7 +53,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // The hardcap of the token within a pool.
         uint256 hardcap;
         // The status of the token within a pool. True if token is supported.
-        // TODO: Can we remove this and use the hardcaps amount to determine if a token is supported?? is that bad practice?
         bool isActive;
     }
 
@@ -73,13 +80,13 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Fee payment token for slow mode transactions through Vertex.
     IERC20Metadata public paymentToken;
 
-    /// @notice The pause status of deposits.
+    /// @notice The pause status of deposits. True if deposits are paused.
     bool public depositPaused;
 
-    /// @notice The pause status of withdrawals.
+    /// @notice The pause status of withdrawals. True if withdrawals are paused.
     bool public withdrawPaused;
 
-    /// @notice The pause status of claims.
+    /// @notice The pause status of claims. True if claims are paused.
     bool public claimPaused;
 
     /*//////////////////////////////////////////////////////////////
@@ -88,7 +95,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Emitted when a deposit is made.
     /// @param caller The caller of the deposit function, for which tokens are taken from.
-    /// @param receiver The receiver of the position.
+    /// @param receiver The receiver of the virtual LP balance.
     /// @param id The ID of the pool deposting to.
     /// @param tokens The list of tokens deposited.
     /// @param amounts The amount of tokens deposited.
@@ -106,18 +113,21 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param tokens The tokens claimed.
     event Claim(address indexed user, address[] tokens);
 
-    /// @notice Emitted when pause statuses are updated.
-    /// @param depositPaused True when deposits are paused, false otherwise.
-    /// @param withdrawPaused True when withdrawals are paused, false otherwise.
-    /// @param claimPaused True when claims are paused, false otherwise.
+    /// @notice Emitted when the statuses are updated.
+    /// @param depositPaused True if deposits are paused, false otherwise.
+    /// @param withdrawPaused True if withdrawals are paused, false otherwise.
+    /// @param claimPaused True if claims are paused, false otherwise.
     event PauseUpdated(bool depositPaused, bool withdrawPaused, bool claimPaused);
 
     /// @notice Emitted when a pool is added.
     /// @param id The ID of the pool.
+    /// @param poolType The type of the pool.
     /// @param router The router address of the pool.
     /// @param tokens The tokens of the pool.
     /// @param hardcaps The hardcaps of the pool.
-    event PoolAdded(uint256 indexed id, address indexed router, address[] tokens, uint256[] hardcaps);
+    event PoolAdded(
+        uint256 indexed id, PoolType poolType, address indexed router, address[] tokens, uint256[] hardcaps
+    );
 
     /// @notice Emitted when tokens are added to a pool.
     /// @param id The ID of the pool.
@@ -143,6 +153,18 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Emitted when a tokens array is empty.
+    /// @param array The array input.
+    error EmptyInput(address[] array);
+
+    /// @notice Emitted when the receiver address is the zero address.
+    error ZeroAddress();
+
+    /// @notice Emitted when the fee index is not within the tokens array.
+    /// @param index The index input.
+    /// @param array The array input.
+    error InvalidFeeIndex(uint256 index, address[] array);
+
     /// @notice Emitted when deposits (deposit and mint) are paused.
     error DepositsPaused();
 
@@ -156,8 +178,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param array1 The uint256 array input.
     /// @param array2 The address array input.
     error InvalidLength(uint256[] array1, address[] array2);
-
-    // TODO: Update above to not use IDs, but rather the token array or smth like that
 
     /// @notice Emitted when the amount of tokens given are for a spot product and are not balanced.
     /// @param id The ID of the pool.
@@ -177,7 +197,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param amount1High The high limit of the quote amount.
     error SlippageTooHigh(uint256 amount1, uint256 amount1Low, uint256 amount1High);
 
-    /// @notice Emitted when the pool ID is not valid.
+    /// @notice Emitted when the pool ID is not valid or used in the incorrect function.
     /// @param id The ID of the pool.
     error InvalidPool(uint256 id);
 
@@ -257,17 +277,27 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param amounts The list of token amounts to deposit.
     /// @param receiver The receiver of the virtual LP balance.
     function depositPerp(uint256 id, address[] memory tokens, uint256[] memory amounts, address receiver)
-        public
+        external
         whenDepositNotPaused
         nonReentrant
     {
-        // Check that the pool is not a spot pool and that the amounts array is not empty.
-        if (amounts.length == 0 || amounts.length == 2) revert InvalidPool(id);
+        // Fetch the pool data.
+        Pool storage pool = pools[id];
 
-        // Check that the amounts array is not empty nor for a spot pool, and that it matches the length of the tokens array.
+        // Check that the pool is perp.
+        if (pool.poolType != PoolType.Perp) revert InvalidPool(id);
+
+        // Check that the tokens array is not empty.
+        if (tokens.length == 0) revert EmptyInput(tokens);
+
+        // Check that the length of the tokens and amounts arrays match.
         if (tokens.length != amounts.length) revert InvalidLength(amounts, tokens);
 
-        _deposit(id, tokens, amounts, receiver);
+        // Check that the receiver is not the zero address.
+        if (receiver == address(0)) revert ZeroAddress();
+
+        // Execute the deposit logic.
+        _deposit(id, pool, tokens, amounts, receiver);
     }
 
     /// @notice Deposits tokens into a spot pool to market make on Vertex. Amounts must be balanced.
@@ -285,8 +315,17 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         uint256 amount1High,
         address receiver
     ) external whenDepositNotPaused nonReentrant {
-        // Check that the pool is a spot pool.
-        if (tokens.length != 2) revert InvalidPool(id);
+        // Fetch the pool data.
+        Pool storage pool = pools[id];
+
+        // Check that the pool is soit.
+        if (pool.poolType != PoolType.Spot) revert InvalidPool(id);
+
+        // Check that the tokens array is not empty.
+        if (tokens.length == 0) revert EmptyInput(tokens);
+
+        // Check that the receiver is not the zero address.
+        if (receiver == address(0)) revert ZeroAddress();
 
         // Get the balanced amount of quote tokens.
         uint256 amount1 = getBalancedAmount(tokens[0], tokens[1], amount0);
@@ -302,38 +341,41 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         amounts[1] = amount1;
 
         // Execute the deposit logic.
-        _deposit(id, tokens, amounts, receiver);
+        _deposit(id, pool, tokens, amounts, receiver);
     }
 
-    /// @notice Sends a withdraw request to Vertex for given amounts of tokens.
-    /// @dev After requests are processed by Vertex, user (or anyone on behalf of it) should call the redeem function
-    /// @param id The pool ID to withdraw tokens from.
+    /// @notice Withdraws tokens from a perp pool.
+    /// @dev After requests are processed by Vertex, user (or anyone on behalf of it) should call the claim function.
+    /// @param id The ID of the pool to withdraw from.
     /// @param tokens The list of tokens to withdraw.
     /// @param amounts The list of token amounts to withdraw.
     /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
     function withdrawPerp(uint256 id, address[] memory tokens, uint256[] memory amounts, uint256 feeIndex)
-        public
+        external
         whenWithdrawNotPaused
         nonReentrant
     {
-        // Check that the pool is not a spot pool and that the amounts array is not empty.
-        if (amounts.length == 0 || amounts.length == 2) revert InvalidPool(id);
+        // Fetch the pool data.
+        Pool storage pool = pools[id];
 
-        // Check that the amounts array matches the length of the tokens array and that the feeIndex is within the tokens array.
-        if (tokens.length != amounts.length || feeIndex > tokens.length) revert InvalidLength(amounts, tokens);
+        // Check that the pool is perp.
+        if (pool.poolType != PoolType.Perp) revert InvalidPool(id);
 
-        // TODO: Check this!
-        // If the length of amounts is 2 (base abd quote tokens), it means that the pool targets a spot pair.
-        // Then, check if the input amounts are balanced.
-        if (amounts.length == 2 && !checkBalanced(tokens, amounts)) {
-            revert UnbalancedAmounts(id, amounts);
-        }
+        // Check that the tokens array is not empty.
+        if (tokens.length == 0) revert EmptyInput(tokens);
+
+        // Check that the length of the tokens and amounts arrays match.
+        if (tokens.length != amounts.length) revert InvalidLength(amounts, tokens);
+
+        // Check that the feeIndex is within the tokens array.
+        if (feeIndex > tokens.length) revert InvalidFeeIndex(feeIndex, tokens);
 
         // Execute the withdraw logic.
-        _withdraw(id, tokens, amounts, feeIndex);
+        _withdraw(id, pool, tokens, amounts, feeIndex);
     }
 
-    /// @notice Helper function to withdraw balaned amounts from spot pool, given an amount of base tokens.
+    /// @notice Withdraws tokens from a spot pool.
+    /// @dev After requests are processed by Vertex, user (or anyone on behalf of it) should call the claim function.
     /// @param id The ID of the pool to withdraw from.
     /// @param tokens The list of tokens to withdraw.
     /// @param amount0 The amount of base tokens.
@@ -343,13 +385,17 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         whenWithdrawNotPaused
         nonReentrant
     {
-        // TODO: SAME CHECKS AS DEPOSIT BALANCED
-        // Check that the pool is not a spot pool and that the amounts array is not empty.
-        if (tokens.length != 2) revert InvalidPool(id);
+        // Fetch the pool data.
+        Pool storage pool = pools[id];
+
+        // Check that the pool is spot.
+        if (pool.poolType != PoolType.Spot) revert InvalidPool(id);
+
+        // Check that the tokens array is not empty.
+        if (tokens.length == 0) revert EmptyInput(tokens);
 
         // Check that the feeIndex is within the tokens array.
-        // TODO: wat to do with uint256[](0)?
-        if (feeIndex > tokens.length) revert InvalidLength(new uint256[](0), tokens);
+        if (feeIndex > tokens.length) revert InvalidFeeIndex(feeIndex, tokens);
 
         // Get the balanced amount of quote tokens.
         uint256 amount1 = getBalancedAmount(tokens[0], tokens[1], amount0);
@@ -360,7 +406,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         amounts[1] = amount1;
 
         // Execute the withdraw logic.
-        _withdraw(id, tokens, amounts, feeIndex);
+        _withdraw(id, pool, tokens, amounts, feeIndex);
     }
 
     /// @notice Claims received tokens from the pending balance and fees.
@@ -368,10 +414,14 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param tokens The tokens to claim for the user.
     /// @param id The ID of the pool to claim the tokens from.
     function claim(address user, address[] memory tokens, uint256 id) external whenClaimNotPaused nonReentrant {
-        // Check if the pool exists.
+        // Check that the pool exists.
         if (pools[id].router == address(0)) revert InvalidPool(id);
 
-        // TODO: Add any check for tokens??
+        // Check that the tokens array is not empty.
+        if (tokens.length == 0) revert EmptyInput(tokens);
+
+        // Check that the user is not the zero address.
+        if (user == address(0)) revert ZeroAddress();
 
         // Fetch the pool router.
         VertexRouter router = VertexRouter(pools[id].router);
@@ -406,15 +456,19 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Internal deposit logic for both spot and perp pools.
-    /// @param id The ID of the pool to deposit to.
+    /// @param id The id of the pool.
+    /// @param pool The data of the pool to deposit.
     /// @param tokens The list of tokens to deposit.
     /// @param amounts The list of token amounts to deposit.
     /// @param receiver The receiver of the virtual LP balance.
-    function _deposit(uint256 id, address[] memory tokens, uint256[] memory amounts, address receiver) private {
+    function _deposit(
+        uint256 id,
+        Pool storage pool,
+        address[] memory tokens,
+        uint256[] memory amounts,
+        address receiver
+    ) private {
         // TODO: What if the user tries to deposit two same tokens in the token array?
-
-        // Fetch the pool data.
-        Pool storage pool = pools[id];
 
         // Fetch the router of the pool.
         VertexRouter router = VertexRouter(pool.router);
@@ -459,13 +513,17 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Internal withdraw logic for both spot and perp pools.
     /// @param id The ID of the pool to withdraw from.
+    /// @param pool The data of the pool to withdraw from.
     /// @param tokens The list of tokens to withdraw.
     /// @param amounts The list of token amounts to withdraw.
     /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
-    function _withdraw(uint256 id, address[] memory tokens, uint256[] memory amounts, uint256 feeIndex) private {
-        // Fetch the pool data.
-        Pool storage pool = pools[id];
-
+    function _withdraw(
+        uint256 id,
+        Pool storage pool,
+        address[] memory tokens,
+        uint256[] memory amounts,
+        uint256 feeIndex
+    ) private {
         // Fetch the router of the pool.
         VertexRouter router = VertexRouter(pool.router);
 
@@ -729,13 +787,17 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Adds a new pool.
     /// @dev ID should match Vertex's.
     /// @param id The ID of the new pool.
-    /// @param externalAccount The external account to link to the Vertex Endpoint.
     /// @param tokens The tokens to add.
     /// @param hardcaps The hardcaps for the tokens.
-    function addPool(uint256 id, address externalAccount, address[] memory tokens, uint256[] memory hardcaps)
-        external
-        onlyOwner
-    {
+    /// @param poolType The type of the pool.
+    /// @param externalAccount The external account to link to the Vertex Endpoint.
+    function addPool(
+        uint256 id,
+        address[] memory tokens,
+        uint256[] memory hardcaps,
+        PoolType poolType,
+        address externalAccount
+    ) external onlyOwner {
         // Check that the pool is not already added.
         if (pools[id].router != address(0)) revert InvalidPool(id);
 
@@ -763,10 +825,13 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Set the Router address of the pool.
         pools[id].router = address(router);
 
+        // Set the pool type.
+        pools[id].poolType = poolType;
+
         // Add tokens to pool.
         addPoolTokens(id, tokens, hardcaps);
 
-        emit PoolAdded(id, address(router), tokens, hardcaps);
+        emit PoolAdded(id, poolType, address(router), tokens, hardcaps);
     }
 
     /// @notice Adds new tokens to a pool.

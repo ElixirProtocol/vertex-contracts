@@ -4,6 +4,7 @@ pragma solidity 0.8.18;
 import "forge-std/Test.sol";
 
 import {Utils} from "./utils/Utils.sol";
+import {MockTokenDecimals} from "./utils/MockTokenDecimals.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
@@ -796,6 +797,7 @@ contract TestVertexManager is Test {
                  DEPOSIT/WITHDRAWAL SANITY CHECK TESTS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Unit test for a failed deposit due to not enough approval.
     function testDepositWithNotEnoughApproval(uint240 amountBTC) public {
         vm.assume(amountBTC > 0);
         spotDepositSetUp();
@@ -812,10 +814,12 @@ contract TestVertexManager is Test {
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
+        // TODO: Specific expect reverts instead of global
         vm.expectRevert();
         manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
     }
 
+    /// @notice Unit test for a failed withdraw due to not enough approval.
     function testWithdrawWithNotEnoughBalance(uint248 amountBTC) public {
         vm.assume(amountBTC > 1);
         spotDepositSetUp();
@@ -834,6 +838,7 @@ contract TestVertexManager is Test {
         manager.withdrawSpot(1, spotTokens, amountBTC, 0);
     }
 
+    /// @notice Unit test for a failed deposit due to not enough balance but enough approval.
     function testDepositWithNoBalance(uint240 amountBTC) public {
         vm.assume(amountBTC > 0);
         spotDepositSetUp();
@@ -851,6 +856,7 @@ contract TestVertexManager is Test {
         manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
     }
 
+    /// @notice Unit test for a failed withdraw due to not enough balance but enough approval.
     function testWithdrawWithNoBalance(uint240 amountBTC) public {
         vm.assume(amountBTC > 0);
         spotDepositSetUp();
@@ -859,6 +865,7 @@ contract TestVertexManager is Test {
         manager.withdrawSpot(1, spotTokens, amountBTC, 0);
     }
 
+    /// @notice Unit test for a failed deposit due to zero approval.
     function testDepositWithNoApproval(uint240 amountBTC) public {
         vm.assume(amountBTC > 0);
         spotDepositSetUp();
@@ -876,38 +883,162 @@ contract TestVertexManager is Test {
         manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
     }
 
-    // function testDepositInvalidInputs() public {
-    //     uint256[] memory amounts = new uint256[](0);
-    //     address[] memory tokens = new address[](0);
+    /// @notice Unit test for all checks in deposit and withdraw functions for a perp pool.
+    function testPerpChecks(uint72 amountBTC, uint80 amountUSDC, uint256 amountWETH) public {
+        perpDepositSetUp();
 
-    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 0));
-    //     manager.depositSpot(0, tokens, 0, 0, 0, address(this));
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+        deal(address(WETH), address(this), amountWETH);
 
-    //     amounts = new uint256[](2);
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+        WETH.approve(address(manager), amountWETH);
 
-    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 0));
-    //     manager.depositPerp(0, tokens, amounts, address(this));
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+        amounts[2] = amountWETH;
 
-    //     amounts = new uint256[](3);
-    //     tokens = new address[](1);
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
+        manager.depositPerp(69, perpTokens, amounts, address(this));
 
-    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidLength.selector, amounts, tokens));
-    //     manager.depositPerp(0, tokens, amounts, address(this));
-    // }
+        address[] memory emptyTokens = new address[](0);
 
-    // function testWithdrawInvalidFee() public {
-    //     perpDepositSetUp();
-    //     spotDepositSetUp();
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.EmptyTokens.selector, emptyTokens));
+        manager.depositPerp(2, emptyTokens, amounts, address(this));
 
-    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidLength.selector, new uint256[](0), spotTokens));
-    //     manager.withdrawSpot(1, spotTokens, 1, 69);
+        address[] memory invalidTokens = new address[](1);
+        invalidTokens[0] = address(0x69);
+        
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.MismatchInputs.selector, amounts, invalidTokens));
+        manager.depositPerp(2, invalidTokens, amounts, address(this));
 
-    //     uint256[] memory amounts = new uint256[](3);
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.ZeroAddress.selector));
+        manager.depositPerp(2, perpTokens, amounts, address(0));
 
-    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidLength.selector, amounts, perpTokens));
-    //     manager.withdrawPerp(1, perpTokens, amounts, 69);
-    // }
+        manager.depositPerp(2, perpTokens, amounts, address(this));
 
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
+        manager.withdrawPerp(69, perpTokens, amounts, 0);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.EmptyTokens.selector, emptyTokens));
+        manager.withdrawPerp(2, emptyTokens, amounts, 0);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.MismatchInputs.selector, amounts, invalidTokens));
+        manager.withdrawPerp(2, invalidTokens, amounts, 0);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidFeeIndex.selector, 69, perpTokens));
+        manager.withdrawPerp(2, perpTokens, amounts, 69);
+    }
+
+    /// @notice Unit test for all checks in deposit and withdraw functions for a spot pool.
+    function testSpotChecks(uint72 amountBTC) public {
+        vm.assume(amountBTC > 0);
+        spotDepositSetUp();
+
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
+        manager.depositSpot(69, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
+
+        address[] memory emptyTokens = new address[](0);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidTokens.selector, emptyTokens));
+        manager.depositSpot(1, emptyTokens, amountBTC, amountUSDC, amountUSDC, address(this));
+
+        address[] memory duplicatedTokens = new address[](2);
+        duplicatedTokens[0] = address(BTC);
+        duplicatedTokens[1] = address(BTC);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.DuplicatedTokens.selector, address(BTC), duplicatedTokens));
+        manager.depositSpot(1, duplicatedTokens, amountBTC, amountUSDC, amountUSDC, address(this));
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.ZeroAddress.selector));
+        manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(0));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(VertexManager.SlippageTooHigh.selector, amountUSDC, amountUSDC * 2, amountUSDC * 4)
+        );
+        manager.depositSpot(1, spotTokens, amountBTC, amountUSDC * 2, amountUSDC * 4, address(this));
+
+        manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
+        manager.withdrawSpot(69, spotTokens, amountBTC, 0);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.EmptyTokens.selector, emptyTokens));
+        manager.withdrawSpot(1, emptyTokens, amountBTC, 0);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidFeeIndex.selector, 69, spotTokens));
+        manager.withdrawSpot(1, spotTokens, amountBTC, 69);
+    }
+
+    /// @notice Unit test for all checks in the claim function
+    function testClaimChecks(uint72 amountBTC) public {
+        // BTC amount to deposit should be at least the withdraw fee (otherwise not enough to pay fee).
+        vm.assume(amountBTC >= manager.getWithdrawFee(address(BTC)));
+        spotDepositSetUp();
+
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+
+        manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
+        manager.withdrawSpot(1, spotTokens, amountBTC, 0);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
+        manager.claim(address(this), spotTokens, 69);
+
+        address[] memory emptyTokens = new address[](0);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.EmptyTokens.selector, emptyTokens));
+        manager.claim(address(this), emptyTokens, 1);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.ZeroAddress.selector));
+        manager.claim(address(0), spotTokens, 1);
+    }
+
+    /// @notice Unit test for unsuported tokens in both deposit and withdraw functions.
+    function testUnsupportedToken(uint72 amountBTC) public {
+        // BTC amount to deposit should be at least the withdraw fee (otherwise not enough to pay fee).
+        vm.assume(amountBTC >= manager.getWithdrawFee(address(BTC)));
+        spotDepositSetUp();
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), type(uint256).max);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), type(uint256).max);
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(WETH);
+        tokens[1] = address(USDC);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.UnsupportedToken.selector, address(WETH), 1));
+        manager.depositSpot(1, tokens, 1 ether, 0, type(uint256).max, address(this));
+
+        tokens[0] = address(BTC);
+
+        manager.depositSpot(1, tokens, amountBTC, 0, type(uint256).max, address(this));
+
+        tokens[0] = address(WETH);        
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.UnsupportedToken.selector, address(WETH), 1));
+        manager.withdrawSpot(1, tokens, 1 ether, 0);
+    }
+
+    /// @notice Unit test for a failed deposit due to exceeding the hardcap.
     function testHardcapReached() public {
         spotDepositSetUp();
 
@@ -957,34 +1088,7 @@ contract TestVertexManager is Test {
         manager.depositSpot(1, spotTokens, amounts[0], amounts[1], amounts[1], address(this));
     }
 
-    // function testInvalidPools() public {
-    //     spotDepositSetUp();
-    //     perpDepositSetUp();
-
-    //     uint256[] memory amounts = new uint256[](2);
-
-    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 2));
-    //     manager.depositPerp(2, spotTokens, amounts, address(this));
-
-    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 1));
-    //     manager.depositSpot(1, perpTokens, 1, 1, 1, address(this));
-
-    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 1));
-    //     manager.withdrawSpot(1, perpTokens, 1, 0);
-    // }
-
-    function testSingleDepositBalancedSlippage() public {
-        spotDepositSetUp();
-
-        uint256 amountBTC = 1 * 10 ** 8 + manager.getWithdrawFee(address(BTC));
-        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(VertexManager.SlippageTooHigh.selector, amountUSDC, amountUSDC * 2, amountUSDC * 4)
-        );
-        manager.depositSpot(1, spotTokens, amountBTC, amountUSDC * 2, amountUSDC * 4, address(this));
-    }
-
+    /// @notice Unit test for a deposit and withdraw flow in a spot pool, paying the fee in USDC.
     function testWithdrawUSDCFee() public {
         spotDepositSetUp();
 
@@ -1015,6 +1119,7 @@ contract TestVertexManager is Test {
         manager.claim(address(this), spotTokens, 1);
     }
 
+    /// @notice Unit test for a failed deposit and withdraw flow in a spot pool due to insufficient funds for fee payment.
     function testInsufficientFee() public {
         perpDepositSetUp();
 
@@ -1043,6 +1148,7 @@ contract TestVertexManager is Test {
                             POOL MANAGE TESTS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Unit test for adding and updating a pool.
     function testAddAndUpdatePool() public {
         vm.startPrank(owner);
 
@@ -1086,17 +1192,7 @@ contract TestVertexManager is Test {
         assertTrue(activeUSDC);
     }
 
-    function testUnauthorizedAddAndUpdate() public {
-        address[] memory tokens = new address[](0);
-        uint256[] memory hardcaps = new uint256[](0);
-
-        vm.expectRevert();
-        manager.updatePoolHardcaps(1, tokens, hardcaps);
-
-        vm.expectRevert();
-        manager.addPoolTokens(1, tokens, hardcaps);
-    }
-
+    /// @notice Unit test for adding and updating a pool with a new token.
     function testAddPoolTokens() public {
         spotDepositSetUp();
         vm.startPrank(owner);
@@ -1111,6 +1207,23 @@ contract TestVertexManager is Test {
         manager.addPoolTokens(1, tokens, hardcaps);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                      POOL MANAGE SANITY CHECK TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Unit test for unauthorized add and update a pool.
+    function testUnauthorizedAddAndUpdate() public {
+        address[] memory tokens = new address[](0);
+        uint256[] memory hardcaps = new uint256[](0);
+
+        vm.expectRevert();
+        manager.updatePoolHardcaps(1, tokens, hardcaps);
+
+        vm.expectRevert();
+        manager.addPoolTokens(1, tokens, hardcaps);
+    }
+
+    /// @notice Unit test for checking pool empty state.
     function testIsPoolAdded() public {
         // Get the pool data.
         (address routerBTC, uint256 activeAmountBTC, uint256 hardcapBTC, bool activeBTC) =
@@ -1122,6 +1235,7 @@ contract TestVertexManager is Test {
         assertFalse(activeBTC);
     }
 
+    /// @notice Unit test for checking pool empty state.
     function testPoolAdd() public {
         vm.startPrank(owner);
 
@@ -1146,10 +1260,66 @@ contract TestVertexManager is Test {
         manager.addPool(1, tokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
     }
 
+    /// @notice Unit test for checks when adding pools.
+    function testPoolChecks() public {
+        spotDepositSetUp();
+
+        vm.startPrank(owner);
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(WETH);
+        tokens[1] = address(USDC);
+
+        uint256[] memory hardcaps = new uint256[](2);
+        hardcaps[0] = type(uint256).max;
+        hardcaps[1] = type(uint256).max;
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 1));
+        manager.addPool(1, tokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
+
+        tokens[0] = address(WETH);
+        tokens[1] = address(WETH);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.DuplicatedTokens.selector, address(WETH), tokens));
+        manager.addPool(2, tokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
+    }
+
+    /// @notice Unit test for failing to add a pool token with more than 18 decimals.
+    function testAddInvalidPoolToken() public {
+        spotDepositSetUp();
+
+        MockTokenDecimals invalidToken = new MockTokenDecimals();
+        
+        vm.startPrank(owner);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(invalidToken);
+
+        uint256[] memory hardcaps = new uint256[](1);
+        hardcaps[0] = type(uint256).max;
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidToken.selector, address(invalidToken)));
+        manager.addPoolTokens(1, tokens, hardcaps);
+    }
+
+    /// @notice Unit test for failing to update hardcaps due to mismatched lengths of arrays.
+    function testInvalidHardcaps() public {
+        vm.startPrank(owner);
+
+        address[] memory tokens = new address[](0);
+
+        uint256[] memory hardcaps = new uint256[](1);
+        hardcaps[0] = type(uint256).max;
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.MismatchInputs.selector, hardcaps, tokens));
+        manager.updatePoolHardcaps(1, tokens, hardcaps);
+    }
+
     /*//////////////////////////////////////////////////////////////
                              PAUSED TESTS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Unit test for paused deposits.
     function testDepositsPaused() public {
         vm.prank(owner);
         manager.pause(true, false, false);
@@ -1161,6 +1331,7 @@ contract TestVertexManager is Test {
         manager.depositSpot(1, tokens, amounts[0], amounts[1], amounts[1], address(this));
     }
 
+    /// @notice Unit test for paused withdrawals.
     function testWithdrawalsPaused() public {
         vm.prank(owner);
         manager.pause(false, true, false);
@@ -1171,6 +1342,7 @@ contract TestVertexManager is Test {
         manager.withdrawSpot(1, tokens, 0, 0);
     }
 
+    /// @notice Unit test for paused claims.
     function testClaimsPaused() public {
         vm.prank(owner);
         manager.pause(false, false, true);
@@ -1185,6 +1357,7 @@ contract TestVertexManager is Test {
                               TOKEN TESTS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Unit test for updating a token.
     function testUpdateToken() public {
         vm.startPrank(owner);
 
@@ -1199,6 +1372,7 @@ contract TestVertexManager is Test {
         assertEq(manager.tokenToProduct(address(BTC)), 2);
     }
 
+    /// @notice Unit test for failing to update a token.
     function testFailUpdateToken() public {
         manager.updateToken(address(BTC), 69);
     }
@@ -1207,6 +1381,7 @@ contract TestVertexManager is Test {
                               PROXY TESTS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Unit test for initializing the proxy.
     function testInitialize() public {
         // Deploy proxy contract and point it to implementation
         ERC1967Proxy tempProxy = new ERC1967Proxy(address(vertexManagerImplementation), "");
@@ -1215,10 +1390,12 @@ contract TestVertexManager is Test {
         tempVertexManager.initialize(address(endpoint), 1000000);
     }
 
+    /// @notice Unit test for failing to initialize the proxy twice.
     function testFailDoubleInitiliaze() public {
         manager.initialize(address(0), 0);
     }
 
+    /// @notice Unit test for upgrading the proxy.
     function testAuthorizedUpgrade() public {
         vm.startPrank(owner);
 
@@ -1228,6 +1405,7 @@ contract TestVertexManager is Test {
         manager.upgradeTo(address(vertexManager2));
     }
 
+    /// @notice Unit test for failing to upgrade the proxy.
     function testFailUnauthorizedUpgrade() public {
         manager.upgradeTo(address(0));
     }
@@ -1236,11 +1414,13 @@ contract TestVertexManager is Test {
                               OTHER TESTS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Unit test for getting the withdraw fee.
     function testGetWithdrawFee() public {
         vm.expectRevert();
         manager.getWithdrawFee(address(0xdead));
     }
 
+    /// @notice Unit test for getting the withdraw fee.
     function testUpdateSlowModeFee() public {
         vm.expectRevert();
         manager.updateSlowModeFee(69);
@@ -1249,6 +1429,15 @@ contract TestVertexManager is Test {
         manager.updateSlowModeFee(69);
     }
 
+    /// @notice Unit test for failing to update the withdraw fee as it's too high.
+    function testUpdateSlowModeFeeTooHigh() public {
+        vm.prank(owner);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.FeeTooHigh.selector, 100000001));
+        manager.updateSlowModeFee(100000001);
+    }
+
+    /// @notice Unit test for getting the token price.
     function testPrice() public {
         spotDepositSetUp();
 
@@ -1259,6 +1448,7 @@ contract TestVertexManager is Test {
         manager.getPrice(1);
     }
 
+    /// @notice Unit test for getting the Vertex balance.
     function testVertexBalance(uint144 amountBTC) public {
         // BTC amount should be no more than the maximum value for uint72 to not overflow later.
         vm.assume(amountBTC >= manager.getWithdrawFee(address(BTC)) && amountBTC <= type(uint72).max);

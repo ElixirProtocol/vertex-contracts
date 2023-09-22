@@ -30,6 +30,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice The types of pools supported by this contract.
     enum PoolType {
+        Inactive,
         Spot,
         Perp
     }
@@ -38,7 +39,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     struct Pool {
         // The router address of the pool.
         address router;
-        // The type of the pool.
+        // The pool type. True for spot, false for perp.
         PoolType poolType;
         // The data of the supported tokens in the pool.
         mapping(address token => Token data) tokens;
@@ -66,7 +67,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     mapping(address token => uint32 id) public tokenToProduct;
 
     /// @notice Helper mappings for Vertex balances.
-    mapping(uint32 id => uint256 balance) tokenBalances;
+    mapping(uint32 id => uint256 balance) private _tokenBalances;
 
     /// @notice The Elixir fee reimbursements for users and a token address.
     mapping(address user => mapping(address token => uint256 amount)) public fees;
@@ -121,7 +122,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Emitted when a pool is added.
     /// @param id The ID of the pool.
-    /// @param poolType The type of the pool.
+    /// @param poolType The type of the pool. True for spot, false for perp.
     /// @param router The router address of the pool.
     /// @param tokens The tokens of the pool.
     /// @param hardcaps The hardcaps of the pool.
@@ -209,6 +210,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Emitted when the token is not valid because it has more than 18 decimals.
     /// @param token The address of the token.
     error InvalidToken(address token);
+
+    /// @notice Emitted when the tokens array does not contain only two tokens.
+    /// @param tokens The tokens array input.
+    error InvalidTokens(address[] tokens);
 
     /// @notice Emitted when the new fee is above 100 USDC.
     /// @param newFee The new fee.
@@ -318,11 +323,14 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Fetch the pool data.
         Pool storage pool = pools[id];
 
-        // Check that the pool is soit.
+        // Check that the pool is spot.
         if (pool.poolType != PoolType.Spot) revert InvalidPool(id);
 
-        // Check that the tokens array is not empty.
-        if (tokens.length == 0) revert EmptyTokens(tokens);
+        // Check that the tokens array only includes two tokens.
+        if (tokens.length != 2) revert InvalidTokens(tokens);
+
+        // Check that the tokens are not duplicated.
+        if (tokens[0] == tokens[1]) revert DuplicatedTokens(tokens[0], tokens);
 
         // Check that the receiver is not the zero address.
         if (receiver == address(0)) revert ZeroAddress();
@@ -468,8 +476,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         uint256[] memory amounts,
         address receiver
     ) private {
-        // TODO: What if the user tries to deposit two same tokens in the token array?
-
         // Fetch the router of the pool.
         VertexRouter router = VertexRouter(pool.router);
 
@@ -562,18 +568,18 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             // Substract requested amount from the active pool market making balance.
             tokenData.activeAmount -= amount;
 
-            // Add amount to the user pending balance.
-            if (i == feeIndex) {
-                // Calculate the reimburse fee amount for the token.
-                uint256 fee = getWithdrawFee(token);
+            // // Add amount to the user pending balance.
+            // if (i == feeIndex) {
+            //     // Calculate the reimburse fee amount for the token.
+            //     uint256 fee = getWithdrawFee(token);
 
-                // Add fee to the Elixir balance.
-                fees[msg.sender][token] += fee;
+            //     // Add fee to the Elixir balance.
+            //     fees[msg.sender][token] += fee;
 
-                pendingBalances[msg.sender][token] += (amountToReceive - fee);
-            } else {
-                pendingBalances[msg.sender][token] += amountToReceive;
-            }
+            //     pendingBalances[msg.sender][token] += (amountToReceive - fee);
+            // } else {
+            //     pendingBalances[msg.sender][token] += amountToReceive;
+            // }
 
             // Create Vertex withdraw payload request.
             IEndpoint.WithdrawCollateral memory withdrawPayload = IEndpoint.WithdrawCollateral(
@@ -671,7 +677,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             uint256 decimals = 10 ** (18 - IERC20Metadata(token).decimals());
 
             // Convert back to native decimals. Round up if the token has less than 18 decimals.
-            tokenBalances[productId] =
+            _tokenBalances[productId] =
                 decimals == 1 ? uint256(balance.amount) : uint256(balance.amount).ceilDiv(decimals);
         }
 
@@ -696,7 +702,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                     abi.decode(payload, (IEndpoint.WithdrawCollateral));
 
                 // Substract the amount from the token balance.
-                tokenBalances[withdrawPayload.productId] -= withdrawPayload.amount;
+                _tokenBalances[withdrawPayload.productId] -= withdrawPayload.amount;
             }
             // If the transaction is a deposit, add the amount to the balance.
             else if (txType == uint8(IEndpoint.TransactionType.DepositCollateral)) {
@@ -704,7 +710,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                 IEndpoint.DepositCollateral memory depositPayload = abi.decode(payload, (IEndpoint.DepositCollateral));
 
                 // Add the amount to the token balance.
-                tokenBalances[depositPayload.productId] += depositPayload.amount;
+                _tokenBalances[depositPayload.productId] += depositPayload.amount;
             } else {
                 continue;
             }
@@ -716,10 +722,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             uint32 productId = tokenToProduct[tokens[i]];
 
             // Add balance to array index.
-            balances[i] = tokenBalances[productId];
+            balances[i] = _tokenBalances[productId];
 
             // Delete the balances mapping.
-            delete tokenBalances[productId];
+            delete _tokenBalances[productId];
         }
 
         return balances;

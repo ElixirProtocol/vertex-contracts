@@ -568,18 +568,18 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             // Substract requested amount from the active pool market making balance.
             tokenData.activeAmount -= amount;
 
-            // // Add amount to the user pending balance.
-            // if (i == feeIndex) {
-            //     // Calculate the reimburse fee amount for the token.
-            //     uint256 fee = getWithdrawFee(token);
+            // Add amount to the user pending balance.
+            if (i == feeIndex) {
+                // Calculate the reimburse fee amount for the token.
+                uint256 fee = getWithdrawFee(token);
 
-            //     // Add fee to the Elixir balance.
-            //     fees[msg.sender][token] += fee;
+                // Add fee to the Elixir balance.
+                fees[msg.sender][token] += fee;
 
-            //     pendingBalances[msg.sender][token] += (amountToReceive - fee);
-            // } else {
-            //     pendingBalances[msg.sender][token] += amountToReceive;
-            // }
+                pendingBalances[msg.sender][token] += (amountToReceive - fee);
+            } else {
+                pendingBalances[msg.sender][token] += amountToReceive;
+            }
 
             // Create Vertex withdraw payload request.
             IEndpoint.WithdrawCollateral memory withdrawPayload = IEndpoint.WithdrawCollateral(

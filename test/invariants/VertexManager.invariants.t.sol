@@ -131,8 +131,8 @@ contract TestVertexManagerInvariants is Test {
 
     // The sum of the Handler's BTC balance plus the BTC active amount should always equal the total BTC_SUPPLY. Same for USDC.
     function invariant_conservationOfTokens() public {
-        (, uint256 activeAmountBTC,,) = manager.getPool(1, address(BTC));
-        (, uint256 activeAmountUSDC,,) = manager.getPool(1, address(USDC));
+        (, uint256 activeAmountBTC,,) = manager.getPoolToken(1, address(BTC));
+        (, uint256 activeAmountUSDC,,) = manager.getPoolToken(1, address(USDC));
 
         assertEq(BTC_SUPPLY, BTC.balanceOf(address(handler)) + activeAmountBTC);
         assertEq(USDC_SUPPLY, USDC.balanceOf(address(handler)) + activeAmountUSDC);
@@ -140,8 +140,8 @@ contract TestVertexManagerInvariants is Test {
 
     // The BTC active amount should always be equal to the sum of individual active balances. Same for USDC.
     function invariant_solvencyDeposits() public {
-        (, uint256 activeAmountBTC,,) = manager.getPool(1, address(BTC));
-        (, uint256 activeAmountUSDC,,) = manager.getPool(1, address(USDC));
+        (, uint256 activeAmountBTC,,) = manager.getPoolToken(1, address(BTC));
+        (, uint256 activeAmountUSDC,,) = manager.getPoolToken(1, address(USDC));
 
         assertEq(activeAmountBTC, handler.ghost_deposits(address(BTC)) - handler.ghost_withdraws(address(BTC)));
         assertEq(activeAmountUSDC, handler.ghost_deposits(address(USDC)) - handler.ghost_withdraws(address(USDC)));
@@ -152,8 +152,8 @@ contract TestVertexManagerInvariants is Test {
         uint256 sumOfActiveBalancesBTC = handler.reduceActors(0, this.accumulateActiveBalanceBTC);
         uint256 sumOfActiveBalancesUSDC = handler.reduceActors(0, this.accumulateActiveBalanceUSDC);
 
-        (, uint256 activeAmountBTC,,) = manager.getPool(1, address(BTC));
-        (, uint256 activeAmountUSDC,,) = manager.getPool(1, address(USDC));
+        (, uint256 activeAmountBTC,,) = manager.getPoolToken(1, address(BTC));
+        (, uint256 activeAmountUSDC,,) = manager.getPoolToken(1, address(USDC));
 
         assertEq(activeAmountBTC, sumOfActiveBalancesBTC);
         assertEq(activeAmountUSDC, sumOfActiveBalancesUSDC);
@@ -196,11 +196,11 @@ contract TestVertexManagerInvariants is Test {
 
     // Two pools cannot share the same router. Each pool must have a unique and constant router for all tokens supported by it.
     function invariant_router() public {
-        (address routerBTC1,,,) = manager.getPool(1, address(BTC));
-        (address routerUSDC1,,,) = manager.getPool(1, address(USDC));
-        (address routerBTC2,,,) = manager.getPool(2, address(BTC));
-        (address routerUSDC2,,,) = manager.getPool(2, address(USDC));
-        (address routerWETH2,,,) = manager.getPool(2, address(WETH));
+        (address routerBTC1,,,) = manager.getPoolToken(1, address(BTC));
+        (address routerUSDC1,,,) = manager.getPoolToken(1, address(USDC));
+        (address routerBTC2,,,) = manager.getPoolToken(2, address(BTC));
+        (address routerUSDC2,,,) = manager.getPoolToken(2, address(USDC));
+        (address routerWETH2,,,) = manager.getPoolToken(2, address(WETH));
 
         assertEq(routerBTC1, routerUSDC1);
         assertEq(routerBTC2, routerUSDC2);

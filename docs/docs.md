@@ -25,7 +25,7 @@ More information:
 
 ## Overview
 
-This integration comprises two Elixir smart contracts a singleton (VertexManager) and a router (VertexRouter). VertexManager allows users to deposit and withdraw liquidity for spot and perpetual (perp) products on Vertex. By depositing liquidity, users earn VRTX rewards from the market-making done by the Elixir validator network off-chain. Rewards, denominated in the VRTX token, are distributed via epochs lasting 28 days and serve as the sustainability of the APRs. On the Vertex Smart contract, each product is associated with a pool structure, which contains data like active amounts, balances, and more. On the other hand, VertexRouter allows to have one linked signer per VertexManager pool — linked signers allow the off-chain Elixir network to market make across different product and balances. Regarding Vertex, the Elixir smart contract interacts mainly with the Endpoint smart contract.
+This integration comprises two Elixir smart contracts a singleton (VertexManager) and a router (VertexRouter). VertexManager allows users to deposit and withdraw liquidity for spot and perpetual (perp) products on Vertex. By depositing liquidity, users earn VRTX rewards from the market-making done by the Elixir validator network off-chain. Rewards, denominated in the VRTX token, are distributed via epochs lasting 28 days and serve as the sustainability of the APRs. On the VertexManager smart contract, each Vertex product is associated with a pool structure, which contains a type and router (VertexRouter), plus a nested mapping containing the data of supported tokens in that pool. On the other hand, VertexRouter allows to have one linked signer per VertexManager pool — linked signers allow the off-chain Elixir network to market make across different product and balances on behalf of the pool. Regarding Vertex, the Elixir smart contract interacts mainly with the Endpoint and Clearinghouse smart contracts.
 
 - [VertexManager](src/VertexManager.sol): Elixir smart contract to deposit, withdraw, claim and manage product pools.
 - [VertexRouter](src/VertexRouter.sol): Elixir smart contract to route slow-mode transactions to Vertex, on behalf of a VertexManager pool.
@@ -35,24 +35,45 @@ This integration comprises two Elixir smart contracts a singleton (VertexManager
 ## Sequence of Events
 
 ### Deposit Liquidity
-Liquidity can be deposited into the VertexManager smart contract by calling the `deposit` or `depositBalanced` functions. Every spot product is composed of two tokens, the base token and the quote token, which is usually USDC. For this reason, liquidity for a spot product has to be deposited in a balanced way, meaning that the amount of base and quote tokens have to be equal in value. To check this, product prices are fetched from the Vertex Endpoint smart contract by calling its `getPriceX18` function, which provides the price in 18 decimals for a given product. Therefore, the VertexManager smart contract provides the `depositBalanced` function, which takes in a fixed base token amount and a range of quote token amounts to deposit. The function will then calculate the amount of quote tokens needed to perform a balanced deposit given the amount of base tokens. If this calculated amount of quote tokens is out of the given range, the function will revert due to slippage. The `deposit` function can still be used to deposit liquidity for a spot product, but there's a small probability that the transaction reverts if the price of the product changes between the time the price is fetched and the time the transaction is confirmed. For perp products, liquidity can be deposited in an unbalanced way, meaning that the amount of tokens deposited can be different. In any case, the flow of the deposit functions is the following:
+Liquidity for spot and perp pools can be deposited into the VertexManager smart contract by calling the `depositSpot` and `depositPerp` functions respectively. 
+
+Every spot product is composed of two tokens, the base token and the quote token, which is usually USDC. For this reason, liquidity for a spot product has to be deposited in a balanced way, meaning that the amount of base and quote tokens have to be equal in value. To check this, product prices are fetched from the Vertex Clearinghouse smart contract by calling its `getPriceX18` function, which provides the price in 18 decimals for a given product. Therefore, users must call the `depositSpot` function passing a fixed base token amount and a range of quote token amounts to deposit. The function will then calculate the amount of quote tokens needed to perform a balanced deposit given the amount of base tokens. If this calculated amount of quote tokens is out of the given range, the function will revert due to slippage. On the other hand, the `depositPerp` function must be used to deposit liquidity into perp pools, which doesn't require balanced liquidity.
+
+The only difference between the `depositSpot` and `depositPerp` functions are mainly the input parameters and the security checks, as they execute the same deposit logic by calling the `_deposit` private function.
+
+The `depositSpot` flow is the following:
 
 1. Check that deposits are not paused.
 2. Check that the reentrancy guard is not active.
-3. Fetch the pool data using the given product ID.
-4. Verify that the length of amounts given match the length of supported tokens in the pool.
-5. Check if the length of amounts given is 2, meaning a spot product.
-   - If so, check that the amount of base tokens is equal in value to the amount of quote tokens.
-6. Loop over the amounts given to fetch the respective tokens and redirect liquidity to Vertex.
-   - Fetch the token address by using the index of the amount in the amounts array and the array of supported tokens in the pool.
-   - Check if the token amount to deposit will exceed the liquidity hardcap in this pool.
-   - Transfer the tokens from the caller to itself.
-   - Build and send the deposit transaction to Vertex, redirecting the received tokens to the Elixir account (EOA, established a linked signer).
-    * The Elixir linked signer allows the off-chain decentralized validator network to create market making requests on behalf of the Elixir smart contract.
-   - Update the pool data with the new amount.
-7. Emit the `Deposit` event.
+3. Check that the pool given is a spot one.
+4. Check that the tokens given are two and that they are not duplicated.
+5. Check that the receiver is not a zero address (for the good of the user).
+6. Calculate amount of quote tokens and check for slippage.
+7. Execute the deposit logic.
 
-> Note: Before calling the `deposit` function, the `depositBalanced` function checks that the deposit belongs to a spot product and that the amount of base tokens is equal in value to the amount of quote tokens. If this is not the case, the transaction will revert.
+And the `depositPerp` flow is the following:
+
+1. Check that deposits are not paused.
+2. Check that the reentrancy guard is not active.
+3. Check that the pool given is a perp one.
+4. Check that the tokens given are not empty and that the amounts given match the amount of tokens.
+5. Check that the receiver is not a zero address (for the good of the user).
+7. Execute the deposit logic.
+
+In any case, the flow of the deposit logic is the following:
+
+1. Loop over the amounts given to fetch the respective tokens and redirect liquidity to Vertex.
+   - Skip zero amounts.
+   - Fetch the token address by using the index of the amount in the amounts array and get the data of the token in the pool.
+   - Check if the token is supported for this pool.
+   - Check if the token amount to deposit will exceed the liquidity hardcap of the token in this pool.
+   - Transfer the tokens from the caller to the smart contract.
+   - Build and send the deposit transaction to Vertex, redirecting the received tokens to the Elixir account (EOA, established a linked signer) via the VertexRouter smart contract assigned to this pool.
+    * The Elixir linked signer allows the off-chain decentralized validator network to create market making requests on behalf of the Elixir smart contract.
+   - Update the pool data and balances with the new amount.
+2. Emit the `Deposit` event.
+
+> Note: Only tokens with less or equal to 18 decimals are supported due to the nature of the Vertex smart contracts.
 
 ### Withdraw Liquidity
 Due to the nature of Vertex, withdrawing funds requires a two-step process. First, the liquidity has to be withdrawn from Vertex to the Elixir smart contract, which has to be approved by the Vertex sequencer, charging a fee of 1 USDC. Second, the liquidity has to "manually" be claimed via the `claim` function on the Elixir smart contract, as no Vertex callback is available. Anyone can call this function on behalf of any address, allowing us to monitor pending claims and process them for users. Similarly to deposits, withdrawals on a spot product have to be balanced. Therefore, the Elixir smart contract provides a helper function called `withdrawBalanced` that facilitates the process. In any case, the flow of the `withdraw` function is the following:

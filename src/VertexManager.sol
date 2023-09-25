@@ -281,7 +281,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param tokens The list of tokens to deposit.
     /// @param amounts The list of token amounts to deposit.
     /// @param receiver The receiver of the virtual LP balance.
-    function depositPerp(uint256 id, address[] memory tokens, uint256[] memory amounts, address receiver)
+    function depositPerp(uint256 id, address[] calldata tokens, uint256[] memory amounts, address receiver)
         external
         whenDepositNotPaused
         nonReentrant
@@ -314,7 +314,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param receiver The receiver of the virtual LP balance.
     function depositSpot(
         uint256 id,
-        address[] memory tokens,
+        address[] calldata tokens,
         uint256 amount0,
         uint256 amount1Low,
         uint256 amount1High,
@@ -358,7 +358,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param tokens The list of tokens to withdraw.
     /// @param amounts The list of token amounts to withdraw.
     /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
-    function withdrawPerp(uint256 id, address[] memory tokens, uint256[] memory amounts, uint256 feeIndex)
+    function withdrawPerp(uint256 id, address[] calldata tokens, uint256[] memory amounts, uint256 feeIndex)
         external
         whenWithdrawNotPaused
         nonReentrant
@@ -388,7 +388,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param tokens The list of tokens to withdraw.
     /// @param amount0 The amount of base tokens.
     /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
-    function withdrawSpot(uint256 id, address[] memory tokens, uint256 amount0, uint256 feeIndex)
+    function withdrawSpot(uint256 id, address[] calldata tokens, uint256 amount0, uint256 feeIndex)
         external
         whenWithdrawNotPaused
         nonReentrant
@@ -472,7 +472,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     function _deposit(
         uint256 id,
         Pool storage pool,
-        address[] memory tokens,
+        address[] calldata tokens,
         uint256[] memory amounts,
         address receiver
     ) private {
@@ -532,7 +532,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     function _withdraw(
         uint256 id,
         Pool storage pool,
-        address[] memory tokens,
+        address[] calldata tokens,
         uint256[] memory amounts,
         uint256 feeIndex
     ) private {
@@ -593,19 +593,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             );
         }
 
-        // TODO: Check gas of below vs having it inside the loop.
-        // // Get the fee token address as gas optimization.
-        // address feeToken = tokens[feeIndex];
-
-        // // Calculate the reimburse fee amount for the token.
-        // uint256 fee = getWithdrawFee(feeToken);
-
-        // // Add fee to the Elixir balance.
-        // fees[msg.sender][feeToken] += fee;
-
-        // // Substract from the user pending balance of the fee token.
-        // pendingBalances[msg.sender][feeToken] -= fee;
-
         emit Withdraw(msg.sender, id, tokens, amounts);
     }
 
@@ -653,7 +640,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Returns the pool balance of a product on Vertex.
     /// @param router The router of the pool.
     /// @param tokens The tokens to fetch the balance of.
-    function getVertexBalances(VertexRouter router, address[] memory tokens)
+    function getVertexBalances(VertexRouter router, address[] calldata tokens)
         public
         returns (uint256[] memory balances)
     {
@@ -799,8 +786,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param externalAccount The external account to link to the Vertex Endpoint.
     function addPool(
         uint256 id,
-        address[] memory tokens,
-        uint256[] memory hardcaps,
+        address[] calldata tokens,
+        uint256[] calldata hardcaps,
         PoolType poolType,
         address externalAccount
     ) external onlyOwner {
@@ -843,7 +830,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The ID of the pool.
     /// @param tokens The tokens to add.
     /// @param hardcaps The hardcaps for the tokens.
-    function addPoolTokens(uint256 id, address[] memory tokens, uint256[] memory hardcaps) public onlyOwner {
+    function addPoolTokens(uint256 id, address[] calldata tokens, uint256[] calldata hardcaps) public onlyOwner {
         // Fetch the pool router.
         VertexRouter router = VertexRouter(pools[id].router);
 
@@ -875,7 +862,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The ID of the pool.
     /// @param tokens The list of tokens to update the hardcaps of.
     /// @param hardcaps The hardcaps for the tokens.
-    function updatePoolHardcaps(uint256 id, address[] memory tokens, uint256[] memory hardcaps) external onlyOwner {
+    function updatePoolHardcaps(uint256 id, address[] calldata tokens, uint256[] calldata hardcaps) external onlyOwner {
         // Check that the length of the hardcaps array matches the pool tokens length.
         if (hardcaps.length != tokens.length) revert MismatchInputs(hardcaps, tokens);
 

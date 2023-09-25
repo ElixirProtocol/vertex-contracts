@@ -1501,4 +1501,10 @@ contract TestVertexManager is Test {
         assertEq(vertexBalances[1], 0);
         assertEq(vertexBalances[2], 0);
     }
+
+    /// @notice Unit test for getting a withdraw amount.
+    function testGetWithdraw() public {
+        uint256 output = manager.getWithdrawAmount(1, 1, 1);
+        assertEq(output, 1);
+    }
 }

@@ -814,8 +814,7 @@ contract TestVertexManager is Test {
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
-        // TODO: Specific expect reverts instead of global
-        vm.expectRevert();
+        vm.expectRevert("ERC20: transfer amount exceeds allowance");
         manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
     }
 
@@ -852,7 +851,7 @@ contract TestVertexManager is Test {
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
-        vm.expectRevert();
+        vm.expectRevert("ERC20: transfer amount exceeds balance");
         manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
     }
 
@@ -879,7 +878,7 @@ contract TestVertexManager is Test {
         amounts[0] = amountBTC;
         amounts[1] = amountUSDC;
 
-        vm.expectRevert();
+        vm.expectRevert("ERC20: transfer amount exceeds allowance");
         manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
     }
 
@@ -1216,10 +1215,10 @@ contract TestVertexManager is Test {
         address[] memory tokens = new address[](0);
         uint256[] memory hardcaps = new uint256[](0);
 
-        vm.expectRevert();
+        vm.expectRevert("Ownable: caller is not the owner");
         manager.updatePoolHardcaps(1, tokens, hardcaps);
 
-        vm.expectRevert();
+        vm.expectRevert("Ownable: caller is not the owner");
         manager.addPoolTokens(1, tokens, hardcaps);
     }
 
@@ -1239,6 +1238,9 @@ contract TestVertexManager is Test {
     function testPoolAdd() public {
         vm.startPrank(owner);
 
+        // Remove tokens from owner to simulate not having funds to pay for the LinkedSigner fee.
+        paymentToken.transfer(address(0x69), type(uint256).max);
+
         address[] memory tokens = new address[](2);
         tokens[0] = address(BTC);
         tokens[1] = address(USDC);
@@ -1247,11 +1249,23 @@ contract TestVertexManager is Test {
         hardcaps[0] = type(uint256).max;
         hardcaps[1] = type(uint256).max;
 
-        // Remove allowance to simulate not having funds to pay for the LinkedSigner fee.
+        // Expect revert when trying to create a pool as owner doesn't have funds to cover LinkedSigner fee.
+        vm.expectRevert("ERC20: transfer amount exceeds balance");
+        manager.addPool(1, tokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
+
+        vm.stopPrank();
+        vm.prank(address(0x69));
+
+        // Transfer tokens back to owner.
+        paymentToken.transfer(address(owner), type(uint256).max);
+
+        vm.startPrank(owner);
+
+        // Remove allowance.
         paymentToken.approve(address(manager), 0);
 
-        // Expect revert when trying to create a pool as owner doesn't have funds to cover LinkedSigner fee.
-        vm.expectRevert();
+        // Expect revert when trying to create a pool as owner didn't give allowance for LinkedSigner fee.
+        vm.expectRevert("ERC20: transfer amount exceeds allowance");
         manager.addPool(1, tokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
 
         // Approve the manager to move USDC for fee payments.
@@ -1414,15 +1428,14 @@ contract TestVertexManager is Test {
                               OTHER TESTS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Unit test for getting the withdraw fee.
-    function testGetWithdrawFee() public {
-        vm.expectRevert();
+    /// @notice Unit test for getting the withdraw fee of an invalid token.
+    function testFailGetWithdrawFee() public {
         manager.getWithdrawFee(address(0xdead));
     }
 
     /// @notice Unit test for getting the withdraw fee.
     function testUpdateSlowModeFee() public {
-        vm.expectRevert();
+        vm.expectRevert("Ownable: caller is not the owner");
         manager.updateSlowModeFee(69);
 
         vm.prank(owner);
@@ -1441,7 +1454,7 @@ contract TestVertexManager is Test {
     function testPrice() public {
         spotDepositSetUp();
 
-        // Revert for non-created pool.
+        // Revert for non existant Vertex product.
         vm.expectRevert();
         manager.getPrice(69);
 

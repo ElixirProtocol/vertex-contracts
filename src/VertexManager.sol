@@ -399,8 +399,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Check that the pool is spot.
         if (pool.poolType != PoolType.Spot) revert InvalidPool(id);
 
-        // Check that the tokens array is not empty.
-        if (tokens.length == 0) revert EmptyTokens(tokens);
+        // Check that the tokens array only includes two tokens.
+        if (tokens.length != 2) revert InvalidTokens(tokens);
+
+        // Check that the tokens are not duplicated.
+        if (tokens[0] == tokens[1]) revert DuplicatedTokens(tokens[0], tokens);
 
         // Check that the feeIndex is within the tokens array.
         if (feeIndex > tokens.length) revert InvalidFeeIndex(feeIndex, tokens);
@@ -862,7 +865,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The ID of the pool.
     /// @param tokens The list of tokens to update the hardcaps of.
     /// @param hardcaps The hardcaps for the tokens.
-    function updatePoolHardcaps(uint256 id, address[] calldata tokens, uint256[] calldata hardcaps) external onlyOwner {
+    function updatePoolHardcaps(uint256 id, address[] calldata tokens, uint256[] calldata hardcaps)
+        external
+        onlyOwner
+    {
         // Check that the length of the hardcaps array matches the pool tokens length.
         if (hardcaps.length != tokens.length) revert MismatchInputs(hardcaps, tokens);
 

@@ -14,7 +14,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <table>
 <tr>
 <th>Network</th>
-<th>Vertex Manager</th>
+<th>VertexManager</th>
 </tr>
 <tr>
 <td>Arbitrum Goerli</td>

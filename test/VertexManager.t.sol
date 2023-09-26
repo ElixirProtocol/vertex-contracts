@@ -909,7 +909,7 @@ contract TestVertexManager is Test {
 
         address[] memory invalidTokens = new address[](1);
         invalidTokens[0] = address(0x69);
-        
+
         vm.expectRevert(abi.encodeWithSelector(VertexManager.MismatchInputs.selector, amounts, invalidTokens));
         manager.depositPerp(2, invalidTokens, amounts, address(this));
 
@@ -969,12 +969,19 @@ contract TestVertexManager is Test {
 
         manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
 
+        // invalid pool
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
         manager.withdrawSpot(69, spotTokens, amountBTC, 0);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.EmptyTokens.selector, emptyTokens));
+        // invalid tokens
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidTokens.selector, emptyTokens));
         manager.withdrawSpot(1, emptyTokens, amountBTC, 0);
 
+        // duplicated tokens
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.DuplicatedTokens.selector, address(BTC), duplicatedTokens));
+        manager.withdrawSpot(1, duplicatedTokens, amountBTC, 0);
+
+        // invalid fee index
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidFeeIndex.selector, 69, spotTokens));
         manager.withdrawSpot(1, spotTokens, amountBTC, 69);
     }
@@ -1031,7 +1038,7 @@ contract TestVertexManager is Test {
 
         manager.depositSpot(1, tokens, amountBTC, 0, type(uint256).max, address(this));
 
-        tokens[0] = address(WETH);        
+        tokens[0] = address(WETH);
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.UnsupportedToken.selector, address(WETH), 1));
         manager.withdrawSpot(1, tokens, 1 ether, 0);
@@ -1303,7 +1310,7 @@ contract TestVertexManager is Test {
         spotDepositSetUp();
 
         MockTokenDecimals invalidToken = new MockTokenDecimals();
-        
+
         vm.startPrank(owner);
 
         address[] memory tokens = new address[](1);

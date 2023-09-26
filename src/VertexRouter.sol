@@ -75,7 +75,7 @@ contract VertexRouter {
     /// @dev More information about slow mode transactions:
     /// https://vertex-protocol.gitbook.io/docs/developer-resources/api/withdrawing-on-chain
     /// @param transaction The transaction to submit.
-    function submitSlowModeTransaction(bytes memory transaction) public onlyManager {
+    function submitSlowModeTransaction(bytes memory transaction) external onlyManager {
         endpoint.submitSlowModeTransaction(transaction);
     }
 
@@ -90,7 +90,7 @@ contract VertexRouter {
         IERC20Metadata(token).approve(address(endpoint), type(uint256).max);
     }
 
-    /// @notice Allow claims from Manager contract.
+    /// @notice Allow claims from VertexManager contract.
     /// @param token The token to transfer.
     /// @param amount The amount to transfer.
     function claimToken(address token, uint256 amount) external onlyManager {

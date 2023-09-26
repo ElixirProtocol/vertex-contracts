@@ -1309,7 +1309,7 @@ contract TestVertexManager is Test {
     function testAddInvalidPoolToken() public {
         spotDepositSetUp();
 
-        MockTokenDecimals invalidToken = new MockTokenDecimals();
+        MockTokenDecimals invalidToken = new MockTokenDecimals(19);
 
         vm.startPrank(owner);
 
@@ -1321,6 +1321,29 @@ contract TestVertexManager is Test {
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidToken.selector, address(invalidToken)));
         manager.addPoolTokens(1, tokens, hardcaps);
+    }
+
+    /// @notice Unit test for tokens in a pool with less than 18 decimals.
+    function testTokenDecimals(uint8 decimals1, uint8 decimals2, uint216 amount) public {
+        vm.assume(decimals1 > 0 && decimals1 < 19);
+        vm.assume(decimals2 > 0 && decimals2 < 19);
+
+        vm.startPrank(owner);
+
+        address token1 = address(new MockTokenDecimals(decimals1));
+        address token2 = address(new MockTokenDecimals(decimals2));
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = token1;
+        tokens[1] = token2;
+
+        uint256[] memory hardcaps = new uint256[](2);
+        hardcaps[0] = type(uint256).max;
+        hardcaps[1] = type(uint256).max;
+
+        manager.addPool(1, tokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
+
+        manager.getBalancedAmount(token1, token2, amount);
     }
 
     /// @notice Unit test for failing to update hardcaps due to mismatched lengths of arrays.

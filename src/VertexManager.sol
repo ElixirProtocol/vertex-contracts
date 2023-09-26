@@ -737,7 +737,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     function getBalancedAmount(address token0, address token1, uint256 amount0) public view returns (uint256) {
         return amount0.mulDiv(
             getPrice(tokenToProduct[address(token0)]),
-            10 ** (18 + (IERC20Metadata(token0).decimals() - IERC20Metadata(token1).decimals())),
+            10 ** (18 + IERC20Metadata(token0).decimals() - IERC20Metadata(token1).decimals()),
             Math.Rounding.Down
         );
     }

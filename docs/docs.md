@@ -35,20 +35,20 @@ This integration comprises two Elixir smart contracts a singleton (VertexManager
 ## Sequence of Events
 
 ### Deposit Liquidity
-Liquidity for spot and perp pools can be deposited into the VertexManager smart contract by calling the `depositSpot` and `depositPerp` functions respectively. 
+Liquidity for spot and perp pools can be deposited into the VertexManager smart contract by calling the `depositSpot` and `depositPerp` functions, respectively. 
 
-Every spot product is composed of two tokens, the base token and the quote token, which is usually USDC. For this reason, liquidity for a spot product has to be deposited in a balanced way, meaning that the amount of base and quote tokens have to be equal in value. To check this, product prices are fetched from the Vertex Clearinghouse smart contract by calling its `getPriceX18` function, which provides the price in 18 decimals for a given product. Therefore, users must call the `depositSpot` function passing a fixed base token amount and a range of quote token amounts to deposit. The function will then calculate the amount of quote tokens needed to perform a balanced deposit given the amount of base tokens. If this calculated amount of quote tokens is out of the given range, the function will revert due to slippage. On the other hand, the `depositPerp` function must be used to deposit liquidity into perp pools, which doesn't require balanced liquidity.
+Every spot product is composed of two tokens, the base token and the quote token, which is usually USDC. For this reason, liquidity for a spot product has to be deposited in a balanced way, meaning that the amount of base and quote tokens have to be equal in value. To check this, product prices are fetched from the Vertex Clearinghouse smart contract by calling its `getPriceX18` function, which provides the price in 18 decimals for a given product. Therefore, users must call the `depositSpot` function, passing a fixed base token amount and a range of quote token amounts to deposit. The function will then calculate the amount of quote tokens needed to perform a balanced deposit given the base token amount. If this calculated quote token amount is out of the given range, the function will revert due to slippage. On the other hand, the `depositPerp` function must be used to deposit liquidity into perp pools, which doesn't require balanced liquidity.
 
-The only difference between the `depositSpot` and `depositPerp` functions are mainly the input parameters and the security checks, as they execute the same deposit logic by calling the `_deposit` private function.
+The only difference between the `depositSpot` and `depositPerp` functions are the input parameters and the security checks, as they execute the same deposit logic by calling the `_deposit` private function.
 
 The `depositSpot` flow is the following:
 
 1. Check that deposits are not paused.
 2. Check that the reentrancy guard is not active.
 3. Check that the pool given is a spot one.
-4. Check that the tokens given are two and that they are not duplicated.
+4. Check that the tokens given are two and are not duplicated.
 5. Check that the receiver is not a zero address (for the good of the user).
-6. Calculate amount of quote tokens and check for slippage.
+6. Calculate the amount of quote tokens and check for slippage.
 7. Execute the deposit logic.
 
 And the `depositPerp` flow is the following:
@@ -76,9 +76,9 @@ In any case, the flow of the deposit logic is the following:
 > Note: Only tokens with less or equal to 18 decimals are supported due to the nature of the Vertex smart contracts.
 
 ### Withdraw Liquidity
-Due to the nature of Vertex, withdrawing funds requires a two-step process. First, the liquidity has to be withdrawn from Vertex to the pool's VertexRouter smart contract, which has to be approved by the Vertex sequencer, charging a fee of 1 USDC. Second, the liquidity has to "manually" be claimed via the `claim` function on the Elixir VertexManager smart contract, as no Vertex callback is available. Anyone can call this function on behalf of any address, allowing us to monitor pending claims and process them for users. When calling the `claim` function, the VertexManger smart contract will tranasfer the liquidity from the pool's VertexRouter into the VertexManager smart contract, which is then transfered to the user.
+Due to the nature of Vertex, withdrawing funds requires a two-step process. First, the liquidity has to be withdrawn from Vertex to the pool's VertexRouter smart contract, which has to be approved by the Vertex sequencer, charging a fee of 1 USDC. Second, the liquidity has to "manually" be claimed via the `claim` function on the Elixir VertexManager smart contract, as no Vertex callback is available. Anyone can call this function on behalf of any address, allowing us to monitor pending claims and process them for users. When calling the `claim` function, the VertexManger smart contract will transfer the liquidity from the pool's VertexRouter into the VertexManager smart contract, which is then transferred to the user.
 
-Similarly to deposits, withdrawals on a spot product have to be balanced. The VertexManager smart contract provides the `withdrawSpot` function for spot pools, and the `withdrawPerp` function for perp pools. 
+Similarly to deposits, withdrawals on a spot product have to be balanced. The VertexManager smart contract provides the `withdrawSpot` function for spot pools and the `withdrawPerp` function for perp pools. 
 
 The `withdrawSpot` flow is the following:
 
@@ -97,22 +97,22 @@ And the `withdrawPerp` flow is the following:
 3. Check that the pool given is a perp one.
 4. Check that the tokens given are not empty and that the amounts given match the amount of tokens.
 5. Check that the fee index is not bigger than the length of the token array.
-7. Execute the withdraw logic.
+6. Execute the withdraw logic.
 
 In any case, the flow of the `withdraw` function is the following:
 
 1. Get the balance of the pool in Vertex.
-2. Loop over the amounts given to create and send the respective withdraw requests to Vertex.
+2. Loop over the amounts given to create and send the respective withdrawal requests to Vertex.
    - Skip zero amounts if not the token for fee payment.
    - Fetch the token address by using the index of the amount in the amounts array and the array of supported tokens in the pool.
    - Check that the token is supported for this pool.
-   - Calculate how much of the Vertex balance should the user receive based on the given input amount to withdraw (similar to share-based logic).
-   - Substract the amount of tokens given from the user's balance on the pool data. Reverts if the user does not have enough balance.
+   - Calculate how much of the Vertex balance the user should receive based on the given input amount to withdraw (similar to share-based logic).
+   - Subtract the amount of tokens given from the user's balance on the pool data. Reverts if the user does not have enough balance.
    - Check if the loop iteration number matches the fee index, which represents what token to use to pay the Vertex sequencer fee.
     * If they match, the smart contract calculates the token amount equivalent to 1 USDC. 
     * This amount is added to the fee balance of Elixir as it will pay the sequencer fee of 1 USDC on behalf of the user. Elixir is automatically reimbursed with user claims, but it can also reimburse itself by calling the `claim` function on behalf of a user.
-    * The fee amount is then substracted from the calculated token amount to withdraw, and stored as the pending balance for claims afterward.
-   - Build and send the withdraw request to Vertex.
+    * The fee amount is then subtracted from the calculated token amount to withdraw and stored as the pending balance for claims afterward.
+   - Build and send the withdrawal request to Vertex.
 3. Emit the `Withdraw` event.
 
 > Note: It's vital for the VertexManager smart contract to maintain the invariant of: "each pool must have a unique pool" or "two pools cannot share the same router." Otherwise, a pool with a wrong router will lead to loss of funds during withdrawals because of an inflated balance of the pools. By nature of the current logic, it's impossible for the invariant to break, as changing a pool's router is not supported.
@@ -122,7 +122,7 @@ After the Vertex sequencer fulfills a withdrawal request, the funds will be avai
 
 1. Check that claims are not paused.
 2. Check that the reentrancy guard is not active.
-3. Check that the pool is valid (i.e. it exists).
+3. Check that the pool is valid (i.e., it exists).
 4. Check that the tokens given to claim are not empty.
 5. Check that the user given to claim for is not the zero address.
 6. Loop over the list of tokens given.
@@ -133,7 +133,7 @@ After the Vertex sequencer fulfills a withdrawal request, the funds will be avai
    - Transfer the fee amount to the owner (Elixir).
 7. Emit the `Claim` event.
 
-> Note: As pending balances are not stored sequentially, users are able to claim funds in any order as they arrive to the Elixir smart contract. This is expected behaviour and does not affect the user's funds as the Vertex sequencer will continue to fulfill withdraw requests, which can also be manually processed after days of inactivity by the Vertex sequencer.
+> Note: As pending balances are not stored sequentially, users are able to claim funds in any order as they arrive at the VertexRouter smart contract. This is expected behavior and does not affect the user's funds as the Vertex sequencer will continue to fulfill withdrawal requests, which can also be manually processed after days of inactivity by the Vertex sequencer.
 
 ### Reward Distribution (Pending)
 By market-making (creating and filling orders on the Vertex order book), the Elixir validator network earns VRTX rewards. These rewards would be distributed to the users who deposited liquidity on the VertexManager smart contract, depending on the amount and time of their liquidity. Vertex hasn't implemented the functionality to claim rewards yet, but the Elixir smart contract is ready to support it thanks to its upgradeability. Until then, reward balances are stored off-chain and will be synchronized and distributed to users when the Vertex functionality to claim is available.
@@ -145,39 +145,45 @@ Learn more about the VRTX reward mechanism [here](https://vertex-protocol.gitboo
 ### Spot Product
 
 - A user approves the VertexManager smart contract to spend their tokens.
-- User calls `depositBalanced` and passes the following parameters:
+- User calls `depositSpot` and passes the following parameters:
    * `id`: The ID of the pool to deposit to.
-   * `amount0`: The amount of base tokens to deposit.
+   * `tokens`: The list of tokens to deposit.
+   * `amount0`: The amount of base tokens.
    * `amount1Low`: The low limit of the quote amount.
    * `amount1High`: The high limit of the quote amount.
-   * `receiver`: The address to receive the virtual balance of deposited tokens.
-- `depositBalanced` calculates the balanced amount of quote tokens (`amount1`) needed for the deposit given the amount of base tokens (`amount0`). If the calculated amount of quote tokens is out of the given range (`amount1Low` <> `amount1High`), the function reverts due to slippage.
-- The `depositBalanced` function builds the parameters and calls the `deposit` function.
-- The `deposit` function performs a series of check and redirects liquidity to Vertex.
-- The Elixir network of decentralized of validators receive the liquidity and start to market make using it, generating VRTX rewards for the user.
-- After some time, the user (i.e. receiver) calls the `withdrawBalanced` function to withdraw liquidity and passes the following parameters:
+   * `receiver`: The receiver of the virtual LP balance.
+- Calculates the balanced amount of quote tokens (`amount1`) needed for the deposit given the amount of base tokens (`amount0`). If the calculated amount of quote tokens is out of the given range (`amount1Low` <> `amount1High`), the function reverts due to slippage.
+- The function builds the amounts array and executes the deposit logic by calling the `_deposit` function.
+- The `_deposit` redirects liquidity to Vertex and updates the balances.
+- The Elixir network of decentralized validators receives the liquidity and starts to market make using it, generating VRTX rewards for the user.
+- After some time, the user (i.e., receiver) calls the `withdrawSpot` function to withdraw liquidity and passes the following parameters:
    * `id`: The ID of the pool to withdraw from.
+   * `tokens`: The list of tokens to withdraw.
    * `amount0`: The amount of base tokens to withdraw.
    * `feeIndex`: As explained in the withdraw section, this represents what token to use to pay the Vertex sequencer fee, reimbursing Elixir.
-- This function performs the same balance calculation as in the `depositBalanced` function and call the `withdraw` function.
-- The `withdraw` function performs a series of check and sends the withdraw requests to Vertex.
-- After the Vertex sequencer fulfills some withdraw requests and funds are available on the VertexManager contract, the user can call the `claim` function to claim their funds. Note that this step will most likely be performed by us (or any other third-party) on behalf of the user.
+- This function performs checks and calls the `_withdraw` function to execute the withdraw logic.
+- The `_withdraw` sends the withdrawal requests to Vertex.
+- After the Vertex sequencer fulfills some withdrawal requests and funds are available on the VertexManager contract, the user can call the `claim` function to claim their funds. Note that this step will most likely be performed by us (or any other third party) on behalf of the user.
 
 ### Perpetual Product
 
 - A user approves the VertexManager smart contract to spend their tokens.
-- User calls `deposit` and passes the following parameters:
+- User calls `depositPerp` and passes the following parameters:
    * `id`: The ID of the pool to deposit to.
-   * `amounts`: The amount of tokens to deposit as an array. Each amount has to be in the same order as the supported tokens in the pool.
-   * `receiver`: The address to receive the virtual balance of deposited tokens.
-- The `deposit` function performs a series of check and redirects liquidity to Vertex.
-- The Elixir network of decentralized of validators receive the liquidity and start to market make using it, generating VRTX rewards for the user.
-- After some time, the user (i.e. receiver) calls the `withdraw` function to withdraw liquidity and passes the following parameters:
+   * `tokens`: The list of tokens to deposit.
+   * `amounts`: The list of token amounts to deposit.
+   * `receiver`: The receiver of the virtual LP balance.
+- The `depositPerp` function performs a series of checks and executes the deposit logic by calling the `_deposit` function.
+- The `_deposit` redirects liquidity to Vertex and updates the balances.
+- The Elixir network of decentralized validators receives the liquidity and starts to market make using it, generating VRTX rewards for the user.
+- After some time, the user (i.e., receiver) calls the `withdrawPerp` function to withdraw liquidity and passes the following parameters:
    * `id`: The ID of the pool to withdraw from.
-   * `amounts`: The amount of tokens to withdraw as an array. Each amount has to be in the same order as the supported tokens in the pool.
+   * `tokens`: The list of tokens to withdraw.
+   * `amounts`: The list of token amounts to withdraw.
    * `feeIndex`: As explained in the withdraw section, this represents what token to use to pay the Vertex sequencer fee, reimbursing Elixir.
-- The `withdraw` function performs a series of check and sends the withdraw requests to Vertex.
-- After the Vertex sequencer fulfills some withdraw requests and funds are available on the VertexManager contract, the user can call the `claim` function to claim their funds. Note that this step will most likely be performed by us (or any other third-party) on behalf of the user.
+- This function performs checks and calls the `_withdraw` function to execute the withdraw logic.
+- The `_withdraw` sends the withdrawal requests to Vertex.
+- After the Vertex sequencer fulfills some withdrawal requests and funds are available on the VertexManager contract, the user can call the `claim` function to claim their funds. Note that this step will most likely be performed by us (or any other third party) on behalf of the user.
 
 ## Incident Response & Monitoring
 
@@ -190,15 +196,15 @@ The Elixir team is planning to protect the smart contracts with Chainalysis Inci
 - Chainalysis has a huge customer base and, with it, a sizable network with personal connections to almost all significant exchanges and services in the crypto space. Also, their strong relationship with Law Enforcement Agencies around the world makes them very efficient in engaging the relevant entities when needed.
 - In over 80% of all cases where an incident has occurred, Chainalysis investigators have been able to give our customers valuable information that leads to recovery of more than what their CIR fee was.
 
-## Aspects
+## General Aspects
 
-### Arithmetic
+### Oracle
 
-The codebase does not rely on complex arithmetic. Most of the arithmetic-related complexity is located in the `getBalancedAmount` and `getWithdrawFee` functions. However, fuzzing and invariant tests are applied to check for expected results and increase confidence in the arithmetic operations.
+The VertexManager smart contract relies on Vertex as an oracle to get the price of assets to perform certain calculations such as fee calculations or amount of assets in balanced deposits. The prices are not used for any critical aspect of the protocol functionality.
 
-### Auditing
+### Vertex Integration
 
-Throughout the codebase, events are emitted to maximize transparency and allow us or third-parties to monitor the smart contract. All state-modifying functions emit events with the necessary data. Additionally, the incident response and monitoring section explains how we monitor the smart contract and respond to incidents.
+The `getVertexBalance` function is a key function for the operation of the Elixir pools. It is responsible for accurately calculating the pool's current balance in Vertex so that users' withdrawals are performed correctly. If there are any rare trading losses when market making, this function allows to adjust the withdrawal amounts by using the balances as shares of the Vertex balance. Because Vertex does not offer an updated state of an account when there are transactions affecting them inside the sequencer queue, the protocol works around this by querying the Vertex queue and calculating the updated balance itself. Specifically, it only checks for deposit and withdrawal transactions from the given VertexRouter, the only type of transaction that changes the Vertex balance and can be executed by the VertexManager.
 
 ### Authentication / Access Control
 
@@ -209,28 +215,4 @@ Appropiate access controls are in place for all priviliged operations. The only 
 - `addPoolTokens`: Adds a new token to a pool.
 - `updatePoolHardcaps`: Update the hardcaps of a pool. Used to limit and manage market making activity on Vertex for scaling purposes. An alternative to pausing deposits too.
 - `updateToken`: Update the Vertex product ID of a token address. Used when new tokens are supported on Vertex products.
-- `updateSlowModeFee`: Update the slow mode fee in case the Vertex sequencer fee changes. Denominated on the `paymentToken`.
-
-### Complexity Management
-
-The codebase is broken down into appropriate components, and the logic is straightforward to understand relative to what the code does. The code is overall well documented through NatSpec comments and in-line comments. The codebase also contains a single, smart contract with a singleton architecture approach, minimizing complexity compared to a factory-based approach.
-
-### Decentralization
-
-Privileged operations go through a 4/5 multi-signature wallet composed of active core members of the Elixir team. Due to this, emergencies and operations can be addressed quickly and safely. There are plans to decentralize the owner role by building a smart contract on top of the VertexManager to support different roles for each type of operation and task, which can be further improved with a DAO governance structure -- in this case, the owner role would be transferred from the multi-sig to this role-based smart contract.
-
-### Documentation
-
-Thorough user and developer documentation can be found in this document and throughout the codebase. Information like diagrams, formulas, system parameters, privileged roles, and more can also be found here.
-
-### Front-running Resistance
-
-The Arbitrum network provides strong MEV and front-running protection, yet the smart contract is equipped with a series of protective measures against such types of attacks. The initialization of the smart contract is executed in robust deployment scripts that protect against front-running. Additionally, as explained in previous sections, the smart contract provides a completely flexible approach to pending balances, allowing users to claim their funds in any order as they arrive at the smart contract. For balanced deposits, slippage protection is also in place.
-
-### Low-level manipulation
-
-The codebase does not include any in-line assembly or dangerous low-level calls. Moreover, supported tokens must be ERC20-compliant.
-
-### Testing and Verification
-
-The protocol benefits from in-depth Foundry-based testing of arithmetic operations and functions through fuzzing, and invariant testing. Real-world end-to-end testing was also conducted in the Arbitrum Goerli testnet over several weeks. Tools like OpenZeppelin Code App, Slither, and Echidna were used to analyze and test the codebase.
+- `updateSlowModeFee`: Update the slow mode fee in case the Vertex sequencer fee changes. Denominated on the `paymentToken`. It's capped to a maximum fee of 100 USDC.

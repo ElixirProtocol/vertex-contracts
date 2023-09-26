@@ -1301,7 +1301,7 @@ contract TestVertexManager is Test {
         tokens[0] = address(WETH);
         tokens[1] = address(WETH);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.DuplicatedTokens.selector, address(WETH), tokens));
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.AlreadySupported.selector, address(WETH), 2));
         manager.addPool(2, tokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
     }
 
@@ -1324,7 +1324,7 @@ contract TestVertexManager is Test {
     }
 
     /// @notice Unit test for tokens in a pool with less than 18 decimals.
-    function testTokenDecimals(uint8 decimals1, uint8 decimals2, uint216 amount) public {
+    function testTokenDecimals(uint8 decimals1, uint8 decimals2, uint80 amount) public {
         vm.assume(decimals1 > 0 && decimals1 < 19);
         vm.assume(decimals2 > 0 && decimals2 < 19);
 

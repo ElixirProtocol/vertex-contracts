@@ -166,6 +166,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param array The array input.
     error DuplicatedTokens(address token, address[] array);
 
+    /// @notice Emitted when the token to support is already supported.
+    /// @param token The token input.
+    /// @param id The ID of the pool.
+    error AlreadySupported(address token, uint256 id);
+
     /// @notice Emitted when the fee index is not within the tokens array.
     /// @param index The index input.
     /// @param array The array input.
@@ -797,13 +802,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Check that the pool doesn't exist.
         if (pools[id].router != address(0)) revert InvalidPool(id);
 
-        // Check that the tokens are not duplicated.
-        for (uint256 i = 0; i < tokens.length; i++) {
-            for (uint256 j = i + 1; j < tokens.length; j++) {
-                if (tokens[i] == tokens[j]) revert DuplicatedTokens(tokens[i], tokens);
-            }
-        }
-
         // Deploy a new router contract.
         VertexRouter router = new VertexRouter(address(endpoint), externalAccount);
 
@@ -848,11 +846,15 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             // Fetch the token data storage within the pool.
             Token storage tokenData = pools[id].tokens[token];
 
+            // Check if the token is already supported, and enable if not.
+            if (!tokenData.isActive) {
+                tokenData.isActive = true;
+            } else {
+                revert AlreadySupported(token, id);
+            }
+
             // Add the hardcap to the token data.
             tokenData.hardcap = hardcaps[i];
-
-            // Enable the token support.
-            tokenData.isActive = true;
 
             // Make router approve tokens to Vertex endpoint.
             router.makeApproval(token);

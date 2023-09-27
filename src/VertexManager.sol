@@ -63,8 +63,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice The pending balance of users.
     mapping(address user => mapping(address token => uint256 balance)) public pendingBalances;
 
-    /// @notice The Vertex product ID of token addresses.
+    /// @notice The Vertex product IDs of token addresses.
     mapping(address token => uint32 id) public tokenToProduct;
+
+    /// @notice The token addresses of Vertex product IDs.
+    mapping(uint32 id => address token) public productToToken;
 
     /// @notice Helper mappings for Vertex balances.
     mapping(uint32 id => uint256 balance) private _tokenBalances;
@@ -380,6 +383,13 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Check that the length of the tokens and amounts arrays match.
         if (tokens.length != amounts.length) revert MismatchInputs(amounts, tokens);
 
+        // Check that the tokens are not duplicated.
+        for (uint256 i = 0; i < tokens.length; i++) {
+            for (uint256 j = i + 1; j < tokens.length; j++) {
+                if (tokens[i] == tokens[j]) revert DuplicatedTokens(tokens[i], tokens);
+            }
+        }
+
         // Check that the feeIndex is within the tokens array.
         if (feeIndex > tokens.length) revert InvalidFeeIndex(feeIndex, tokens);
 
@@ -548,7 +558,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         VertexRouter router = VertexRouter(pool.router);
 
         // Get the Vertex balances.
-        uint256[] memory balances = getVertexBalances(router, tokens);
+        uint256[] memory balances = getUpdatedVertexBalances(router, getCurrentVertexBalances(router, tokens), tokens);
 
         // Loop over amounts and send withdraw requests to Vertex.
         for (uint256 i = 0; i < amounts.length; i++) {
@@ -645,11 +655,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         return pools[id].tokens[token].userActiveAmount[user];
     }
 
-    /// @notice Returns the pool balance of a product on Vertex.
+    /// @notice Fetches the current Vertex balances of a pool.
     /// @param router The router of the pool.
-    /// @param tokens The tokens to fetch the balance of.
-    function getVertexBalances(VertexRouter router, address[] calldata tokens)
+    /// @param tokens The tokens to fetch the balances of.
+    function getCurrentVertexBalances(VertexRouter router, address[] memory tokens)
         public
+        view
         returns (uint256[] memory balances)
     {
         // Set the balances length.
@@ -672,10 +683,19 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             uint256 decimals = 10 ** (18 - IERC20Metadata(token).decimals());
 
             // Convert back to native decimals. Round up if the token has less than 18 decimals.
-            _tokenBalances[productId] =
-                decimals == 1 ? uint256(balance.amount) : uint256(balance.amount).ceilDiv(decimals);
+            balances[i] = decimals == 1 ? uint256(balance.amount) : uint256(balance.amount).ceilDiv(decimals);
         }
+    }
 
+    /// @notice Fetches the updated Vertex balance of a pool.
+    /// @param router The router of the pool.
+    /// @param balances The balances to update.
+    /// @param tokens The tokens to get the updated balances of.
+    function getUpdatedVertexBalances(VertexRouter router, uint256[] memory balances, address[] memory tokens)
+        public
+        view
+        returns (uint256[] memory)
+    {
         // Substract or add pending balance changes in Vertex sequencer queue.
         IEndpoint.SlowModeConfig memory queue = endpoint.slowModeConfig();
 
@@ -696,31 +716,37 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                 IEndpoint.WithdrawCollateral memory withdrawPayload =
                     abi.decode(payload, (IEndpoint.WithdrawCollateral));
 
-                // Substract the amount from the token balance.
-                _tokenBalances[withdrawPayload.productId] -= withdrawPayload.amount;
+                // Get the token address from the product ID.
+                address token = productToToken[withdrawPayload.productId];
+
+                // Substract from balance if this is a token the user wants to withdraw.
+                for (uint256 j = 0; j < tokens.length; j++) {
+                    // Break the loop when the token is found.
+                    if (token == tokens[j]) {
+                        balances[j] -= withdrawPayload.amount;
+                        break;
+                    }
+                }
             }
             // If the transaction is a deposit, add the amount to the balance.
             else if (txType == uint8(IEndpoint.TransactionType.DepositCollateral)) {
                 // Decode the deposit payload.
                 IEndpoint.DepositCollateral memory depositPayload = abi.decode(payload, (IEndpoint.DepositCollateral));
 
-                // Add the amount to the token balance.
-                _tokenBalances[depositPayload.productId] += depositPayload.amount;
+                // Get the token address from the product ID.
+                address token = productToToken[depositPayload.productId];
+
+                // Add to balance if this is a token the user wants to deposit.
+                for (uint256 j = 0; j < tokens.length; j++) {
+                    // Break the loop when the token is found.
+                    if (token == tokens[j]) {
+                        balances[j] += depositPayload.amount;
+                        break;
+                    }
+                }
             } else {
                 continue;
             }
-        }
-
-        // Convert the balances mapping to an array.
-        for (uint256 i = 0; i < tokens.length; i++) {
-            // Get the token Vertex product ID.
-            uint32 productId = tokenToProduct[tokens[i]];
-
-            // Add balance to array index.
-            balances[i] = _tokenBalances[productId];
-
-            // Delete the balances mapping.
-            delete _tokenBalances[productId];
         }
 
         return balances;
@@ -886,8 +912,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param token The token to update.
     /// @param productId The new Vertex product ID to represent this token.
     function updateToken(address token, uint32 productId) external onlyOwner {
-        // Update the token to product ID mapping.
+        // Update the token to product ID and opposite direction mapping.
         tokenToProduct[token] = productId;
+        productToToken[productId] = token;
 
         emit TokenUpdated(token, productId);
     }

@@ -12,6 +12,14 @@ contract MockClearinghouse {
         return quoteToken;
     }
 
+    function getOraclePriceX18(uint32 productId) external pure returns (uint256) {
+        if (productId == 1) {
+            return 27_000 * 10 ** 18;
+        } else {
+            return 0;
+        }
+    }
+
     // Exclude from coverage report
     function test() public {}
 }

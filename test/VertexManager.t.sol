@@ -1459,7 +1459,7 @@ contract TestVertexManager is Test {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Unit test for getting the withdraw fee of an invalid token.
-    function testFailGetWithdrawFee() public {
+    function testFailGetWithdrawFee() public view {
         manager.getWithdrawFee(address(0xdead));
     }
 
@@ -1499,11 +1499,10 @@ contract TestVertexManager is Test {
         spotDepositSetUp();
         perpDepositSetUp();
 
-        uint256[] memory amounts = new uint256[](1);
+        uint256[] memory amounts = new uint256[](3);
         amounts[0] = amountBTC;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(BTC);
+        amounts[1] = 0;
+        amounts[2] = 0;
 
         IEndpoint.DepositCollateral memory depositPayload =
             IEndpoint.DepositCollateral(bytes32(abi.encodePacked(address(this), bytes12(0))), 1, uint128(amountBTC));
@@ -1519,30 +1518,51 @@ contract TestVertexManager is Test {
         // Get the router address.
         (address router,,,) = manager.getPoolToken(2, address(BTC));
 
-        uint256[] memory vertexBalances = manager.getVertexBalances(VertexRouter(router), perpTokens);
+        uint256[] memory currentVertexBalances = manager.getCurrentVertexBalances(VertexRouter(router), perpTokens);
+        uint256[] memory updatedVertexBalances =
+            manager.getUpdatedVertexBalances(VertexRouter(router), currentVertexBalances, perpTokens);
 
-        // Vertex balance should be 0 as there is no deposit through the VertexManager.
-        assertEq(vertexBalances[0], 0);
-        assertEq(vertexBalances[1], 0);
-        assertEq(vertexBalances[2], 0);
+        // Current vertex balance should be 0 as there is not deposit through the VertexManager and not processed by Vertex on queue.
+        assertEq(currentVertexBalances[0], 0);
+        assertEq(currentVertexBalances[1], 0);
+        assertEq(currentVertexBalances[2], 0);
 
-        manager.depositPerp(2, tokens, amounts, address(this));
+        // Updated vertex balance should be 0 as there is no deposit through the VertexManager.
+        assertEq(updatedVertexBalances[0], 0);
+        assertEq(updatedVertexBalances[1], 0);
+        assertEq(updatedVertexBalances[2], 0);
 
-        vertexBalances = manager.getVertexBalances(VertexRouter(router), perpTokens);
+        manager.depositPerp(2, perpTokens, amounts, address(this));
+
+        currentVertexBalances = manager.getCurrentVertexBalances(VertexRouter(router), perpTokens);
+        updatedVertexBalances =
+            manager.getUpdatedVertexBalances(VertexRouter(router), currentVertexBalances, perpTokens);
+
+        // Current vertex balance should be 0 as the deposit hasn't been processed by Vertex on queue.
+        assertEq(currentVertexBalances[0], 0);
+        assertEq(currentVertexBalances[1], 0);
+        assertEq(currentVertexBalances[2], 0);
 
         // Vertex balance should be equal to the BTC deposit (and other tokens equal to 0).
-        assertEq(vertexBalances[0], amountBTC);
-        assertEq(vertexBalances[1], 0);
-        assertEq(vertexBalances[2], 0);
+        assertEq(updatedVertexBalances[0], amountBTC);
+        assertEq(updatedVertexBalances[1], 0);
+        assertEq(updatedVertexBalances[2], 0);
 
-        manager.withdrawPerp(2, tokens, amounts, 0);
+        manager.withdrawPerp(2, perpTokens, amounts, 0);
 
-        vertexBalances = manager.getVertexBalances(VertexRouter(router), perpTokens);
+        currentVertexBalances = manager.getCurrentVertexBalances(VertexRouter(router), perpTokens);
+        updatedVertexBalances =
+            manager.getUpdatedVertexBalances(VertexRouter(router), currentVertexBalances, perpTokens);
 
-        // Vertex balances should be 0 after withdrawal.
-        assertEq(vertexBalances[0], 0);
-        assertEq(vertexBalances[1], 0);
-        assertEq(vertexBalances[2], 0);
+        // Current vertex balance should be 0 as the deposit and withdraw haven't been processed by Vertex on queue.
+        assertEq(currentVertexBalances[0], 0);
+        assertEq(currentVertexBalances[1], 0);
+        assertEq(currentVertexBalances[2], 0);
+
+        // Vertex balance should be equal to the 0 as the deposit and withdraw counter each other.
+        assertEq(updatedVertexBalances[0], 0);
+        assertEq(updatedVertexBalances[1], 0);
+        assertEq(updatedVertexBalances[2], 0);
     }
 
     /// @notice Unit test for getting a withdraw amount.

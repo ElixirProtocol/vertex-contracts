@@ -83,17 +83,14 @@ contract TestVertexManagerInvariants is Test {
         // Deploy Manager implementation
         vertexManagerImplementation = new VertexManager();
 
-        // Deploy proxy contract and point it to implementation
-        proxy = new ERC1967Proxy(address(vertexManagerImplementation), "");
+        // Deploy and initialize the proxy contract.
+        proxy = new ERC1967Proxy(address(vertexManagerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
 
         // Wrap in ABI to support easier calls
         manager = VertexManager(address(proxy));
 
         // Wrap into the handler.
         handler = new Handler(manager, spotTokens, perpTokens);
-
-        // Set the endpoint and external account of the contract.
-        manager.initialize(address(endpoint), 1000000);
 
         // Approve the manager to move USDC for fee payments.
         USDC.approve(address(manager), type(uint256).max);
@@ -233,19 +230,8 @@ contract TestVertexManagerInvariants is Test {
         assertGe(sumOfDepositsWETH, sumOfWithdrawsWETH);
     }
 
-    // The sum of the pending balances must always be less than the sum of ghost withdrawals due to fees.
-    function invariant_pendingBalances() public {
-        uint256 sumOfPendingBalancesBTC = handler.reduceActors(0, this.accumulatePendingBalanceBTC);
-        uint256 sumOfPendingBalancesUSDC = handler.reduceActors(0, this.accumulatePendingBalanceUSDC);
-        uint256 sumOfPendingBalancesWETH = handler.reduceActors(0, this.accumulatePendingBalanceWETH);
-
-        assertLe(sumOfPendingBalancesBTC, handler.ghost_withdraws(address(BTC)));
-        assertLe(sumOfPendingBalancesUSDC, handler.ghost_withdraws(address(USDC)));
-        assertLe(sumOfPendingBalancesWETH, handler.ghost_withdraws(address(WETH)));
-    }
-
-    // The sum of the claims must always be equal to the sum of the pending balances.
-    function invariant_claims() public {
+    // The sum of ghost withdrawals must be equal to the sum of pending balances, claims and ghost fees.
+    function invariant_withdrawBalances() public {
         uint256 sumOfClaimsBTC = handler.ghost_claims(address(BTC));
         uint256 sumOfClaimsUSDC = handler.ghost_claims(address(USDC));
         uint256 sumOfClaimsWETH = handler.ghost_claims(address(WETH));
@@ -254,9 +240,9 @@ contract TestVertexManagerInvariants is Test {
         uint256 sumOfPendingBalancesUSDC = handler.reduceActors(0, this.accumulatePendingBalanceUSDC);
         uint256 sumOfPendingBalancesWETH = handler.reduceActors(0, this.accumulatePendingBalanceWETH);
 
-        assertLe(sumOfClaimsBTC, sumOfPendingBalancesBTC);
-        assertLe(sumOfClaimsUSDC, sumOfPendingBalancesUSDC);
-        assertLe(sumOfClaimsWETH, sumOfPendingBalancesWETH);
+        assertEq(handler.ghost_withdraws(address(BTC)), sumOfPendingBalancesBTC + sumOfClaimsBTC + handler.ghost_fees(address(BTC)));
+        assertEq(handler.ghost_withdraws(address(USDC)), sumOfPendingBalancesUSDC + sumOfClaimsUSDC + handler.ghost_fees(address(USDC)));
+        assertEq(handler.ghost_withdraws(address(WETH)), sumOfPendingBalancesWETH + sumOfClaimsWETH + handler.ghost_fees(address(WETH)));
     }
 
     // Two pools cannot share the same router. Each pool must have a unique and constant router for all tokens supported by it.

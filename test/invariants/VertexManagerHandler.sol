@@ -234,11 +234,15 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         simulate(2, perpTokens, currentActor);
 
+        uint256 beforeBTC = BTC.balanceOf(currentActor);
+        uint256 beforeUSDC = USDC.balanceOf(currentActor);
+        uint256 beforeWETH = WETH.balanceOf(currentActor);
+
         manager.claim(currentActor, perpTokens, 2);
 
-        uint256 receivedBTC = BTC.balanceOf(currentActor);
-        uint256 receivedUSDC = USDC.balanceOf(currentActor);
-        uint256 receivedWETH = WETH.balanceOf(currentActor);
+        uint256 receivedBTC = BTC.balanceOf(currentActor) - beforeBTC;
+        uint256 receivedUSDC = USDC.balanceOf(currentActor) - beforeUSDC;
+        uint256 receivedWETH = WETH.balanceOf(currentActor) - beforeWETH;
 
         _pay(address(this), BTC, receivedBTC);
         _pay(address(this), USDC, receivedUSDC);
@@ -257,10 +261,13 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         simulate(1, spotTokens, currentActor);
 
+        uint256 beforeBTC = BTC.balanceOf(currentActor);
+        uint256 beforeUSDC = USDC.balanceOf(currentActor);
+
         manager.claim(currentActor, spotTokens, 1);
 
-        uint256 receivedBTC = BTC.balanceOf(currentActor);
-        uint256 receivedUSDC = USDC.balanceOf(currentActor);
+        uint256 receivedBTC = BTC.balanceOf(currentActor) - beforeBTC;
+        uint256 receivedUSDC = USDC.balanceOf(currentActor) - beforeUSDC;
 
         _pay(address(this), BTC, receivedBTC);
         _pay(address(this), USDC, receivedUSDC);

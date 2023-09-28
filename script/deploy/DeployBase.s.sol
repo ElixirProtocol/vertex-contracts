@@ -35,22 +35,12 @@ abstract contract DeployBase is Script {
         // Deploy Factory implementation.
         managerImplementation = new VertexManager();
 
-        // Deploy proxy contract and point it to implementation.
-        proxy = new ERC1967Proxy(address(managerImplementation), "");
+        // Deploy and initialize the proxy contract.
+        proxy =
+        new ERC1967Proxy(address(managerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
 
         // Wrap in ABI to support easier calls.
         manager = VertexManager(address(proxy));
-
-        (bool success,) =
-            address(feeToken).call(abi.encodeWithSignature("mint(address,uint256)", vm.addr(deployerKey), 20000000000));
-        require(success);
-
-        (success,) = address(feeToken).call(
-            abi.encodeWithSignature("approve(address,uint256)", address(manager), type(uint256).max)
-        );
-        require(success);
-
-        manager.initialize(address(endpoint), 1000000);
 
         vm.stopBroadcast();
     }

@@ -104,8 +104,9 @@ contract TestVertexManager is Test {
         // Deploy Manager implementation
         vertexManagerImplementation = new VertexManager();
 
-        // Deploy proxy contract and point it to implementation
-        proxy = new ERC1967Proxy(address(vertexManagerImplementation), "");
+        // Deploy and initialize the proxy contract.
+        proxy =
+        new ERC1967Proxy(address(vertexManagerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
 
         // Wrap in ABI to support easier calls
         manager = VertexManager(address(proxy));
@@ -115,9 +116,6 @@ contract TestVertexManager is Test {
 
         // Deal payment token to the owner, which pays for the slow mode transactions of the pools.
         deal(address(paymentToken), owner, type(uint256).max);
-
-        // Set the endpoint and external account of the contract.
-        manager.initialize(address(endpoint), 1000000);
 
         vm.stopPrank();
 
@@ -1427,11 +1425,8 @@ contract TestVertexManager is Test {
 
     /// @notice Unit test for initializing the proxy.
     function testInitialize() public {
-        // Deploy proxy contract and point it to implementation
-        ERC1967Proxy tempProxy = new ERC1967Proxy(address(vertexManagerImplementation), "");
-        VertexManager tempVertexManager = VertexManager(address(tempProxy));
-
-        tempVertexManager.initialize(address(endpoint), 1000000);
+        // Deploy and initialize the proxy contract.
+        new ERC1967Proxy(address(vertexManagerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
     }
 
     /// @notice Unit test for failing to initialize the proxy twice.
@@ -1439,14 +1434,14 @@ contract TestVertexManager is Test {
         manager.initialize(address(0), 0);
     }
 
-    /// @notice Unit test for upgrading the proxy.
-    function testAuthorizedUpgrade() public {
+    /// @notice Unit test for upgrading the proxy and running a spot single unit test.
+    function testUpgradeProxy() public {
         vm.startPrank(owner);
 
-        // Deploy 2nd implementation
-        VertexManager vertexManager2 = new VertexManager();
+        // Deploy another implementation and upgrade proxy to it.
+        manager.upgradeTo(address(new VertexManager()));
 
-        manager.upgradeTo(address(vertexManager2));
+        testSpotSingle(100 * 10 ** 8);
     }
 
     /// @notice Unit test for failing to upgrade the proxy.

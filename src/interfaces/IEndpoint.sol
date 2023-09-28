@@ -65,9 +65,6 @@ interface IEndpoint {
     /// @notice Submits a slow-mode transaction to Vertex.
     function submitSlowModeTransaction(bytes calldata transaction) external;
 
-    /// @notice Gets the price of a product.
-    function getPriceX18(uint32 productId) external view returns (uint256);
-
     /// @notice Returns a slow-mode transaction.
     function slowModeTxs(uint64 txId) external view returns (uint64 executableAt, address sender, bytes calldata tx);
 }

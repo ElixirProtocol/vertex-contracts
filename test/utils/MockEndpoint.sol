@@ -13,8 +13,8 @@ contract MockEndpoint {
 
     mapping(uint32 => MockToken) public tokens;
 
-    constructor(address quoteToken, MockToken _BTC, MockToken _USDC, MockToken _WETH) {
-        clearingHouse = new MockClearinghouse(quoteToken);
+    constructor(MockToken _BTC, MockToken _USDC, MockToken _WETH) {
+        clearingHouse = new MockClearinghouse(address(BTC), address(USDC), address(WETH));
         BTC = _BTC;
         USDC = _USDC;
         WETH = _WETH;
@@ -34,14 +34,6 @@ contract MockEndpoint {
             IEndpoint.DepositCollateral memory txn = abi.decode(transaction[1:], (IEndpoint.DepositCollateral));
             tokens[txn.productId].transferFrom(address(uint160(bytes20(txn.sender))), address(this), txn.amount);
         } else {}
-    }
-
-    function getPriceX18(uint32 productId) external pure returns (uint256) {
-        if (productId == 1) {
-            return 27_000 * 10 ** 18;
-        } else {
-            return 0;
-        }
     }
 
     function slowModeFees() external pure returns (uint256) {

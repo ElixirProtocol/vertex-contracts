@@ -7,4 +7,7 @@ interface IClearinghouse {
 
     /// @notice Retrieve the engine of a product.
     function getEngineByProduct(uint32 productId) external view returns (address);
+
+    /// @notice Gets the price of a product.
+    function getOraclePriceX18(uint32 productId) external view returns (uint256);
 }

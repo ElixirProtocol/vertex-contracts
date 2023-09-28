@@ -3,6 +3,7 @@ pragma solidity 0.8.18;
 
 import "forge-std/Script.sol";
 import {DeployBase} from "./DeployBase.s.sol";
+import {VertexManager} from "../../src/VertexManager.sol";
 
 contract DeployGoerli is DeployBase {
     // Arbitrum Goerli addresses
@@ -41,7 +42,7 @@ contract DeployGoerli is DeployBase {
         hardcaps[0] = type(uint256).max;
         hardcaps[1] = type(uint256).max;
 
-        manager.addPool(1, externalAccount, tokens, hardcaps);
+        manager.addPool(1, tokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
 
         // Create BTC perp pool with BTC, USDC and ETH as tokens.
         tokens = new address[](3);
@@ -54,7 +55,7 @@ contract DeployGoerli is DeployBase {
         hardcaps[1] = type(uint256).max;
         hardcaps[2] = type(uint256).max;
 
-        manager.addPool(2, externalAccount, tokens, hardcaps);
+        manager.addPool(2, tokens, hardcaps, VertexManager.PoolType.Spot, externalAccount);
 
         vm.stopBroadcast();
     }

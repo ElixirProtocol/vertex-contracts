@@ -27,5 +27,5 @@ jobs:
         id: build
 
       - name: Run tests
-        run: forge test -v
+        run: FOUNDRY_PROFILE="deep" forge test -v
         id: test

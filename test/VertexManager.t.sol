@@ -91,7 +91,7 @@ contract TestVertexManager is Test {
         externalAccount = users[3];
         vm.label(externalAccount, "External Account");
 
-        networkFork = vm.createFork(networkRpcUrl);
+        networkFork = vm.createFork(networkRpcUrl, 135327062);
 
         vm.selectFork(networkFork);
 
@@ -113,7 +113,7 @@ contract TestVertexManager is Test {
         // Approve the manager to move USDC for fee payments.
         paymentToken.approve(address(manager), type(uint256).max);
 
-        // Deal payment token to the factory, which pays for the slow mode transactions of all the vaults.
+        // Deal payment token to the owner, which pays for the slow mode transactions of the pools.
         deal(address(paymentToken), owner, type(uint256).max);
 
         // Set the endpoint and external account of the contract.

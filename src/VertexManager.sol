@@ -293,6 +293,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         external
         whenDepositNotPaused
         nonReentrant
+        returns (uint256[] memory)
     {
         // Fetch the pool data.
         Pool storage pool = pools[id];
@@ -311,6 +312,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // Execute the deposit logic.
         _deposit(id, pool, tokens, amounts, receiver);
+
+        return amounts;
     }
 
     /// @notice Deposits tokens into a spot pool to market make on Vertex.
@@ -327,7 +330,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         uint256 amount1Low,
         uint256 amount1High,
         address receiver
-    ) external whenDepositNotPaused nonReentrant {
+    ) external whenDepositNotPaused nonReentrant returns (uint256[] memory) {
         // Fetch the pool data.
         Pool storage pool = pools[id];
 
@@ -358,6 +361,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // Execute the deposit logic.
         _deposit(id, pool, tokens, amounts, receiver);
+
+        return amounts;
     }
 
     /// @notice Withdraws tokens from a perp pool.

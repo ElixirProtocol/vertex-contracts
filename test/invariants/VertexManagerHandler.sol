@@ -22,13 +22,14 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     VertexManager public manager;
 
     // Tokens
-    MockToken public BTC;
-    MockToken public USDC;
-    MockToken public WETH;
+    IERC20Metadata public BTC;
+    IERC20Metadata public USDC;
+    IERC20Metadata public WETH;
 
     // Ghost balances
     mapping(address => uint256) public ghost_deposits;
     mapping(address => uint256) public ghost_withdraws;
+    mapping(address => uint256) public ghost_fees;
     mapping(address => uint256) public ghost_claims;
 
     // Current actor
@@ -40,6 +41,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     // Spot tokens
     address[] public spotTokens;
 
+    // Perp tokens
+    address[] public perpTokens;
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -50,29 +54,63 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         _;
     }
 
+    modifier useActor(uint256 actorIndexSeed) {
+        currentActor = _actors.rand(actorIndexSeed);
+        _;
+    }
+
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(VertexManager _manager, MockToken _BTC, MockToken _USDC, MockToken _WETH) {
+    constructor(VertexManager _manager, address[] memory _spotTokens, address[] memory _perpTokens) {
         manager = _manager;
-        BTC = _BTC;
-        USDC = _USDC;
-        WETH = _WETH;
+        BTC = IERC20Metadata(_perpTokens[0]);
+        USDC = IERC20Metadata(_perpTokens[1]);
+        WETH = IERC20Metadata(_perpTokens[2]);
 
-        spotTokens = new address[](2);
-        spotTokens[0] = address(BTC);
-        spotTokens[1] = address(USDC);
+        spotTokens = _spotTokens;
+        perpTokens = _perpTokens;
     }
 
     /*//////////////////////////////////////////////////////////////
                                 FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function deposit(uint256 amountBTC) public createActor {
+    function depositPerp(uint256 amountBTC, uint256 amountUSDC, uint256 amountWETH) public createActor {
+        amountBTC = bound(amountBTC, 0, BTC.balanceOf(address(this)));
+        amountUSDC = bound(amountUSDC, 0, USDC.balanceOf(address(this)));
+        amountWETH = bound(amountWETH, 0, WETH.balanceOf(address(this)));
+
+        _pay(currentActor, BTC, amountBTC);
+        _pay(currentActor, USDC, amountUSDC);
+        _pay(currentActor, WETH, amountWETH);
+
+        vm.startPrank(currentActor);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+        WETH.approve(address(manager), amountWETH);
+
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+        amounts[2] = amountWETH;
+
+        manager.depositPerp(2, perpTokens, amounts, currentActor);
+
+        vm.stopPrank();
+
+        ghost_deposits[address(BTC)] += amountBTC;
+        ghost_deposits[address(USDC)] += amountUSDC;
+        ghost_deposits[address(WETH)] += amountWETH;
+    }
+
+    function depositSpot(uint256 amountBTC) public createActor {
         amountBTC = bound(amountBTC, 0, BTC.balanceOf(address(this)));
 
         uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+        if (amountUSDC > USDC.balanceOf(address(this))) return;
 
         _pay(currentActor, BTC, amountBTC);
         _pay(currentActor, USDC, amountUSDC);
@@ -82,11 +120,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         BTC.approve(address(manager), amountBTC);
         USDC.approve(address(manager), amountUSDC);
 
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = amountBTC;
-        amounts[1] = amountUSDC;
-
-        manager.depositSpot(1, spotTokens, amounts[0], amounts[1], amounts[1], currentActor);
+        manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, currentActor);
 
         vm.stopPrank();
 
@@ -94,14 +128,99 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         ghost_deposits[address(USDC)] += amountUSDC;
     }
 
-    function withdrawFeeBTC(uint256 amountBTC) public createActor {
-        amountBTC = bound(amountBTC, 0, BTC.balanceOf(address(this)));
+    function withdrawPerp(
+        uint256 actorSeed,
+        uint256 amountBTC,
+        uint256 amountUSDC,
+        uint256 amountWETH,
+        uint256 feeIndex
+    ) public useActor(actorSeed) {
+        feeIndex = bound(feeIndex, 0, 2);
 
-        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+        uint256 fee;
+        uint256 userActiveAmountBTC = manager.getUserActiveAmount(2, address(BTC), currentActor);
+        uint256 userActiveAmountUSDC = manager.getUserActiveAmount(2, address(USDC), currentActor);
+        uint256 userActiveAmountWETH = manager.getUserActiveAmount(2, address(WETH), currentActor);
+
+        amountBTC = bound(amountBTC, 0, userActiveAmountBTC);
+        amountUSDC = bound(amountUSDC, 0, userActiveAmountUSDC);
+        amountWETH = bound(amountWETH, 0, userActiveAmountWETH);
+
+        if (feeIndex == 0) {
+            fee = manager.getWithdrawFee(address(BTC));
+
+            if (amountBTC < fee) {
+                return;
+            }
+
+            ghost_fees[address(BTC)] += fee;
+        } else if (feeIndex == 1) {
+            fee = manager.getWithdrawFee(address(USDC));
+
+            if (amountUSDC < fee) {
+                return;
+            }
+
+            ghost_fees[address(USDC)] += fee;
+        } else {
+            fee = manager.getWithdrawFee(address(WETH));
+
+            if (amountWETH < fee) {
+                return;
+            }
+
+            ghost_fees[address(WETH)] += fee;
+        }
 
         vm.startPrank(currentActor);
 
-        manager.withdrawSpot(1, spotTokens, amountBTC, 1);
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+        amounts[2] = amountWETH;
+
+        manager.withdrawPerp(2, perpTokens, amounts, feeIndex);
+
+        vm.stopPrank();
+
+        ghost_withdraws[address(BTC)] += amountBTC;
+        ghost_withdraws[address(USDC)] += amountUSDC;
+        ghost_withdraws[address(WETH)] += amountWETH;
+    }
+
+    function withdrawSpot(uint256 actorSeed, uint256 amountBTC, uint256 feeIndex) public useActor(actorSeed) {
+        feeIndex = bound(feeIndex, 0, 1);
+
+        uint256 fee;
+        uint256 userActiveAmountBTC = manager.getUserActiveAmount(1, address(BTC), currentActor);
+        uint256 userActiveAmountUSDC = manager.getUserActiveAmount(1, address(USDC), currentActor);
+
+        amountBTC = bound(amountBTC, 0, userActiveAmountBTC);
+
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+        if (amountUSDC > userActiveAmountUSDC) return;
+
+        if (feeIndex == 0) {
+            fee = manager.getWithdrawFee(address(BTC));
+
+            if (amountBTC < fee) {
+                return;
+            }
+
+            ghost_fees[address(BTC)] += fee;
+        } else {
+            fee = manager.getWithdrawFee(address(USDC));
+
+            if (amountUSDC < fee) {
+                return;
+            }
+
+            ghost_fees[address(USDC)] += fee;
+        }
+
+        vm.startPrank(currentActor);
+
+        manager.withdrawSpot(1, spotTokens, amountBTC, feeIndex);
 
         vm.stopPrank();
 
@@ -109,23 +228,34 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         ghost_withdraws[address(USDC)] += amountUSDC;
     }
 
-    function withdrawFeeUSDC(uint256 amountBTC) public createActor {
-        amountBTC = bound(amountBTC, 0, BTC.balanceOf(address(this)));
-
-        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
-
+    function claimPerp(uint256 actorSeed) public useActor(actorSeed) {
+        if (currentActor == address(0)) return;
         vm.startPrank(currentActor);
 
-        manager.withdrawSpot(1, spotTokens, amountBTC, 0);
+        simulate(2, perpTokens, currentActor);
+
+        manager.claim(currentActor, perpTokens, 2);
+
+        uint256 receivedBTC = BTC.balanceOf(currentActor);
+        uint256 receivedUSDC = USDC.balanceOf(currentActor);
+        uint256 receivedWETH = WETH.balanceOf(currentActor);
+
+        _pay(address(this), BTC, receivedBTC);
+        _pay(address(this), USDC, receivedUSDC);
+        _pay(address(this), WETH, receivedWETH);
 
         vm.stopPrank();
 
-        ghost_withdraws[address(BTC)] += amountBTC;
-        ghost_withdraws[address(USDC)] += amountUSDC;
+        ghost_claims[address(BTC)] += receivedBTC;
+        ghost_claims[address(USDC)] += receivedUSDC;
+        ghost_claims[address(WETH)] += receivedWETH;
     }
 
-    function claim() public createActor {
+    function claimSpot(uint256 actorSeed) public useActor(actorSeed) {
+        if (currentActor == address(0)) return;
         vm.startPrank(currentActor);
+
+        simulate(1, spotTokens, currentActor);
 
         manager.claim(currentActor, spotTokens, 1);
 
@@ -145,7 +275,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
                                 HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    function _pay(address to, MockToken token, uint256 amount) internal {
+    function _pay(address to, IERC20Metadata token, uint256 amount) internal {
         token.transfer(to, amount);
     }
 
@@ -162,6 +292,16 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
     function actors() external view returns (address[] memory) {
         return _actors.addrs;
+    }
+
+    function simulate(uint256 id, address[] memory tokens, address user) public {
+        (address router,,,) = manager.getPoolToken(id, address(0));
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            address token = tokens[i];
+
+            deal(token, router, manager.pendingBalances(user, token) + manager.fees(user, token));
+        }
     }
 
     // Exclude from coverage report

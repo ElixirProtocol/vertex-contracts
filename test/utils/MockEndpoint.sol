@@ -13,8 +13,8 @@ contract MockEndpoint {
 
     mapping(uint32 => MockToken) public tokens;
 
-    constructor(address quoteToken, MockToken _BTC, MockToken _USDC, MockToken _WETH) {
-        clearingHouse = new MockClearinghouse(quoteToken);
+    constructor(MockToken _BTC, MockToken _USDC, MockToken _WETH) {
+        clearingHouse = new MockClearinghouse(address(BTC), address(USDC), address(WETH));
         BTC = _BTC;
         USDC = _USDC;
         WETH = _WETH;

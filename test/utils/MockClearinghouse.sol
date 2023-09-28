@@ -2,14 +2,18 @@
 pragma solidity 0.8.18;
 
 contract MockClearinghouse {
-    address public quoteToken;
+    address public BTC;
+    address public USDC;
+    address public WETH;
 
-    constructor(address _quoteToken) {
-        quoteToken = _quoteToken;
+    constructor(address _BTC, address _USDC, address _WETH) {
+        BTC = _BTC;
+        USDC = _USDC;
+        WETH = _WETH;
     }
 
     function getQuote() external view returns (address) {
-        return quoteToken;
+        return USDC;
     }
 
     function getOraclePriceX18(uint32 productId) external pure returns (uint256) {
@@ -17,6 +21,16 @@ contract MockClearinghouse {
             return 27_000 * 10 ** 18;
         } else {
             return 0;
+        }
+    }
+
+    function getEngineByProduct(uint32 productId) external view returns (address) {
+        if (productId == 0) {
+            return USDC;
+        } else if (productId == 1) {
+            return BTC;
+        } else {
+            return WETH;
         }
     }
 

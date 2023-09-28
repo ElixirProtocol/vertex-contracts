@@ -4,6 +4,7 @@ pragma solidity 0.8.18;
 import "forge-std/Script.sol";
 import {DeployBase} from "./DeployBase.s.sol";
 import {VertexManager} from "../../src/VertexManager.sol";
+import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 
 contract DeployGoerli is DeployBase {
     // Arbitrum Goerli addresses
@@ -32,6 +33,11 @@ contract DeployGoerli is DeployBase {
         manager.updateToken(USDC, 0);
         manager.updateToken(BTC, 1);
         manager.updateToken(ETH, 3);
+
+        // Give approval to create pools.
+        IERC20(BTC).approve(address(manager), type(uint256).max);
+        IERC20(USDC).approve(address(manager), type(uint256).max);
+        IERC20(ETH).approve(address(manager), type(uint256).max);
 
         // Create BTC spot pool with BTC and USDC as tokens.
         address[] memory tokens = new address[](2);

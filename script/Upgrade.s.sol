@@ -3,7 +3,7 @@ pragma solidity 0.8.18;
 
 import "forge-std/Script.sol";
 
-import {VertexManager} from "../src/VertexManager.sol";
+import {VertexManager} from "src/VertexManager.sol";
 
 contract UpgradeContract is Script {
     VertexManager internal manager;

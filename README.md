@@ -18,7 +18,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 </tr>
 <tr>
 <td>Arbitrum Goerli</td>
-<td><code>0xD38A5e15eACB4f8F46626AFaC5Aa0de0f041b36d</code></td>
+<td><code>0x392dE333fbc1d200beb0E7a317fF50371Ce03A78</code></td>
 </tr>
 </table>
 
@@ -50,7 +50,7 @@ forge test
 For longer fuzz campaigns, run:
 
 ```sh
-FOUNDRY_PROFILE="intense" forge test
+FOUNDRY_PROFILE="deep" forge test
 ```
 
 ### Run Slither

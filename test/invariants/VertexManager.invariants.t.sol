@@ -84,7 +84,8 @@ contract TestVertexManagerInvariants is Test {
         vertexManagerImplementation = new VertexManager();
 
         // Deploy and initialize the proxy contract.
-        proxy = new ERC1967Proxy(address(vertexManagerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
+        proxy =
+        new ERC1967Proxy(address(vertexManagerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
 
         // Wrap in ABI to support easier calls
         manager = VertexManager(address(proxy));
@@ -240,9 +241,18 @@ contract TestVertexManagerInvariants is Test {
         uint256 sumOfPendingBalancesUSDC = handler.reduceActors(0, this.accumulatePendingBalanceUSDC);
         uint256 sumOfPendingBalancesWETH = handler.reduceActors(0, this.accumulatePendingBalanceWETH);
 
-        assertEq(handler.ghost_withdraws(address(BTC)), sumOfPendingBalancesBTC + sumOfClaimsBTC + handler.ghost_fees(address(BTC)));
-        assertEq(handler.ghost_withdraws(address(USDC)), sumOfPendingBalancesUSDC + sumOfClaimsUSDC + handler.ghost_fees(address(USDC)));
-        assertEq(handler.ghost_withdraws(address(WETH)), sumOfPendingBalancesWETH + sumOfClaimsWETH + handler.ghost_fees(address(WETH)));
+        assertEq(
+            handler.ghost_withdraws(address(BTC)),
+            sumOfPendingBalancesBTC + sumOfClaimsBTC + handler.ghost_fees(address(BTC))
+        );
+        assertEq(
+            handler.ghost_withdraws(address(USDC)),
+            sumOfPendingBalancesUSDC + sumOfClaimsUSDC + handler.ghost_fees(address(USDC))
+        );
+        assertEq(
+            handler.ghost_withdraws(address(WETH)),
+            sumOfPendingBalancesWETH + sumOfClaimsWETH + handler.ghost_fees(address(WETH))
+        );
     }
 
     // Two pools cannot share the same router. Each pool must have a unique and constant router for all tokens supported by it.

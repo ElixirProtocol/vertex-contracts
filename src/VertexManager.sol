@@ -69,9 +69,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice The token addresses of Vertex product IDs.
     mapping(uint32 id => address token) public productToToken;
 
-    /// @notice Helper mappings for Vertex balances.
-    mapping(uint32 id => uint256 balance) private _tokenBalances;
-
     /// @notice The Elixir fee reimbursements for users and a token address.
     mapping(address user => mapping(address token => uint256 amount)) public fees;
 
@@ -928,7 +925,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param newFee The new fee.
     function updateSlowModeFee(uint256 newFee) external onlyOwner {
         // Check that the new fee is no more than 100 USDC.
-        if (newFee > 100000000) revert FeeTooHigh(newFee);
+        if (newFee > 100_000_000) revert FeeTooHigh(newFee);
 
         slowModeFee = newFee;
 

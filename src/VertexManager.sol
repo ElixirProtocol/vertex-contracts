@@ -387,13 +387,16 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // Check that the tokens are not duplicated.
         for (uint256 i = 0; i < tokens.length; i++) {
-            for (uint256 j = i + 1; j < tokens.length; j++) {
-                if (tokens[i] == tokens[j]) revert DuplicatedTokens(tokens[i], tokens);
+            address token = tokens[i];
+            for (uint256 j = 0; j < tokens.length; j++) {
+                if ((j != i) && (token == tokens[j])) {
+                    revert DuplicatedTokens(token, tokens);
+                }
             }
         }
 
         // Check that the feeIndex is within the tokens array.
-        if (feeIndex > tokens.length) revert InvalidFeeIndex(feeIndex, tokens);
+        if (feeIndex > tokens.length - 1) revert InvalidFeeIndex(feeIndex, tokens);
 
         // Execute the withdraw logic.
         _withdraw(id, pool, tokens, amounts, feeIndex);
@@ -423,7 +426,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         if (tokens[0] == tokens[1]) revert DuplicatedTokens(tokens[0], tokens);
 
         // Check that the feeIndex is within the tokens array.
-        if (feeIndex > tokens.length) revert InvalidFeeIndex(feeIndex, tokens);
+        if (feeIndex > tokens.length - 1) revert InvalidFeeIndex(feeIndex, tokens);
 
         // Get the balanced amount of quote tokens.
         uint256 amount1 = getBalancedAmount(tokens[0], tokens[1], amount0);

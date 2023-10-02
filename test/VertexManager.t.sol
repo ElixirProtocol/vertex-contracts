@@ -1565,4 +1565,46 @@ contract TestVertexManager is Test {
         uint256 output = manager.getWithdrawAmount(1, 1, 1);
         assertEq(output, 1);
     }
+
+    /// @notice Fuzzed unit test for duplicated tokens.
+    function testDuplicatedTokens(address[] memory tokens, uint256 index) public {
+        vm.assume(tokens.length > 1 && index != 0 && index < tokens.length);
+        perpDepositSetUp();
+
+        tokens[index] = tokens[0];
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.DuplicatedTokens.selector, tokens[index], tokens));
+        manager.withdrawPerp(2, tokens, new uint256[](tokens.length), 0);
+
+        // Use next error check to verify that the tokens are not duplicated.
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidFeeIndex.selector, 1, new address[](1)));
+        manager.withdrawPerp(2, new address[](1), new uint256[](1), 1);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.DuplicatedTokens.selector, address(0), new address[](2)));
+        manager.withdrawPerp(2, new address[](2), new uint256[](2), 0);
+    }
+
+    /// @notice Unit test for passing fees when withdrawing.
+    function testFeeIndex() public {
+        perpDepositSetUp();
+
+        uint256 amountBTC = 1 * 18 ** 8;
+
+        deal(address(BTC), address(this), amountBTC);
+        BTC.approve(address(manager), amountBTC);
+
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amountBTC;
+
+        address[] memory token = new address[](1);
+        token[0] = address(BTC);
+
+        manager.depositPerp(2, token, amounts, address(this));
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidFeeIndex.selector, 1, token));
+        manager.withdrawPerp(2, token, amounts, 1);
+
+        manager.withdrawPerp(2, token, amounts, 0);
+        assertTrue(manager.fees(address(this), address(BTC)) > 0);
+    }
 }

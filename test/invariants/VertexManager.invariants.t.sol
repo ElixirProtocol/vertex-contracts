@@ -14,7 +14,7 @@ import {IEndpoint} from "../../src/interfaces/IEndpoint.sol";
 import {VertexManager} from "../../src/VertexManager.sol";
 import {Handler} from "./VertexManagerHandler.sol";
 
-contract TestVertexManagerInvariants is Test {
+contract TestInvariantsVertexManager is Test {
     using Math for uint256;
 
     /*//////////////////////////////////////////////////////////////

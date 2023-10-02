@@ -396,7 +396,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         }
 
         // Check that the feeIndex is within the tokens array.
-        if (feeIndex > tokens.length - 1) revert InvalidFeeIndex(feeIndex, tokens);
+        if (feeIndex >= tokens.length) revert InvalidFeeIndex(feeIndex, tokens);
 
         // Execute the withdraw logic.
         _withdraw(id, pool, tokens, amounts, feeIndex);
@@ -426,7 +426,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         if (tokens[0] == tokens[1]) revert DuplicatedTokens(tokens[0], tokens);
 
         // Check that the feeIndex is within the tokens array.
-        if (feeIndex > tokens.length - 1) revert InvalidFeeIndex(feeIndex, tokens);
+        if (feeIndex >= tokens.length) revert InvalidFeeIndex(feeIndex, tokens);
 
         // Get the balanced amount of quote tokens.
         uint256 amount1 = getBalancedAmount(tokens[0], tokens[1], amount0);
@@ -772,7 +772,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param amount0 The amount of base tokens.
     function getBalancedAmount(address token0, address token1, uint256 amount0) public view returns (uint256) {
         return amount0.mulDiv(
-            getPrice(tokenToProduct[address(token0)]),
+            (getPrice(tokenToProduct[token0]) * (10 ** 18)) / getPrice(tokenToProduct[token1]),
             10 ** (18 + IERC20Metadata(token0).decimals() - IERC20Metadata(token1).decimals()),
             Math.Rounding.Down
         );

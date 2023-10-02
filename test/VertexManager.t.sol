@@ -1588,7 +1588,7 @@ contract TestVertexManager is Test {
     function testFeeIndex() public {
         perpDepositSetUp();
 
-        uint256 amountBTC = 1 * 18 ** 8;
+        uint256 amountBTC = 1 * 10 ** 8;
 
         deal(address(BTC), address(this), amountBTC);
         BTC.approve(address(manager), amountBTC);
@@ -1606,5 +1606,37 @@ contract TestVertexManager is Test {
 
         manager.withdrawPerp(2, token, amounts, 0);
         assertTrue(manager.fees(address(this), address(BTC)) > 0);
+    }
+
+    /// @notice Unit test for reversed spot deposits.
+    function testReversedSpot(uint72 amountBTC) public {
+        // BTC amount to deposit should be at least the withdraw fee (otherwise not enough to pay fee).
+        vm.assume(amountBTC >= manager.getWithdrawFee(address(BTC)));
+        spotDepositSetUp();
+
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+
+        manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
+
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(BTC);
+
+        manager.withdrawSpot(1, tokens, amountUSDC, 1);
+    }
+
+    /// @notice Unit test for balanced amount calculation.
+    function testBalancedAmount(uint240 amountBTC) public {
+        vm.assume(amountBTC > 0);
+        spotDepositSetUp();
+
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+        assertLe(manager.getBalancedAmount(address(USDC), address(BTC), amountUSDC), amountBTC);
     }
 }

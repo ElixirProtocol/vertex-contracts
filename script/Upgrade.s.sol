@@ -19,7 +19,7 @@ contract UpgradeContract is Script {
         vm.startBroadcast(deployerKey);
 
         // Wrap in ABI to support easier calls.
-        manager = VertexManager(0x69446a7b3CBcfC0C9403Cf4Eba263EdE21422f11);
+        manager = VertexManager(0x392dE333fbc1d200beb0E7a317fF50371Ce03A78);
 
         // Deploy new implementation.
         newManager = new VertexManager();
@@ -28,6 +28,10 @@ contract UpgradeContract is Script {
         manager.upgradeTo(address(newManager));
 
         vm.stopBroadcast();
+
+        // // Check upgrade.
+        // (address router, uint256 activeAmount, uint256 hardcap, bool status) = manager.getPoolToken(1, 0x5Cc7c91690b2cbAEE19A513473D73403e13fb431);
+        // require(router != address(0) && activeAmount > 0 && hardcap > 0 && status, "Upgrade failed");
     }
 
     // Exclude from coverage report

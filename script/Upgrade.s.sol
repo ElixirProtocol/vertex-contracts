@@ -29,9 +29,8 @@ contract UpgradeContract is Script {
 
         vm.stopBroadcast();
 
-        // // Check upgrade.
-        // (address router, uint256 activeAmount, uint256 hardcap, bool status) = manager.getPoolToken(1, 0x5Cc7c91690b2cbAEE19A513473D73403e13fb431);
-        // require(router != address(0) && activeAmount > 0 && hardcap > 0 && status, "Upgrade failed");
+        // Check upgrade by ensuring storage is not changed. 
+        require(address(manager.endpoint()) == 0x5956D6f55011678b2CAB217cD21626F7668ba6c5, "Invalid upgrade");
     }
 
     // Exclude from coverage report

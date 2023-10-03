@@ -21,6 +21,9 @@ contract UpgradeContract is Script {
         // Wrap in ABI to support easier calls.
         manager = VertexManager(0x392dE333fbc1d200beb0E7a317fF50371Ce03A78);
 
+        // Get the endpoint address before upgrading.
+        address endpoint = address(manager.endpoint());
+
         // Deploy new implementation.
         newManager = new VertexManager();
 
@@ -30,7 +33,7 @@ contract UpgradeContract is Script {
         vm.stopBroadcast();
 
         // Check upgrade by ensuring storage is not changed. 
-        require(address(manager.endpoint()) == 0x5956D6f55011678b2CAB217cD21626F7668ba6c5, "Invalid upgrade");
+        require(address(manager.endpoint()) == endpoint, "Invalid upgrade");
     }
 
     // Exclude from coverage report

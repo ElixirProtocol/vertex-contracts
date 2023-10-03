@@ -18,7 +18,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 </tr>
 <tr>
 <td>Arbitrum Goerli</td>
-<td><code>0x392dE333fbc1d200beb0E7a317fF50371Ce03A78</code></td>
+<td><code>0xc4B9A775EC8a5Caf67F66F99f36F2164716B4E74</code></td>
 </tr>
 </table>
 

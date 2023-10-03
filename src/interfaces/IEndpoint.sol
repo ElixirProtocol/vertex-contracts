@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.19;
+pragma solidity 0.8.18;
 
 import {IClearinghouse} from "./IClearinghouse.sol";
 
 interface IEndpoint {
-    // events that we parse transactions into
     enum TransactionType {
         LiquidateSubaccount,
         DepositCollateral,
@@ -54,13 +53,18 @@ interface IEndpoint {
         uint64 txUpTo;
     }
 
+    /// @notice Returns the Clearinghouse contract.
     function clearinghouse() external view returns (IClearinghouse);
 
+    /// @notice Returns the slow-mode configuration.
     function slowModeConfig() external view returns (SlowModeConfig memory);
 
+    /// @notice Executes a submitted slow-mode transaction.
     function executeSlowModeTransactions(uint32 count) external;
 
+    /// @notice Submits a slow-mode transaction to Vertex.
     function submitSlowModeTransaction(bytes calldata transaction) external;
 
-    function getPriceX18(uint32 productId) external view returns (uint256);
+    /// @notice Returns a slow-mode transaction.
+    function slowModeTxs(uint64 txId) external view returns (uint64 executableAt, address sender, bytes calldata tx);
 }

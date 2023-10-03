@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.19;
+pragma solidity 0.8.18;
 
 import "forge-std/Script.sol";
 
-import {IEndpoint, IClearinghouse, VertexFactory} from "../../src/VertexFactory.sol";
+import {IEndpoint, VertexManager} from "../../src/VertexManager.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 
 abstract contract DeployBase is Script {
     // Environment specific variables.
-    IClearinghouse internal clearingHouse;
+    address internal feeToken;
     IEndpoint internal endpoint;
     address internal externalAccount;
 
     // Deploy addresses.
-    VertexFactory internal factoryImplementation;
+    VertexManager internal managerImplementation;
     ERC1967Proxy internal proxy;
-    VertexFactory internal factory;
+    VertexManager internal manager;
 
     // Deployer key.
     uint256 internal deployerKey;
 
-    constructor(address _clearingHouse, address _endpoint, address _externalAccount) {
-        clearingHouse = IClearinghouse(_clearingHouse);
+    constructor(address _feeToken, address _endpoint, address _externalAccount) {
+        feeToken = _feeToken;
         endpoint = IEndpoint(_endpoint);
         externalAccount = _externalAccount;
     }
@@ -33,16 +33,18 @@ abstract contract DeployBase is Script {
         vm.startBroadcast(deployerKey);
 
         // Deploy Factory implementation.
-        factoryImplementation = new VertexFactory();
+        managerImplementation = new VertexManager();
 
-        // Deploy proxy contract and point it to implementation.
-        proxy = new ERC1967Proxy(address(factoryImplementation), "");
+        // Deploy and initialize the proxy contract.
+        proxy =
+        new ERC1967Proxy(address(managerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
 
         // Wrap in ABI to support easier calls.
-        factory = VertexFactory(address(proxy));
-
-        factory.initialize(clearingHouse, endpoint, externalAccount, vm.addr(deployerKey));
+        manager = VertexManager(address(proxy));
 
         vm.stopBroadcast();
     }
+
+    // Exclude from coverage report
+    function test() public virtual {}
 }

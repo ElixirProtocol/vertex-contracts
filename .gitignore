@@ -8,9 +8,6 @@ out/
 /broadcast/**/dry-run/
 /broadcast
 
-# Docs
-docs/
-
 # Dotenv file
 .env
 
@@ -18,3 +15,4 @@ docs/
 .DS_Store
 .AppleDouble
 .LSOverride
+lcov.info

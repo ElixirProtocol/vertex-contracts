@@ -32,7 +32,7 @@ contract UpgradeContract is Script {
 
         vm.stopBroadcast();
 
-        // Check upgrade by ensuring storage is not changed. 
+        // Check upgrade by ensuring storage is not changed.
         require(address(manager.endpoint()) == endpoint, "Invalid upgrade");
     }
 

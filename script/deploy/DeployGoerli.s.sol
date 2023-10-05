@@ -13,6 +13,7 @@ contract DeployGoerli is DeployBase {
     address public constant USDC = 0x179522635726710Dd7D2035a81d856de4Aa7836c;
     address public constant ETH = 0xCC59686e3a32Fb104C8ff84DD895676265eFb8a6;
 
+    // Vertex Goerli Endpoint
     constructor() DeployBase(0x5956D6f55011678b2CAB217cD21626F7668ba6c5) {}
 
     function run() external {

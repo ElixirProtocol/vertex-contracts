@@ -7,7 +7,7 @@ import {VertexManager} from "../../src/VertexManager.sol";
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 
 contract DeployMainnet is DeployBase {
-    address public constant EXTERNAL_ACCOUNT = 0x28CcdB531854d09D48733261688dc1679fb9A242;
+    address public constant EXTERNAL_ACCOUNT = 0xD7cb7F791bb97A1a8B5aFc3aec5fBD0BEC4536A5;
 
     address public constant BTC = 0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f;
     address public constant USDC = 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8;
@@ -15,6 +15,7 @@ contract DeployMainnet is DeployBase {
     address public constant ARB = 0x912CE59144191C1204E64559FE8253a0e49E6548;
     address public constant USDT = 0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9;
 
+    // Vertex Mainnet Endpoint
     constructor() DeployBase(0xbbEE07B3e8121227AfCFe1E2B82772246226128e) {}
 
     function run() external {

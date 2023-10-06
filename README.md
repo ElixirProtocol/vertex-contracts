@@ -14,6 +14,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <table>
 <tr>
 <th>Network</th>
+<th>VertexManager</th>
 <th>Router WBTC (ID 1)</th>
 <th>Router BTC-PERP (ID 2)</th>
 <th>Router WETH (ID 3)</th>

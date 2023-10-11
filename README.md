@@ -36,6 +36,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <th>Router USDT (ID 31)</th>
 <th>Router DOGE-PERP (ID 34)</th>
 <th>Router LINK-PERP (ID 36)</th>
+<th>StargateReceiver</th>
 </tr>
 <tr>
 <td>Arbitrum Mainnet</td>
@@ -61,6 +62,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <td><code>0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185</code></td>
 <td><code>0x6Ba6435B47a36adCB3cca90189F20AA995e096f7</code></td>
 <td><code>0xbf541F7bE0DCE645455698636cf7b354CF4a97d3</code></td>
+<td><code>0x1ee8d4de6AAe8430EE3C7AC9AecA7d0015491c84</code></td>
 </tr>
 <tr>
 <td>Arbitrum Goerli</td>
@@ -86,6 +88,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <td><code>0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185</code></td>
 <td><code>0x6Ba6435B47a36adCB3cca90189F20AA995e096f7</code></td>
 <td><code>0xbf541F7bE0DCE645455698636cf7b354CF4a97d3</code></td>
+<td><code>0x1ee8d4de6AAe8430EE3C7AC9AecA7d0015491c84</code></td>
 </tr>
 </table>
 

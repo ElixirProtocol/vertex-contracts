@@ -24,7 +24,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <th>Router BNB-PERP (ID 8)</th>
 <th>Router XRP-PERP (ID 10)</th>
 <th>Router SOL-PERP (ID 12)</th>
-<th>Router MATIC-PER (ID 14)P</th>
+<th>Router MATIC-PERP (ID 14)</th>
 <th>Router SUI-PERP (ID 16)</th>
 <th>Router OP-PERP (ID 18)</th>
 <th>Router APT-PERP (ID 20)</th>

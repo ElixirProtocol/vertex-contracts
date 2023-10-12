@@ -296,15 +296,17 @@ contract TestInvariantsVertexManager is Test {
     }
 
     function accumulatePendingBalanceBTC(uint256 balance, address caller) external view returns (uint256) {
-        return balance + (manager.pendingBalances(caller, address(BTC)));
+        return balance + manager.getUserPendingAmount(1, address(BTC), caller)
+            + manager.getUserPendingAmount(2, address(BTC), caller);
     }
 
     function accumulatePendingBalanceUSDC(uint256 balance, address caller) external view returns (uint256) {
-        return balance + (manager.pendingBalances(caller, address(USDC)));
+        return balance + manager.getUserPendingAmount(1, address(USDC), caller)
+            + manager.getUserPendingAmount(2, address(USDC), caller);
     }
 
     function accumulatePendingBalanceWETH(uint256 balance, address caller) external view returns (uint256) {
-        return balance + (manager.pendingBalances(caller, address(WETH)));
+        return balance + manager.getUserPendingAmount(2, address(WETH), caller);
     }
 
     function activeAmountUser(address token, address user) public view returns (uint256) {

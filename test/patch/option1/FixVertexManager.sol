@@ -20,7 +20,7 @@ import {VertexRouter} from "../../../src/VertexRouter.sol";
 /// @author The Elixir Team
 /// @custom:security-contact security@elixir.finance
 /// @notice Pool manager contract to provide liquidity for spot and perp market making on Vertex Protocol.
-contract FixVertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard {
+contract FixVertexManager1 is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard {
     using Math for uint256;
     using SafeERC20 for IERC20Metadata;
 
@@ -981,7 +981,7 @@ contract FixVertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable,
         // ARB.transfer(user, ARB.balanceOf(address(this)));
         // USDT.transfer(user, USDT.balanceOf(address(this)));
     }
-    
+
     /*//////////////////////////////////////////////////////////////
                            INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/

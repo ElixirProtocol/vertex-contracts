@@ -8,7 +8,7 @@ import {MockTokenDecimals} from "../../utils/MockTokenDecimals.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {IEndpoint} from "../../../src/interfaces/IEndpoint.sol";
 import {VertexManager} from "../../../src/VertexManager.sol";
-import {FixVertexManager} from "./FixVertexManager.sol";
+import {FixVertexManager1} from "./FixVertexManager.sol";
 
 contract TestDebugger1 is Test {
     /*//////////////////////////////////////////////////////////////
@@ -66,14 +66,14 @@ contract TestDebugger1 is Test {
         deal(address(USDC), multisig, 20 * 10 ** 6);
 
         // 1. deploy new implementation with patches
-        FixVertexManager fixedManager = new FixVertexManager();
+        FixVertexManager1 fixedManager = new FixVertexManager1();
 
         // 2. upgrade contract as multisig
         vm.prank(multisig);
 
         manager.upgradeTo(address(fixedManager));
 
-        FixVertexManager fixedProxy = FixVertexManager(address(manager));
+        FixVertexManager1 fixedProxy = FixVertexManager1(address(manager));
 
         // 3. User withdraws everything
         vm.startPrank(user);
@@ -142,9 +142,9 @@ contract TestDebugger1 is Test {
         // assertEq(USDC.balanceOf(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185), 0);
         // assertEq(fixedProxy.getUserActiveAmount(31, address(USDT), user), 0);
         // assertEq(fixedProxy.getUserActiveAmount(31, address(USDC), user), 0);
-        
+
         // Comment the assertions above because:
-        // Some tokens are left in Vertex as active amounts due to differnece in conversion, 
+        // Some tokens are left in Vertex as active amounts due to differnece in conversion,
         // they have to be withdrawn through Vertex usinng linked signer!
     }
 }

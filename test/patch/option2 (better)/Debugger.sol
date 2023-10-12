@@ -8,7 +8,7 @@ import {MockTokenDecimals} from "../../utils/MockTokenDecimals.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {IEndpoint} from "../../../src/interfaces/IEndpoint.sol";
 import {VertexManager} from "../../../src/VertexManager.sol";
-import {FixVertexManager} from "./FixVertexManager.sol";
+import {FixVertexManager2} from "./FixVertexManager.sol";
 
 contract TestDebugger2 is Test {
     /*//////////////////////////////////////////////////////////////
@@ -42,14 +42,14 @@ contract TestDebugger2 is Test {
 
     function testPatch2() external {
         // 1. deploy new implementation with patches
-        FixVertexManager fixedManager = new FixVertexManager();
+        FixVertexManager2 fixedManager = new FixVertexManager2();
 
         // 2. upgrade contract as multisig
         vm.prank(multisig);
 
         manager.upgradeTo(address(fixedManager));
 
-        FixVertexManager fixedProxy = FixVertexManager(address(manager));
+        FixVertexManager2 fixedProxy = FixVertexManager2(address(manager));
 
         // 3. Execute patch as multisig and check that routers are empty
         vm.prank(multisig);

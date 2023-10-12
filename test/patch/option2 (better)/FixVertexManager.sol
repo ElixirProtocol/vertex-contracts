@@ -20,7 +20,7 @@ import {VertexRouter} from "../../../src/VertexRouter.sol";
 /// @author The Elixir Team
 /// @custom:security-contact security@elixir.finance
 /// @notice Pool manager contract to provide liquidity for spot and perp market making on Vertex Protocol.
-contract FixVertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard {
+contract FixVertexManager2 is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard {
     using Math for uint256;
     using SafeERC20 for IERC20Metadata;
 
@@ -903,64 +903,29 @@ contract FixVertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable,
         emit PoolTokensAdded(id, tokens, hardcaps);
     }
 
-    /// @notice Updates the hardcaps of a pool.
-    /// @param id The ID of the pool.
-    /// @param tokens The list of tokens to update the hardcaps of.
-    /// @param hardcaps The hardcaps for the tokens.
-    function updatePoolHardcaps(uint256 id, address[] calldata tokens, uint256[] calldata hardcaps)
-        external
-        onlyOwner
-    {
-        // Check that the length of the hardcaps array matches the pool tokens length.
-        if (hardcaps.length != tokens.length) revert MismatchInputs(hardcaps, tokens);
-
-        // Loop over hardcaps to update.
-        for (uint256 i = 0; i < hardcaps.length; i++) {
-            pools[id].tokens[tokens[i]].hardcap = hardcaps[i];
-        }
-
-        emit PoolHardcapsUpdated(id, hardcaps);
-    }
-
-    /// @notice Updates the Vertex product ID of a token address.
-    /// @param token The token to update.
-    /// @param productId The new Vertex product ID to represent this token.
-    function updateToken(address token, uint32 productId) external onlyOwner {
-        // Update the token to product ID and opposite direction mapping.
-        tokenToProduct[token] = productId;
-        productToToken[productId] = token;
-
-        emit TokenUpdated(token, productId);
-    }
-
-    /// @notice Updates the Vertex slow mode fee.
-    /// @param newFee The new fee.
-    function updateSlowModeFee(uint256 newFee) external onlyOwner {
-        // Check that the new fee is no more than 100 USDC.
-        if (newFee > 100_000_000) revert FeeTooHigh(newFee);
-
-        slowModeFee = newFee;
-
-        emit SlowModeFeeUpdated(newFee);
-    }
-
     function patch() external onlyOwner {
         IERC20Metadata BTC = IERC20Metadata(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
         IERC20Metadata USDC = IERC20Metadata(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
         address user = 0xA0d43822175Af83d9B1833eeEC918F02833ce2B5;
 
         // BTC spot, ID 1
-        VertexRouter(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC).claimToken(address(BTC), BTC.balanceOf(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC));
-        VertexRouter(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC).claimToken(address(USDC), USDC.balanceOf(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC));
+        VertexRouter(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC).claimToken(
+            address(BTC), BTC.balanceOf(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC)
+        );
+        VertexRouter(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC).claimToken(
+            address(USDC), USDC.balanceOf(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC)
+        );
 
         // BTC perp, ID 2
-        VertexRouter(0x58c66f107A1C129A4865c2f1EDc33eFd38A2f020).claimToken(address(USDC), USDC.balanceOf(0x58c66f107A1C129A4865c2f1EDc33eFd38A2f020));
+        VertexRouter(0x58c66f107A1C129A4865c2f1EDc33eFd38A2f020).claimToken(
+            address(USDC), USDC.balanceOf(0x58c66f107A1C129A4865c2f1EDc33eFd38A2f020)
+        );
 
         // Transfer each token back to user.
         BTC.transfer(user, BTC.balanceOf(address(this)));
         USDC.transfer(user, USDC.balanceOf(address(this)));
     }
-    
+
     /*//////////////////////////////////////////////////////////////
                            INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/

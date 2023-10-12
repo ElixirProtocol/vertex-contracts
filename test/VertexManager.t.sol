@@ -1752,8 +1752,8 @@ contract TestVertexManager is Test {
         uint256 afterClaimUSDC = USDC.balanceOf(owner);
         uint256 afterClaimBTC = BTC.balanceOf(owner);
 
-        assertEq(afterClaimBTC-beforeClaimBTC, manager.getWithdrawFee(address(BTC)));
-        assertEq(afterClaimUSDC-beforeClaimUSDC, manager.getWithdrawFee(address(USDC)));
+        assertEq(afterClaimBTC - beforeClaimBTC, manager.getWithdrawFee(address(BTC)));
+        assertEq(afterClaimUSDC - beforeClaimUSDC, manager.getWithdrawFee(address(USDC)));
         assertEq(BTC.balanceOf(address(this)), amountBTC - (afterClaimBTC - beforeClaimBTC));
         assertEq(USDC.balanceOf(address(this)), amountUSDC - (afterClaimUSDC - beforeClaimUSDC));
     }

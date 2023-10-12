@@ -1698,4 +1698,63 @@ contract TestVertexManager is Test {
         assertEq(BTC.balanceOf(router1) + BTC.balanceOf(router2), 0);
         assertEq(USDC.balanceOf(router1) + USDC.balanceOf(router2), 0);
     }
+
+    /// @notice Unit test for a different fee used for withdraws.
+    function testFeesPerPool() public {
+        perpDepositSetUp();
+
+        uint256 amountBTC = 10 * 10 ** 8; // 10 BTC
+        uint256 amountUSDC = 100 * 10 ** 6; // 100 USDC
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+
+        // Deposit 10 BTC nad 100 USDC.
+        manager.depositPerp(2, perpTokens, amounts, address(this));
+
+        address[] memory singleBTC = new address[](1);
+        singleBTC[0] = address(BTC);
+
+        uint256[] memory amountBTCList = new uint256[](1);
+        amountBTCList[0] = amountBTC;
+
+        // Withdraw 10 BTC paying fee in BTC.
+        manager.withdrawPerp(2, singleBTC, amountBTCList, 0);
+
+        address[] memory singleUSDC = new address[](1);
+        singleUSDC[0] = address(USDC);
+
+        uint256[] memory amountUSDCList = new uint256[](1);
+        amountUSDCList[0] = amountUSDC;
+
+        // Withdraw 100 USDC paying fee in USDC.
+        manager.withdrawPerp(2, singleUSDC, amountUSDCList, 0);
+
+        // Check that the fees are stored well (are more than 0).
+        assertGe(manager.getUserFee(2, address(BTC), address(this)), 0);
+        assertGe(manager.getUserFee(2, address(USDC), address(this)), 0);
+
+        processSlowModeTxs();
+
+        uint256 beforeClaimUSDC = USDC.balanceOf(owner);
+        uint256 beforeClaimBTC = BTC.balanceOf(owner);
+
+        // Claim and check that the fees and tokens were distributed.
+        manager.claim(address(this), perpTokens, 2);
+
+        uint256 afterClaimUSDC = USDC.balanceOf(owner);
+        uint256 afterClaimBTC = BTC.balanceOf(owner);
+
+        assertEq(afterClaimBTC-beforeClaimBTC, manager.getWithdrawFee(address(BTC)));
+        assertEq(afterClaimUSDC-beforeClaimUSDC, manager.getWithdrawFee(address(USDC)));
+        assertEq(BTC.balanceOf(address(this)), amountBTC - (afterClaimBTC - beforeClaimBTC));
+        assertEq(USDC.balanceOf(address(this)), amountUSDC - (afterClaimUSDC - beforeClaimUSDC));
+    }
 }

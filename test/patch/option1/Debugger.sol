@@ -112,39 +112,35 @@ contract TestDebugger1 is Test {
 
         // 5. Check that the routers don't hold any tokens and that the active amount is 0.
         // BTC spot, ID 1
-        // assertEq(BTC.balanceOf(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC), 0);
-        // assertEq(USDC.balanceOf(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC), 0);
-        // assertEq(fixedProxy.getUserActiveAmount(1, address(BTC), user), 0);
-        // assertEq(fixedProxy.getUserActiveAmount(1, address(USDC), user), 0);
+        assertEq(BTC.balanceOf(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC), 0);
+        assertEq(USDC.balanceOf(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC), 0);
+        assertEq(fixedProxy.getUserActiveAmount(1, address(BTC), user), 0);
+        assertEq(fixedProxy.getUserActiveAmount(1, address(USDC), user), 12477203);
 
-        // // BTC perp, ID 2
-        // assertEq(USDC.balanceOf(0x58c66f107A1C129A4865c2f1EDc33eFd38A2f020), 0);
-        // assertEq(fixedProxy.getUserActiveAmount(2, address(USDC), user), 0);
+        // BTC perp, ID 2
+        assertEq(USDC.balanceOf(0x58c66f107A1C129A4865c2f1EDc33eFd38A2f020), 0);
+        assertEq(fixedProxy.getUserActiveAmount(2, address(USDC), user), 0);
 
-        // // ETH spot, ID 3
-        // assertEq(ETH.balanceOf(0xf5b2C3A4eb7Fd59F5FBE512EEb1aa98358242FD5), 0);
-        // assertEq(USDC.balanceOf(0xf5b2C3A4eb7Fd59F5FBE512EEb1aa98358242FD5), 0);
-        // assertEq(fixedProxy.getUserActiveAmount(3, address(ETH), user), 0);
-        // assertEq(fixedProxy.getUserActiveAmount(3, address(USDC), user), 0);
+        // ETH spot, ID 3
+        assertEq(ETH.balanceOf(0xf5b2C3A4eb7Fd59F5FBE512EEb1aa98358242FD5), 0);
+        assertEq(USDC.balanceOf(0xf5b2C3A4eb7Fd59F5FBE512EEb1aa98358242FD5), 0);
+        assertEq(fixedProxy.getUserActiveAmount(3, address(ETH), user), 0);
+        assertEq(fixedProxy.getUserActiveAmount(3, address(USDC), user), 18325181);
 
-        // // ETH perp, ID 4
-        // assertEq(USDC.balanceOf(0xa13a4b97aB259808b10ffA58f08589063eD99943), 0);
-        // assertEq(fixedProxy.getUserActiveAmount(4, address(USDC), user), 0);
+        // ETH perp, ID 4
+        assertEq(USDC.balanceOf(0xa13a4b97aB259808b10ffA58f08589063eD99943), 0);
+        assertEq(fixedProxy.getUserActiveAmount(4, address(USDC), user), 0);
 
-        // // ARB spot, ID 5
-        // assertEq(ARB.balanceOf(0x738163cE85274b7599B91D1dA0E2798cAdc289d1), 0);
-        // assertEq(USDC.balanceOf(0x738163cE85274b7599B91D1dA0E2798cAdc289d1), 0);
-        // assertEq(fixedProxy.getUserActiveAmount(5, address(ARB), user), 0);
-        // assertEq(fixedProxy.getUserActiveAmount(5, address(USDC), user), 0);
+        // ARB spot, ID 5
+        assertEq(ARB.balanceOf(0x738163cE85274b7599B91D1dA0E2798cAdc289d1), 0);
+        assertEq(USDC.balanceOf(0x738163cE85274b7599B91D1dA0E2798cAdc289d1), 0);
+        assertEq(fixedProxy.getUserActiveAmount(5, address(ARB), user), 0);
+        assertEq(fixedProxy.getUserActiveAmount(5, address(USDC), user), 6270072);
 
-        // // USDT spot, ID 31
-        // assertEq(USDT.balanceOf(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185), 0);
-        // assertEq(USDC.balanceOf(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185), 0);
-        // assertEq(fixedProxy.getUserActiveAmount(31, address(USDT), user), 0);
-        // assertEq(fixedProxy.getUserActiveAmount(31, address(USDC), user), 0);
-
-        // Comment the assertions above because:
-        // Some tokens are left in Vertex as active amounts due to differnece in conversion,
-        // they have to be withdrawn through Vertex usinng linked signer!
+        // USDT spot, ID 31
+        assertEq(USDT.balanceOf(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185), 0);
+        assertEq(USDC.balanceOf(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185), 0);
+        assertEq(fixedProxy.getUserActiveAmount(31, address(USDT), user), 0);
+        assertEq(fixedProxy.getUserActiveAmount(31, address(USDC), user), 338863);
     }
 }

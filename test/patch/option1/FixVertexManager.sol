@@ -826,124 +826,6 @@ contract FixVertexManager1 is Initializable, UUPSUpgradeable, OwnableUpgradeable
         emit PauseUpdated(depositPaused, withdrawPaused, claimPaused);
     }
 
-    /// @notice Adds a new pool.
-    /// @param id The ID of the new pool.
-    /// @param tokens The tokens to add.
-    /// @param hardcaps The hardcaps for the tokens.
-    /// @param poolType The type of the pool.
-    /// @param externalAccount The external account to link to the Vertex Endpoint.
-    function addPool(
-        uint256 id,
-        address[] calldata tokens,
-        uint256[] calldata hardcaps,
-        PoolType poolType,
-        address externalAccount
-    ) external onlyOwner {
-        // Check that the pool doesn't exist.
-        if (pools[id].router != address(0)) revert InvalidPool(id);
-
-        // Deploy a new router contract.
-        VertexRouter router = new VertexRouter(address(endpoint), externalAccount);
-
-        // Approve the fee token to the router.
-        router.makeApproval(address(paymentToken));
-
-        // Create LinkSigner request for Vertex.
-        IEndpoint.LinkSigner memory linkSigner =
-            IEndpoint.LinkSigner(router.contractSubaccount(), router.externalSubaccount(), 0);
-
-        // Send LinkSigner request to router.
-        _sendTransaction(router, abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner)));
-
-        // Set the router address of the pool.
-        pools[id].router = address(router);
-
-        // Set the pool type.
-        pools[id].poolType = poolType;
-
-        // Add tokens to pool.
-        addPoolTokens(id, tokens, hardcaps);
-
-        emit PoolAdded(id, poolType, address(router), tokens, hardcaps);
-    }
-
-    /// @notice Adds new tokens to a pool.
-    /// @param id The ID of the pool.
-    /// @param tokens The tokens to add.
-    /// @param hardcaps The hardcaps for the tokens.
-    function addPoolTokens(uint256 id, address[] calldata tokens, uint256[] calldata hardcaps) public onlyOwner {
-        // Fetch the pool router.
-        VertexRouter router = VertexRouter(pools[id].router);
-
-        // Loop over tokens to add.
-        for (uint256 i = 0; i < tokens.length; i++) {
-            // Get the token address.
-            address token = tokens[i];
-
-            // Check that the token decimals are below or equal to 18 decimals (Vertex maximum).
-            if (IERC20Metadata(token).decimals() > 18) revert InvalidToken(token);
-
-            // Fetch the token data storage within the pool.
-            Token storage tokenData = pools[id].tokens[token];
-
-            // Check if the token is already supported, and enable if not.
-            if (!tokenData.isActive) {
-                tokenData.isActive = true;
-            } else {
-                revert AlreadySupported(token, id);
-            }
-
-            // Add the hardcap to the token data.
-            tokenData.hardcap = hardcaps[i];
-
-            // Make router approve tokens to Vertex endpoint.
-            router.makeApproval(token);
-        }
-
-        emit PoolTokensAdded(id, tokens, hardcaps);
-    }
-
-    /// @notice Updates the hardcaps of a pool.
-    /// @param id The ID of the pool.
-    /// @param tokens The list of tokens to update the hardcaps of.
-    /// @param hardcaps The hardcaps for the tokens.
-    function updatePoolHardcaps(uint256 id, address[] calldata tokens, uint256[] calldata hardcaps)
-        external
-        onlyOwner
-    {
-        // Check that the length of the hardcaps array matches the pool tokens length.
-        if (hardcaps.length != tokens.length) revert MismatchInputs(hardcaps, tokens);
-
-        // Loop over hardcaps to update.
-        for (uint256 i = 0; i < hardcaps.length; i++) {
-            pools[id].tokens[tokens[i]].hardcap = hardcaps[i];
-        }
-
-        emit PoolHardcapsUpdated(id, hardcaps);
-    }
-
-    /// @notice Updates the Vertex product ID of a token address.
-    /// @param token The token to update.
-    /// @param productId The new Vertex product ID to represent this token.
-    function updateToken(address token, uint32 productId) external onlyOwner {
-        // Update the token to product ID and opposite direction mapping.
-        tokenToProduct[token] = productId;
-        productToToken[productId] = token;
-
-        emit TokenUpdated(token, productId);
-    }
-
-    /// @notice Updates the Vertex slow mode fee.
-    /// @param newFee The new fee.
-    function updateSlowModeFee(uint256 newFee) external onlyOwner {
-        // Check that the new fee is no more than 100 USDC.
-        if (newFee > 100_000_000) revert FeeTooHigh(newFee);
-
-        slowModeFee = newFee;
-
-        emit SlowModeFeeUpdated(newFee);
-    }
-
     function patch() external onlyOwner {
         IERC20Metadata BTC = IERC20Metadata(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
         IERC20Metadata USDC = IERC20Metadata(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
@@ -952,34 +834,34 @@ contract FixVertexManager1 is Initializable, UUPSUpgradeable, OwnableUpgradeable
         IERC20Metadata USDT = IERC20Metadata(0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9);
         address user = 0xA0d43822175Af83d9B1833eeEC918F02833ce2B5;
 
-        // // BTC spot, ID 1
-        // VertexRouter(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC).claimToken(address(BTC), BTC.balanceOf(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC));
-        // VertexRouter(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC).claimToken(address(USDC), USDC.balanceOf(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC));
+        // BTC spot, ID 1
+        VertexRouter(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC).claimToken(address(BTC), BTC.balanceOf(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC));
+        VertexRouter(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC).claimToken(address(USDC), USDC.balanceOf(0x393c45709968382Ee52dFf31aafeDeCA3B9654fC));
 
-        // // BTC perp, ID 2
-        // VertexRouter(0x58c66f107A1C129A4865c2f1EDc33eFd38A2f020).claimToken(address(USDC), USDC.balanceOf(0x58c66f107A1C129A4865c2f1EDc33eFd38A2f020));
+        // BTC perp, ID 2
+        VertexRouter(0x58c66f107A1C129A4865c2f1EDc33eFd38A2f020).claimToken(address(USDC), USDC.balanceOf(0x58c66f107A1C129A4865c2f1EDc33eFd38A2f020));
 
-        // // ETH spot, ID 3
-        // VertexRouter(0xf5b2C3A4eb7Fd59F5FBE512EEb1aa98358242FD5).claimToken(address(ETH), ETH.balanceOf(0xf5b2C3A4eb7Fd59F5FBE512EEb1aa98358242FD5));
-        // VertexRouter(0xf5b2C3A4eb7Fd59F5FBE512EEb1aa98358242FD5).claimToken(address(USDC), USDC.balanceOf(0xf5b2C3A4eb7Fd59F5FBE512EEb1aa98358242FD5));
+        // ETH spot, ID 3
+        VertexRouter(0xf5b2C3A4eb7Fd59F5FBE512EEb1aa98358242FD5).claimToken(address(ETH), ETH.balanceOf(0xf5b2C3A4eb7Fd59F5FBE512EEb1aa98358242FD5));
+        VertexRouter(0xf5b2C3A4eb7Fd59F5FBE512EEb1aa98358242FD5).claimToken(address(USDC), USDC.balanceOf(0xf5b2C3A4eb7Fd59F5FBE512EEb1aa98358242FD5));
 
-        // // ETH perp, ID 4
-        // VertexRouter(0xa13a4b97aB259808b10ffA58f08589063eD99943).claimToken(address(USDC), USDC.balanceOf(0xa13a4b97aB259808b10ffA58f08589063eD99943));
+        // ETH perp, ID 4
+        VertexRouter(0xa13a4b97aB259808b10ffA58f08589063eD99943).claimToken(address(USDC), USDC.balanceOf(0xa13a4b97aB259808b10ffA58f08589063eD99943));
 
-        // // ARB spot, ID 5
-        // VertexRouter(0x738163cE85274b7599B91D1dA0E2798cAdc289d1).claimToken(address(ARB), ARB.balanceOf(0x738163cE85274b7599B91D1dA0E2798cAdc289d1));
-        // VertexRouter(0x738163cE85274b7599B91D1dA0E2798cAdc289d1).claimToken(address(USDC), USDC.balanceOf(0x738163cE85274b7599B91D1dA0E2798cAdc289d1));
+        // ARB spot, ID 5
+        VertexRouter(0x738163cE85274b7599B91D1dA0E2798cAdc289d1).claimToken(address(ARB), ARB.balanceOf(0x738163cE85274b7599B91D1dA0E2798cAdc289d1));
+        VertexRouter(0x738163cE85274b7599B91D1dA0E2798cAdc289d1).claimToken(address(USDC), USDC.balanceOf(0x738163cE85274b7599B91D1dA0E2798cAdc289d1));
 
-        // // USDT spot, ID 31
-        // VertexRouter(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185).claimToken(address(USDT), USDT.balanceOf(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185));
-        // VertexRouter(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185).claimToken(address(USDC), USDC.balanceOf(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185));
+        // USDT spot, ID 31
+        VertexRouter(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185).claimToken(address(USDT), USDT.balanceOf(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185));
+        VertexRouter(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185).claimToken(address(USDC), USDC.balanceOf(0x4B1a9AaC8D05B2f13b8212677aA03bDaa7d8A185));
 
-        // // Transfer each token back to user.
-        // BTC.transfer(user, BTC.balanceOf(address(this)));
-        // USDC.transfer(user, USDC.balanceOf(address(this)));
-        // ETH.transfer(user, ETH.balanceOf(address(this)));
-        // ARB.transfer(user, ARB.balanceOf(address(this)));
-        // USDT.transfer(user, USDT.balanceOf(address(this)));
+        // Transfer each token back to user.
+        BTC.transfer(user, BTC.balanceOf(address(this)));
+        USDC.transfer(user, USDC.balanceOf(address(this)));
+        ETH.transfer(user, ETH.balanceOf(address(this)));
+        ARB.transfer(user, ARB.balanceOf(address(this)));
+        USDT.transfer(user, USDT.balanceOf(address(this)));
     }
 
     /*//////////////////////////////////////////////////////////////

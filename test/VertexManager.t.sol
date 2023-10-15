@@ -180,6 +180,11 @@ contract TestVertexManager is Test {
         endpoint.executeSlowModeTransactions(uint32(queue.txCount - queue.txUpTo));
     }
 
+    /// @notice Returns the sum of pending amounts given a token and user.
+    function sumPendingBalance(address token, address user) public view returns (uint256) {
+        return manager.getUserPendingAmount(1, token, user) + manager.getUserPendingAmount(2, token, user);
+    }
+
     /*//////////////////////////////////////////////////////////////
                         DEPOSIT/WITHDRAWAL TESTS
     //////////////////////////////////////////////////////////////*/
@@ -212,8 +217,8 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountBTC, activeAmountBTC);
         assertEq(userActiveAmountUSDC, activeAmountUSDC);
 
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
@@ -232,8 +237,8 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountBTC, activeAmountBTC);
         assertEq(userActiveAmountUSDC, activeAmountUSDC);
 
-        assertEq(manager.pendingBalances(address(this), address(BTC)), amountBTC - manager.getWithdrawFee(address(BTC)));
-        assertEq(manager.pendingBalances(address(this), address(USDC)), amountUSDC);
+        assertEq(sumPendingBalance(address(BTC), address(this)), amountBTC - manager.getWithdrawFee(address(BTC)));
+        assertEq(sumPendingBalance(address(USDC), address(this)), amountUSDC);
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
@@ -242,8 +247,8 @@ contract TestVertexManager is Test {
         // Claim tokens for user and owner.
         manager.claim(address(this), spotTokens, 1);
 
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
         assertEq(BTC.balanceOf(address(this)), amountBTC - manager.getWithdrawFee(address(BTC)));
         assertEq(USDC.balanceOf(address(this)), amountUSDC);
         assertEq(BTC.balanceOf(owner), manager.getWithdrawFee(address(BTC)));
@@ -278,8 +283,8 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountBTC, activeAmountBTC);
         assertEq(userActiveAmountUSDC, activeAmountUSDC);
 
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
@@ -298,8 +303,8 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountBTC, activeAmountBTC);
         assertEq(userActiveAmountUSDC, activeAmountUSDC);
 
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
@@ -318,8 +323,8 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountBTC, activeAmountBTC);
         assertEq(userActiveAmountUSDC, activeAmountUSDC);
 
-        assertEq(manager.pendingBalances(address(this), address(BTC)), amountBTC - manager.getWithdrawFee(address(BTC)));
-        assertEq(manager.pendingBalances(address(this), address(USDC)), amountUSDC);
+        assertEq(sumPendingBalance(address(BTC), address(this)), amountBTC - manager.getWithdrawFee(address(BTC)));
+        assertEq(sumPendingBalance(address(USDC), address(this)), amountUSDC);
 
         manager.withdrawSpot(1, spotTokens, amountBTC, 0);
 
@@ -335,10 +340,8 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountBTC, activeAmountBTC);
         assertEq(userActiveAmountUSDC, activeAmountUSDC);
 
-        assertEq(
-            manager.pendingBalances(address(this), address(BTC)), 2 * (amountBTC - manager.getWithdrawFee(address(BTC)))
-        );
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 2 * amountUSDC);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 2 * (amountBTC - manager.getWithdrawFee(address(BTC))));
+        assertEq(sumPendingBalance(address(USDC), address(this)), 2 * amountUSDC);
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
@@ -347,8 +350,8 @@ contract TestVertexManager is Test {
         // Claim tokens for user and owner.
         manager.claim(address(this), spotTokens, 1);
 
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
         assertEq(BTC.balanceOf(address(this)), 2 * (amountBTC - manager.getWithdrawFee(address(BTC))));
         assertEq(USDC.balanceOf(address(this)), 2 * amountUSDC);
         assertEq(BTC.balanceOf(owner), 2 * manager.getWithdrawFee(address(BTC)));
@@ -391,10 +394,10 @@ contract TestVertexManager is Test {
         assertEq(activeAmountBTC, userActiveAmountCallerBTC + userActiveAmountReceiverBTC);
         assertEq(activeAmountUSDC, userActiveAmountCallerUSDC + userActiveAmountReceiverUSDC);
 
-        assertEq(manager.pendingBalances(address(0x69), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(0x69), address(USDC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(0x69)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(0x69)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
@@ -423,10 +426,10 @@ contract TestVertexManager is Test {
         assertEq(activeAmountBTC, userActiveAmountCallerBTC + userActiveAmountReceiverBTC);
         assertEq(activeAmountUSDC, userActiveAmountCallerUSDC + userActiveAmountReceiverUSDC);
 
-        assertEq(manager.pendingBalances(address(0x69), address(BTC)), amountBTC - manager.getWithdrawFee(address(BTC)));
-        assertEq(manager.pendingBalances(address(0x69), address(USDC)), amountUSDC);
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(0x69)), amountBTC - manager.getWithdrawFee(address(BTC)));
+        assertEq(sumPendingBalance(address(USDC), address(0x69)), amountUSDC);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
@@ -435,10 +438,10 @@ contract TestVertexManager is Test {
         // Claim tokens for user and owner.
         manager.claim(address(0x69), spotTokens, 1);
 
-        assertEq(manager.pendingBalances(address(0x69), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(0x69), address(USDC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(0x69)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(0x69)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
         assertEq(BTC.balanceOf(address(0x69)), amountBTC - manager.getWithdrawFee(address(BTC)));
         assertEq(USDC.balanceOf(address(0x69)), amountUSDC);
         assertEq(BTC.balanceOf(owner), manager.getWithdrawFee(address(BTC)));
@@ -482,9 +485,9 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountUSDC, activeAmountUSDC);
         assertEq(userActiveAmountWETH, activeAmountWETH);
 
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(WETH)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
+        assertEq(sumPendingBalance(address(WETH), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
@@ -507,11 +510,9 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountUSDC, activeAmountUSDC);
         assertEq(userActiveAmountWETH, activeAmountWETH);
 
-        assertEq(
-            manager.pendingBalances(address(this), address(BTC)), amounts[0] - manager.getWithdrawFee(address(BTC))
-        );
-        assertEq(manager.pendingBalances(address(this), address(USDC)), amounts[1]);
-        assertLe(manager.pendingBalances(address(this), address(WETH)), amounts[2]);
+        assertEq(sumPendingBalance(address(BTC), address(this)), amounts[0] - manager.getWithdrawFee(address(BTC)));
+        assertEq(sumPendingBalance(address(USDC), address(this)), amounts[1]);
+        assertLe(sumPendingBalance(address(WETH), address(this)), amounts[2]);
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
@@ -522,9 +523,9 @@ contract TestVertexManager is Test {
         // Claim tokens for user and owner.
         manager.claim(address(this), perpTokens, 2);
 
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(WETH)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
+        assertEq(sumPendingBalance(address(WETH), address(this)), 0);
         assertEq(BTC.balanceOf(address(this)), amounts[0] - manager.getWithdrawFee(address(BTC)));
         assertEq(USDC.balanceOf(address(this)), amounts[1]);
         assertLe(WETH.balanceOf(address(this)), amounts[2]);
@@ -571,9 +572,9 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountUSDC, activeAmountUSDC);
         assertEq(userActiveAmountWETH, activeAmountWETH);
 
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(WETH)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
+        assertEq(sumPendingBalance(address(WETH), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
@@ -596,9 +597,9 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountUSDC, activeAmountUSDC);
         assertEq(userActiveAmountWETH, activeAmountWETH);
 
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(WETH)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
+        assertEq(sumPendingBalance(address(WETH), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
@@ -621,11 +622,9 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountUSDC, activeAmountUSDC);
         assertEq(userActiveAmountWETH, activeAmountWETH);
 
-        assertEq(
-            manager.pendingBalances(address(this), address(BTC)), amounts[0] - manager.getWithdrawFee(address(BTC))
-        );
-        assertEq(manager.pendingBalances(address(this), address(USDC)), amounts[1]);
-        assertLe(manager.pendingBalances(address(this), address(WETH)), amounts[2]);
+        assertEq(sumPendingBalance(address(BTC), address(this)), amounts[0] - manager.getWithdrawFee(address(BTC)));
+        assertEq(sumPendingBalance(address(USDC), address(this)), amounts[1]);
+        assertLe(sumPendingBalance(address(WETH), address(this)), amounts[2]);
 
         manager.withdrawPerp(2, perpTokens, amounts, 0);
 
@@ -646,11 +645,10 @@ contract TestVertexManager is Test {
         assertEq(userActiveAmountWETH, activeAmountWETH);
 
         assertEq(
-            manager.pendingBalances(address(this), address(BTC)),
-            2 * (amounts[0] - manager.getWithdrawFee(address(BTC)))
+            sumPendingBalance(address(BTC), address(this)), 2 * (amounts[0] - manager.getWithdrawFee(address(BTC)))
         );
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 2 * amounts[1]);
-        assertLe(manager.pendingBalances(address(this), address(WETH)), 2 * amounts[2]);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 2 * amounts[1]);
+        assertLe(sumPendingBalance(address(WETH), address(this)), 2 * amounts[2]);
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
@@ -661,9 +659,9 @@ contract TestVertexManager is Test {
         // Claim tokens for user and owner.
         manager.claim(address(this), perpTokens, 2);
 
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(WETH)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
+        assertEq(sumPendingBalance(address(WETH), address(this)), 0);
         assertEq(BTC.balanceOf(address(this)), 2 * (amounts[0] - manager.getWithdrawFee(address(BTC))));
         assertEq(USDC.balanceOf(address(this)), 2 * amounts[1]);
         assertLe(WETH.balanceOf(address(this)), 2 * amounts[2]);
@@ -720,12 +718,12 @@ contract TestVertexManager is Test {
         assertEq(activeAmountUSDC, userActiveAmountCallerUSDC + userActiveAmountReceiverUSDC);
         assertEq(activeAmountWETH, userActiveAmountCallerWETH + userActiveAmountReceiverWETH);
 
-        assertEq(manager.pendingBalances(address(0x69), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(0x69), address(USDC)), 0);
-        assertEq(manager.pendingBalances(address(0x69), address(WETH)), 0);
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(WETH)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(0x69)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(0x69)), 0);
+        assertEq(sumPendingBalance(address(WETH), address(0x69)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
+        assertEq(sumPendingBalance(address(WETH), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
         processSlowModeTxs();
@@ -761,14 +759,12 @@ contract TestVertexManager is Test {
         assertEq(activeAmountUSDC, userActiveAmountCallerUSDC + userActiveAmountReceiverUSDC);
         assertEq(activeAmountWETH, userActiveAmountCallerWETH + userActiveAmountReceiverWETH);
 
-        assertEq(
-            manager.pendingBalances(address(0x69), address(BTC)), amounts[0] - manager.getWithdrawFee(address(BTC))
-        );
-        assertEq(manager.pendingBalances(address(0x69), address(USDC)), amounts[1]);
-        assertLe(manager.pendingBalances(address(0x69), address(WETH)), amounts[2]);
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(WETH)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(0x69)), amounts[0] - manager.getWithdrawFee(address(BTC)));
+        assertEq(sumPendingBalance(address(USDC), address(0x69)), amounts[1]);
+        assertLe(sumPendingBalance(address(WETH), address(0x69)), amounts[2]);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
+        assertEq(sumPendingBalance(address(WETH), address(this)), 0);
 
         // Advance time for withdraw slow-mode tx.
         processSlowModeTxs();
@@ -779,12 +775,12 @@ contract TestVertexManager is Test {
         // Claim tokens for user and owner.
         manager.claim(address(0x69), perpTokens, 2);
 
-        assertEq(manager.pendingBalances(address(0x69), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(0x69), address(USDC)), 0);
-        assertEq(manager.pendingBalances(address(0x69), address(WETH)), 0);
-        assertEq(manager.pendingBalances(address(this), address(BTC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(USDC)), 0);
-        assertEq(manager.pendingBalances(address(this), address(WETH)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(0x69)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(0x69)), 0);
+        assertEq(sumPendingBalance(address(WETH), address(0x69)), 0);
+        assertEq(sumPendingBalance(address(BTC), address(this)), 0);
+        assertEq(sumPendingBalance(address(USDC), address(this)), 0);
+        assertEq(sumPendingBalance(address(WETH), address(this)), 0);
         assertEq(BTC.balanceOf(address(0x69)), amounts[0] - manager.getWithdrawFee(address(BTC)));
         assertEq(USDC.balanceOf(address(0x69)), amounts[1]);
         assertLe(WETH.balanceOf(address(0x69)), amounts[2]);
@@ -1605,7 +1601,7 @@ contract TestVertexManager is Test {
         manager.withdrawPerp(2, token, amounts, 1);
 
         manager.withdrawPerp(2, token, amounts, 0);
-        assertTrue(manager.fees(address(this), address(BTC)) > 0);
+        assertTrue(manager.getUserFee(2, address(BTC), address(this)) > 0);
     }
 
     /// @notice Unit test for reversed spot deposits.
@@ -1638,5 +1634,127 @@ contract TestVertexManager is Test {
 
         uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
         assertLe(manager.getBalancedAmount(address(USDC), address(BTC), amountUSDC), amountBTC);
+    }
+
+    /// @notice Unit test for a cross product deposit, withdraw, and claim flow.
+    function testCrossProduct() public {
+        perpDepositSetUp();
+        spotDepositSetUp();
+
+        uint72 amountBTC = 1 * 10 ** 8; // 1 BTC
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC * 2);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC * 2);
+
+        manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, address(this));
+
+        processSlowModeTxs();
+
+        manager.withdrawSpot(1, spotTokens, amountBTC, 0);
+
+        address[] memory singleUSDC = new address[](1);
+        singleUSDC[0] = address(USDC);
+
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amountUSDC;
+
+        processSlowModeTxs();
+
+        manager.depositPerp(2, singleUSDC, amounts, address(this));
+
+        processSlowModeTxs();
+
+        manager.withdrawPerp(2, singleUSDC, amounts, 0);
+
+        assertEq(
+            sumPendingBalance(address(USDC), address(this)),
+            (amountUSDC * 2)
+                - (
+                    manager.getUserFee(2, address(USDC), address(this))
+                        + manager.getUserFee(1, address(USDC), address(this))
+                )
+        );
+
+        processSlowModeTxs();
+
+        (address router1,,,) = manager.getPoolToken(1, address(0));
+        (address router2,,,) = manager.getPoolToken(2, address(0));
+
+        assertEq(BTC.balanceOf(router1) + BTC.balanceOf(router2), amountBTC);
+        assertEq(USDC.balanceOf(router1) + USDC.balanceOf(router2), amountUSDC * 2);
+
+        // used to fail because the pending balance is greater than than the USDC balance of the router1 as the pending balances are grouped by token, not by router or product.
+        manager.claim(address(this), spotTokens, 1);
+
+        assertEq(BTC.balanceOf(router1) + BTC.balanceOf(router2), 0);
+        assertEq(USDC.balanceOf(router1) + USDC.balanceOf(router2), amountUSDC);
+
+        manager.claim(address(this), singleUSDC, 2);
+
+        assertEq(BTC.balanceOf(router1) + BTC.balanceOf(router2), 0);
+        assertEq(USDC.balanceOf(router1) + USDC.balanceOf(router2), 0);
+    }
+
+    /// @notice Unit test for a different fee used for withdraws.
+    function testFeesPerPool() public {
+        perpDepositSetUp();
+
+        uint256 amountBTC = 10 * 10 ** 8; // 10 BTC
+        uint256 amountUSDC = 100 * 10 ** 6; // 100 USDC
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+
+        // Deposit 10 BTC nad 100 USDC.
+        manager.depositPerp(2, perpTokens, amounts, address(this));
+
+        address[] memory singleBTC = new address[](1);
+        singleBTC[0] = address(BTC);
+
+        uint256[] memory amountBTCList = new uint256[](1);
+        amountBTCList[0] = amountBTC;
+
+        // Withdraw 10 BTC paying fee in BTC.
+        manager.withdrawPerp(2, singleBTC, amountBTCList, 0);
+
+        address[] memory singleUSDC = new address[](1);
+        singleUSDC[0] = address(USDC);
+
+        uint256[] memory amountUSDCList = new uint256[](1);
+        amountUSDCList[0] = amountUSDC;
+
+        // Withdraw 100 USDC paying fee in USDC.
+        manager.withdrawPerp(2, singleUSDC, amountUSDCList, 0);
+
+        // Check that the fees are stored well (are more than 0).
+        assertGe(manager.getUserFee(2, address(BTC), address(this)), 0);
+        assertGe(manager.getUserFee(2, address(USDC), address(this)), 0);
+
+        processSlowModeTxs();
+
+        uint256 beforeClaimUSDC = USDC.balanceOf(owner);
+        uint256 beforeClaimBTC = BTC.balanceOf(owner);
+
+        // Claim and check that the fees and tokens were distributed.
+        manager.claim(address(this), perpTokens, 2);
+
+        uint256 afterClaimUSDC = USDC.balanceOf(owner);
+        uint256 afterClaimBTC = BTC.balanceOf(owner);
+
+        assertEq(afterClaimBTC - beforeClaimBTC, manager.getWithdrawFee(address(BTC)));
+        assertEq(afterClaimUSDC - beforeClaimUSDC, manager.getWithdrawFee(address(USDC)));
+        assertEq(BTC.balanceOf(address(this)), amountBTC - (afterClaimBTC - beforeClaimBTC));
+        assertEq(USDC.balanceOf(address(this)), amountUSDC - (afterClaimUSDC - beforeClaimUSDC));
     }
 }

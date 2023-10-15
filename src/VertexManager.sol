@@ -49,6 +49,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     struct Token {
         // The active market making balance of users for a token within a pool.
         mapping(address user => uint256 balance) userActiveAmount;
+        // The pending amounts of users for a token within a pool.
+        mapping(address user => uint256 amount) userPendingAmount;
+        // The pending fees of a token within a pool.
+        mapping(address user => uint256 amount) fees;
         // The total active amounts of a token within a pool.
         uint256 activeAmount;
         // The hardcap of the token within a pool.
@@ -60,17 +64,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice The pools managed by this contract given their ID.
     mapping(uint256 id => Pool pool) public pools;
 
-    /// @notice The pending balance of users.
-    mapping(address user => mapping(address token => uint256 balance)) public pendingBalances;
-
     /// @notice The Vertex product IDs of token addresses.
     mapping(address token => uint32 id) public tokenToProduct;
 
     /// @notice The token addresses of Vertex product IDs.
     mapping(uint32 id => address token) public productToToken;
-
-    /// @notice The Elixir fee reimbursements for users and a token address.
-    mapping(address user => mapping(address token => uint256 amount)) public fees;
 
     /// @notice The Vertex slow mode fee
     uint256 public slowModeFee;
@@ -445,8 +443,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param tokens The tokens to claim for the user.
     /// @param id The ID of the pool to claim the tokens from.
     function claim(address user, address[] memory tokens, uint256 id) external whenClaimNotPaused nonReentrant {
+        // Fetch the pool data.
+        Pool storage pool = pools[id];
+
         // Check that the pool exists.
-        if (pools[id].router == address(0)) revert InvalidPool(id);
+        if (pool.router == address(0)) revert InvalidPool(id);
 
         // Check that the tokens array is not empty.
         if (tokens.length == 0) revert EmptyTokens(tokens);
@@ -455,21 +456,24 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         if (user == address(0)) revert ZeroAddress();
 
         // Fetch the pool router.
-        VertexRouter router = VertexRouter(pools[id].router);
+        VertexRouter router = VertexRouter(pool.router);
 
         // Loop over tokens and claim if they are available.
         for (uint256 i = 0; i < tokens.length; i++) {
+            // Get the token data.
+            Token storage tokenData = pool.tokens[tokens[i]];
+
             // Fetch the user's pending balance. No danger if amount is 0.
-            uint256 amount = pendingBalances[user][tokens[i]];
+            uint256 amount = tokenData.userPendingAmount[user];
 
             // Fetch Elixir's pending fee balance.
-            uint256 fee = fees[user][tokens[i]];
+            uint256 fee = tokenData.fees[user];
 
             // Resets the pending balance of the user.
-            pendingBalances[user][tokens[i]] = 0;
+            tokenData.userPendingAmount[user] = 0;
 
             // Resets the Elixir pending fee balance.
-            fees[user][tokens[i]] = 0;
+            tokenData.fees[user] = 0;
 
             // Fetch the tokens from the router.
             router.claimToken(tokens[i], amount + fee);
@@ -597,11 +601,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                 uint256 fee = getWithdrawFee(token);
 
                 // Add fee to the Elixir balance.
-                fees[msg.sender][token] += fee;
+                tokenData.fees[msg.sender] += fee;
 
-                pendingBalances[msg.sender][token] += (amountToReceive - fee);
+                tokenData.userPendingAmount[msg.sender] += (amountToReceive - fee);
             } else {
-                pendingBalances[msg.sender][token] += amountToReceive;
+                tokenData.userPendingAmount[msg.sender] += amountToReceive;
             }
 
             // Create Vertex withdraw payload request.
@@ -658,6 +662,22 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param user The user to fetch the active amounts of.
     function getUserActiveAmount(uint256 id, address token, address user) external view returns (uint256) {
         return pools[id].tokens[token].userActiveAmount[user];
+    }
+
+    /// @notice Returns a user's pending amount for a token within a pool.
+    /// @param id The ID of the pool to fetch the pending amount of.
+    /// @param token The token to fetch the pending amount of.
+    /// @param user The user to fetch the pending amount of.
+    function getUserPendingAmount(uint256 id, address token, address user) external view returns (uint256) {
+        return pools[id].tokens[token].userPendingAmount[user];
+    }
+
+    /// @notice Returns a user's reimbursement fee for a token within a pool.
+    /// @param id The ID of the pool to fetch the fee for.
+    /// @param token The token to fetch the fee for.
+    /// @param user The user to fetch the fee for.
+    function getUserFee(uint256 id, address token, address user) external view returns (uint256) {
+        return pools[id].tokens[token].fees[user];
     }
 
     /// @notice Fetches the current Vertex balances of a pool.

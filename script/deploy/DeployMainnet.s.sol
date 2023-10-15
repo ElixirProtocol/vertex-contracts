@@ -140,6 +140,9 @@ contract DeployMainnet is DeployBase {
         // Perp LINK: USDC
         manager.addPool(36, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, EXTERNAL_ACCOUNT);
 
+        // Transfer ownership to multisig
+        manager.transferOwnership(0xdc91701CD5d5a3Adb34d9afD1756f63d3b2201Ac);
+
         vm.stopBroadcast();
     }
 

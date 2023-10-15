@@ -307,7 +307,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         for (uint256 i = 0; i < tokens.length; i++) {
             address token = tokens[i];
 
-            deal(token, router, manager.pendingBalances(user, token) + manager.fees(user, token));
+            deal(token, router, manager.getUserPendingAmount(id, token, user) + manager.getUserFee(id, token, user));
         }
     }
 

@@ -61,6 +61,18 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         bool isActive;
     }
 
+    /// @notice The queue spot data structure.
+    struct Spot {
+        // The sender of the withdrawal.
+        address sender;
+        // The router to withdraw from. 
+        address router;
+        // The Vertex product to withdraw.
+        uint32 id;
+        // The amount of LP shares to withdraw.
+        uint256 amount;
+    }
+
     /// @notice The pools managed by this contract given their ID.
     mapping(uint256 id => Pool pool) public pools;
 
@@ -69,6 +81,15 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice The token addresses of Vertex product IDs.
     mapping(uint32 id => address token) public productToToken;
+
+    /// @notice The perp withdraw queue.
+    mapping (uint128 => Spot) public queue;
+
+    /// @notice The perp withdraw queue count.
+    uint128 public queueCount;
+
+    /// @notice The perp witrhdraw queue up to.
+    uint128 public queueUpTo;
 
     /// @notice The Vertex slow mode fee
     uint256 public slowModeFee;
@@ -722,10 +743,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         returns (uint256[] memory)
     {
         // Substract or add pending balance changes in Vertex sequencer queue.
-        IEndpoint.SlowModeConfig memory queue = endpoint.slowModeConfig();
+        IEndpoint.SlowModeConfig memory vertexQueue = endpoint.slowModeConfig();
 
         // Loop over queue and check transaction to get the pending balance changes.
-        for (uint64 i = queue.txUpTo; i < queue.txCount; i++) {
+        for (uint64 i = vertexQueue.txUpTo; i < vertexQueue.txCount; i++) {
             // Fetch the transaction.
             (, address sender, bytes memory transaction) = endpoint.slowModeTxs(i);
 

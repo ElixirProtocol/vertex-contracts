@@ -65,7 +65,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     struct Spot {
         // The sender of the withdrawal.
         address sender;
-        // The router to withdraw from. 
+        // The router to withdraw from.
         address router;
         // The Vertex product to withdraw.
         uint32 id;
@@ -83,7 +83,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     mapping(uint32 id => address token) public productToToken;
 
     /// @notice The perp withdraw queue.
-    mapping (uint128 => Spot) public queue;
+    mapping(uint128 => Spot) public queue;
 
     /// @notice The perp withdraw queue count.
     uint128 public queueCount;
@@ -127,6 +127,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param tokens The list of tokens withdrawn.
     /// @param amounts The amounts of tokens withdrawn.
     event Withdraw(address indexed user, uint256 id, address[] tokens, uint256[] amounts);
+
+    /// @notice Emitted when a perp withdrawal is queued.
+    /// @param spot The spot data structure added to the queue.
+    /// @param queueCount The queue count.
+    /// @param queueUpTo The queue up to.
+    event Queued(Spot spot, uint128 queueCount, uint128 queueUpTo);
 
     /// @notice Emitted when a claim is made.
     /// @param user The user for which the tokens were claimed.
@@ -381,44 +387,32 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         return amounts;
     }
 
-    /// @notice Withdraws tokens from a perp pool.
-    /// @dev After requests are processed by Vertex, user (or anyone on behalf of it) should call the claim function.
+    /// @notice Requests to withdraw a token from a perp pool.
+    /// @dev Requests are placed into a FIFO queue, which is processed by the Elixir market-making network and passed on to Vertex via the TODO `` function.
+    /// After processed by Vertex, the user (or anyone on behalf of it) can call the `claim` function.
     /// @param id The ID of the pool to withdraw from.
-    /// @param tokens The list of tokens to withdraw.
-    /// @param amounts The list of token amounts to withdraw.
-    /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
-    function withdrawPerp(uint256 id, address[] calldata tokens, uint256[] memory amounts, uint256 feeIndex)
-        external
-        whenWithdrawNotPaused
-        nonReentrant
-    {
+    /// @param token The token to withdraw.
+    /// @param amount The amount of shares to withdraw.
+    function withdrawPerp(uint256 id, address token, uint256 amount) external whenWithdrawNotPaused nonReentrant {
         // Fetch the pool data.
         Pool storage pool = pools[id];
 
         // Check that the pool is perp.
         if (pool.poolType != PoolType.Perp) revert InvalidPool(id);
 
-        // Check that the tokens array is not empty.
-        if (tokens.length == 0) revert EmptyTokens(tokens);
+        // Get the token data.
+        Token storage tokenData = pool.tokens[token];
 
-        // Check that the length of the tokens and amounts arrays match.
-        if (tokens.length != amounts.length) revert MismatchInputs(amounts, tokens);
+        // Check that the token is supported in this pool.
+        if (!tokenData.isActive) revert UnsupportedToken(token, id);
 
-        // Check that the tokens are not duplicated.
-        for (uint256 i = 0; i < tokens.length; i++) {
-            address token = tokens[i];
-            for (uint256 j = 0; j < tokens.length; j++) {
-                if ((j != i) && (token == tokens[j])) {
-                    revert DuplicatedTokens(token, tokens);
-                }
-            }
-        }
+        // Substract requested amount from the active market making balance.
+        tokenData.userActiveAmount[msg.sender] -= amount;
 
-        // Check that the feeIndex is within the tokens array.
-        if (feeIndex >= tokens.length) revert InvalidFeeIndex(feeIndex, tokens);
+        // Add to queue.
+        queue[queueCount++] = Spot(msg.sender, pool.router, tokenToProduct[token], amount);
 
-        // Execute the withdraw logic.
-        _withdraw(id, pool, tokens, amounts, feeIndex);
+        emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
 
     /// @notice Withdraws tokens from a spot pool.

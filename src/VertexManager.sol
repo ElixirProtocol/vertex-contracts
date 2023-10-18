@@ -65,10 +65,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     struct Spot {
         // The sender of the withdrawal.
         address sender;
-        // The router to withdraw from.
-        address router;
+        // The pool to withdraw from.
+        uint256 poolId;
         // The Vertex product to withdraw.
-        uint32 id;
+        uint32 tokenId;
         // The amount of LP shares to withdraw.
         uint256 amount;
     }
@@ -249,6 +249,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param newFee The new fee.
     error FeeTooHigh(uint256 newFee);
 
+    /// @notice Emitted when the withdraw perp queue is empty.
+    error EmptyQueue();
+
+    /// @notice Emitted when the caller is not the external account of the pool's router.
+    error NotExternalAccount(address indexed router, address indexed externalAccount, address indexed caller);
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -406,8 +412,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Check that the token is supported in this pool.
         if (!tokenData.isActive) revert UnsupportedToken(token, id);
 
-        // Substract requested amount from the active market making balance.
+        // Substract amount from the active market making balance.
         tokenData.userActiveAmount[msg.sender] -= amount;
+
+        // Substract amount from the active pool market making balance.
+        tokenData.activeAmount -= amount;
 
         // Add to queue.
         queue[queueCount++] = Spot(msg.sender, pool.router, tokenToProduct[token], amount);
@@ -823,6 +832,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                         VERTEX SLOW TRANSACTION
     //////////////////////////////////////////////////////////////*/
 
+    function processWithdraw() private {
+
+    }
+
     /// @notice Forward a slow mode transaction to the pool router.
     /// @param router The pool router.
     /// @param transaction The transaction to forward.
@@ -839,6 +852,60 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /*//////////////////////////////////////////////////////////////
                           PERMISSIONED FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice Processes the next spot in the withdraw perp queue.
+    function unqueue() external {
+        // Check that the queue is not empty.
+        if (queueUpTo == queueCount) revert EmptyQueue();
+
+        // Get the spot data from the queue.
+        Spot memory spot = queue[queueUpTo];
+
+        // Get the pool data.
+        Pool storage pool = pools[spot.poolId];
+        
+        // TODO: optimizations to avoid calling multiple times
+        // Check that the sender is the external account of the router.
+        if (msg.sender != VertexRouter(pool.router).externalSubaccount()) revert NotExternalAccount(pool.router, VertexRouter(pool.router).externalSubaccount(),  msg.sender);
+
+        // Format token and amount to array.
+        address[] memory tokens = new address[](1);
+        tokens[0] = tokenToProduct[spot.tokenId];
+
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amount;
+
+        // Fetch the router of the pool.
+        VertexRouter router = VertexRouter(pool.router);
+
+        // Get the Vertex balances.
+        uint256[] memory balances = getUpdatedVertexBalances(router, getCurrentVertexBalances(router, tokens), tokens);
+
+        // Calculate the amount to receive.
+        uint256 amountToReceive = getWithdrawAmount(balances[0], amount, tokenData.activeAmount);
+
+        // Calculate the reimburse fee amount for the token.
+        uint256 fee = getWithdrawFee(tokens[0]);
+
+        // Add fee to the Elixir balance.
+        tokenData.fees[spot.sender] += fee;
+
+        // Update the user pending balance.
+        tokenData.userPendingAmount[spot.sender] += (amountToReceive - fee);
+
+        // Create Vertex withdraw payload request.
+        IEndpoint.WithdrawCollateral memory withdrawPayload = IEndpoint.WithdrawCollateral(
+            router.contractSubaccount(), spot.tokenId, uint128(amountToReceive), 0
+        );
+
+        // Send withdraw requests to Vertex.
+        _sendTransaction(
+            router,
+            abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
+        );
+
+        emit Withdraw(spot.sender, spot.poolId, tokens, amounts);
+    }
 
     /// @notice Manages the paused status of deposits, withdrawals, and claims
     /// @param _depositPaused True to pause deposits, false otherwise.

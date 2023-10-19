@@ -67,6 +67,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         address sender;
         // The pool to withdraw from.
         uint256 poolId;
+        // The router address of the pool.
+        address router;
         // The Vertex product to withdraw.
         uint32 tokenId;
         // The amount of LP shares to withdraw.
@@ -119,14 +121,16 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The ID of the pool deposting to.
     /// @param tokens The list of tokens deposited.
     /// @param amounts The amount of tokens deposited.
-    event Deposit(address indexed caller, address indexed receiver, uint256 id, address[] tokens, uint256[] amounts);
+    event Deposit(
+        address indexed caller, address indexed receiver, uint256 indexed id, address[] tokens, uint256[] amounts
+    );
 
     /// @notice Emitted when a withdraw is made.
     /// @param user The user who withdrew.
     /// @param id The ID of the pool withdrawn from.
     /// @param tokens The list of tokens withdrawn.
     /// @param amounts The amounts of tokens withdrawn.
-    event Withdraw(address indexed user, uint256 id, address[] tokens, uint256[] amounts);
+    event Withdraw(address indexed user, uint256 indexed id, address[] tokens, uint256[] amounts);
 
     /// @notice Emitted when a perp withdrawal is queued.
     /// @param spot The spot data structure added to the queue.
@@ -143,7 +147,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param depositPaused True if deposits are paused, false otherwise.
     /// @param withdrawPaused True if withdrawals are paused, false otherwise.
     /// @param claimPaused True if claims are paused, false otherwise.
-    event PauseUpdated(bool depositPaused, bool withdrawPaused, bool claimPaused);
+    event PauseUpdated(bool indexed depositPaused, bool indexed withdrawPaused, bool indexed claimPaused);
 
     /// @notice Emitted when a pool is added.
     /// @param id The ID of the pool.
@@ -173,7 +177,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Emitted when the slow mode fee is updated.
     /// @param newFee The new fee.
-    event SlowModeFeeUpdated(uint256 newFee);
+    event SlowModeFeeUpdated(uint256 indexed newFee);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -249,11 +253,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param newFee The new fee.
     error FeeTooHigh(uint256 newFee);
 
-    /// @notice Emitted when the withdraw perp queue is empty.
-    error EmptyQueue();
+    /// @notice Emitted when the given spot ID to withdrtaw is not valid.
+    error InvalidSpot(uint128 spotId, uint128 queueUpTo);
 
     /// @notice Emitted when the caller is not the external account of the pool's router.
-    error NotExternalAccount(address indexed router, address indexed externalAccount, address indexed caller);
+    error NotExternalAccount(address router, address externalAccount, address caller);
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
@@ -419,7 +423,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         tokenData.activeAmount -= amount;
 
         // Add to queue.
-        queue[queueCount++] = Spot(msg.sender, pool.router, tokenToProduct[token], amount);
+        queue[queueCount++] = Spot(msg.sender, id, pool.router, tokenToProduct[token], amount);
 
         emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
@@ -832,10 +836,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                         VERTEX SLOW TRANSACTION
     //////////////////////////////////////////////////////////////*/
 
-    function processWithdraw() private {
-
-    }
-
     /// @notice Forward a slow mode transaction to the pool router.
     /// @param router The pool router.
     /// @param transaction The transaction to forward.
@@ -854,38 +854,35 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Processes the next spot in the withdraw perp queue.
-    function unqueue() external {
-        // Check that the queue is not empty.
-        if (queueUpTo == queueCount) revert EmptyQueue();
+    /// @param spotId The ID of the spot queue to process.
+    /// @param amountToReceive The amount the user should receive from the withdraw.
+    function unqueue(uint128 spotId, uint256 amountToReceive) external {
+        // Check that next spot in queue matches the given spot ID.
+        // TODO: Check increasing this variable doesn't save after revert and that it's saved if not reverting.
+        if (spotId == queueUpTo++) revert InvalidSpot(spotId, queueUpTo);
 
         // Get the spot data from the queue.
         Spot memory spot = queue[queueUpTo];
 
-        // Get the pool data.
-        Pool storage pool = pools[spot.poolId];
-        
+        // Get the router of the pool.
+        VertexRouter router = VertexRouter(spot.router);
+
+        // Get the external account of the router.
+        // TODO: Check security below.
+        address externalAccount = address(uint160(bytes20(router.externalSubaccount())));
+
         // TODO: optimizations to avoid calling multiple times
         // Check that the sender is the external account of the router.
-        if (msg.sender != VertexRouter(pool.router).externalSubaccount()) revert NotExternalAccount(pool.router, VertexRouter(pool.router).externalSubaccount(),  msg.sender);
+        if (msg.sender != externalAccount) revert NotExternalAccount(address(router), externalAccount, msg.sender);
 
-        // Format token and amount to array.
-        address[] memory tokens = new address[](1);
-        tokens[0] = tokenToProduct[spot.tokenId];
+        // Get the token address.
+        address token = productToToken[spot.tokenId];
 
-        uint256[] memory amounts = new uint256[](1);
-        amounts[0] = amount;
-
-        // Fetch the router of the pool.
-        VertexRouter router = VertexRouter(pool.router);
-
-        // Get the Vertex balances.
-        uint256[] memory balances = getUpdatedVertexBalances(router, getCurrentVertexBalances(router, tokens), tokens);
-
-        // Calculate the amount to receive.
-        uint256 amountToReceive = getWithdrawAmount(balances[0], amount, tokenData.activeAmount);
+        // Get the token data.
+        Token storage tokenData = pools[spot.poolId].tokens[token];
 
         // Calculate the reimburse fee amount for the token.
-        uint256 fee = getWithdrawFee(tokens[0]);
+        uint256 fee = getWithdrawFee(token);
 
         // Add fee to the Elixir balance.
         tokenData.fees[spot.sender] += fee;
@@ -894,15 +891,20 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         tokenData.userPendingAmount[spot.sender] += (amountToReceive - fee);
 
         // Create Vertex withdraw payload request.
-        IEndpoint.WithdrawCollateral memory withdrawPayload = IEndpoint.WithdrawCollateral(
-            router.contractSubaccount(), spot.tokenId, uint128(amountToReceive), 0
-        );
+        IEndpoint.WithdrawCollateral memory withdrawPayload =
+            IEndpoint.WithdrawCollateral(router.contractSubaccount(), spot.tokenId, uint128(amountToReceive), 0);
 
         // Send withdraw requests to Vertex.
         _sendTransaction(
-            router,
-            abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
+            router, abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
         );
+
+        // Format token and amount to array.
+        address[] memory tokens = new address[](1);
+        tokens[0] = token;
+
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amountToReceive;
 
         emit Withdraw(spot.sender, spot.poolId, tokens, amounts);
     }

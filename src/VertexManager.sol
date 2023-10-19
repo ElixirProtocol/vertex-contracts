@@ -832,6 +832,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         return (uint8(transaction[0]), transaction[1:]);
     }
 
+    /// @notice TODO: Helper function that returns an arbitry spot data in the queue using an ID.
+
+    /// @notice TODO: Helper function that returns next spot to process in queue.
+    /// Calls the function above after fetching the next spot ID to process.
+
     /*//////////////////////////////////////////////////////////////
                         VERTEX SLOW TRANSACTION
     //////////////////////////////////////////////////////////////*/

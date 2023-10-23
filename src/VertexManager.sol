@@ -397,33 +397,42 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         return amounts;
     }
 
-    /// @notice Requests to withdraw a token from a perp pool.
-    /// @dev Requests are placed into a FIFO queue, which is processed by the Elixir market-making network and passed on to Vertex via the TODO `` function.
+    /// @notice Requests to withdraw tokens from a perp pool.
+    /// @dev Requests are placed into a FIFO queue, which is processed by the Elixir market-making network and passed on to Vertex via the `unqueue` function.
     /// After processed by Vertex, the user (or anyone on behalf of it) can call the `claim` function.
     /// @param id The ID of the pool to withdraw from.
-    /// @param token The token to withdraw.
-    /// @param amount The amount of shares to withdraw.
-    function withdrawPerp(uint256 id, address token, uint256 amount) external whenWithdrawNotPaused nonReentrant {
+    /// @param tokens The tokens to withdraw.
+    /// @param amounts The amounts of shares to withdraw.
+    function withdrawPerp(uint256 id, address[] memory tokens, uint256[] memory amounts) external whenWithdrawNotPaused nonReentrant {
         // Fetch the pool data.
         Pool storage pool = pools[id];
 
         // Check that the pool is perp.
         if (pool.poolType != PoolType.Perp) revert InvalidPool(id);
 
-        // Get the token data.
-        Token storage tokenData = pool.tokens[token];
+        // Check that the tokens array is not empty.
+        if (tokens.length == 0) revert EmptyTokens(tokens);
 
-        // Check that the token is supported in this pool.
-        if (!tokenData.isActive) revert UnsupportedToken(token, id);
+        // Check that the length of the tokens and amounts arrays match.
+        if (tokens.length != amounts.length) revert MismatchInputs(amounts, tokens);
 
-        // Substract amount from the active market making balance.
-        tokenData.userActiveAmount[msg.sender] -= amount;
+        // Loop over tokens to queue.
+        for (uint256 i = 0; i < tokens.length; i++) {
+            // Get the token data.
+            Token storage tokenData = pool.tokens[tokens[i]];
 
-        // Substract amount from the active pool market making balance.
-        tokenData.activeAmount -= amount;
+            // Check that the token is supported in this pool.
+            if (!tokenData.isActive) revert UnsupportedToken(tokens[i], id);
 
-        // Add to queue.
-        queue[queueCount++] = Spot(msg.sender, id, pool.router, tokenToProduct[token], amount);
+            // Substract amount from the active market making balance.
+            tokenData.userActiveAmount[msg.sender] -= amounts[i];
+
+            // Substract amount from the active pool market making balance.
+            tokenData.activeAmount -= amounts[i];
+
+            // Add to queue.
+            queue[queueCount++] = Spot(msg.sender, id, pool.router, tokenToProduct[tokens[i]], amounts[i]);
+        }
 
         emit Queued(queue[queueCount], queueCount, queueUpTo);
     }

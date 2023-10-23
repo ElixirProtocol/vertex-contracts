@@ -179,7 +179,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         amounts[1] = amountUSDC;
         amounts[2] = amountWETH;
 
-        manager.withdrawPerp(2, perpTokens, amounts, feeIndex);
+        manager.withdrawPerp(2, perpTokens, amounts);
 
         vm.stopPrank();
 

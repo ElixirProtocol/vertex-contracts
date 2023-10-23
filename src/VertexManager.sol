@@ -403,7 +403,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param id The ID of the pool to withdraw from.
     /// @param tokens The tokens to withdraw.
     /// @param amounts The amounts of shares to withdraw.
-    function withdrawPerp(uint256 id, address[] memory tokens, uint256[] memory amounts) external whenWithdrawNotPaused nonReentrant {
+    function withdrawPerp(uint256 id, address[] memory tokens, uint256[] memory amounts)
+        external
+        whenWithdrawNotPaused
+        nonReentrant
+    {
         // Fetch the pool data.
         Pool storage pool = pools[id];
 
@@ -841,10 +845,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         return (uint8(transaction[0]), transaction[1:]);
     }
 
-    /// @notice TODO: Helper function that returns an arbitry spot data in the queue using an ID.
+    /// @notice Returns the next spot in the queue to process.
+    function nextSpot() external returns (Spot memory) {
+        return queue[queueUpTo++];
+    }
 
-    /// @notice TODO: Helper function that returns next spot to process in queue.
-    /// Calls the function above after fetching the next spot ID to process.
+    /// @notice TODO: Helper function that returns an arbitry spot data in the queue using an ID.
 
     /*//////////////////////////////////////////////////////////////
                         VERTEX SLOW TRANSACTION
@@ -873,10 +879,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     function unqueue(uint128 spotId, uint256 amountToReceive) external {
         // Check that next spot in queue matches the given spot ID.
         // TODO: Check increasing this variable doesn't save after revert and that it's saved if not reverting.
-        if (spotId == queueUpTo++) revert InvalidSpot(spotId, queueUpTo);
+        if (spotId == queueUpTo + 1) revert InvalidSpot(spotId, queueUpTo + 1);
 
         // Get the spot data from the queue.
-        Spot memory spot = queue[queueUpTo];
+        Spot memory spot = queue[queueUpTo - 1];
 
         // Get the router of the pool.
         VertexRouter router = VertexRouter(spot.router);

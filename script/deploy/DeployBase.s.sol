@@ -5,10 +5,17 @@ import "forge-std/Script.sol";
 
 import {IEndpoint, VertexManager} from "../../src/VertexManager.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
+import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 
 abstract contract DeployBase is Script {
     // Environment specific variables.
-    IEndpoint internal endpoint;
+    IEndpoint public endpoint;
+    address public externalAccount;
+    address public btc;
+    address public usdc;
+    address public eth;
+    address public arb;
+    address public usdt;
 
     // Deploy addresses.
     VertexManager internal managerImplementation;
@@ -18,8 +25,22 @@ abstract contract DeployBase is Script {
     // Deployer key.
     uint256 internal deployerKey;
 
-    constructor(address _endpoint) {
+    constructor(
+        address _endpoint,
+        address _externalAccount,
+        address _btc,
+        address _usdc,
+        address _eth,
+        address _arb,
+        address _usdt
+    ) {
         endpoint = IEndpoint(_endpoint);
+        externalAccount = _externalAccount;
+        btc = _btc;
+        usdc = _usdc;
+        eth = _eth;
+        arb = _arb;
+        usdt = _usdt;
     }
 
     function setup() internal {
@@ -37,6 +58,123 @@ abstract contract DeployBase is Script {
 
         // Wrap in ABI to support easier calls.
         manager = VertexManager(address(proxy));
+
+        // Add token support.
+        manager.updateToken(usdc, 0);
+        manager.updateToken(btc, 1);
+        manager.updateToken(eth, 3);
+        manager.updateToken(arb, 5);
+        manager.updateToken(usdt, 31);
+
+        // Give approval to create pools.
+        IERC20(usdc).approve(address(manager), type(uint256).max);
+
+        // Spot BTC: WBTC and USDC
+        address[] memory spotBTC = new address[](2);
+        spotBTC[0] = address(btc);
+        spotBTC[1] = address(usdc);
+
+        uint256[] memory spotBTCHardcaps = new uint256[](2);
+        spotBTCHardcaps[0] = 1371000000; // 13.71 WBTC
+        spotBTCHardcaps[1] = 375000000000; // 375000 USDC
+
+        manager.addPool(1, spotBTC, spotBTCHardcaps, VertexManager.PoolType.Spot, externalAccount);
+
+        // Perp BTC: USDC
+        address[] memory singleUSDC = new address[](1);
+        singleUSDC[0] = usdc;
+
+        uint256[] memory perpBTCHardcaps = new uint256[](1);
+        perpBTCHardcaps[0] = 375000000000; // 375000 USDC
+
+        manager.addPool(2, singleUSDC, perpBTCHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Spot ETH: ETH and USDC
+        address[] memory spotETH = new address[](2);
+        spotETH[0] = address(eth);
+        spotETH[1] = address(usdc);
+
+        uint256[] memory spotETHHardcaps = new uint256[](2);
+        spotETHHardcaps[0] = 227 ether; // 227 ETH
+        spotETHHardcaps[1] = 375000000000; // 375000 USDC
+
+        manager.addPool(3, spotETH, spotETHHardcaps, VertexManager.PoolType.Spot, externalAccount);
+
+        // Perp ETH: USDC
+        uint256[] memory perpETHHardcaps = new uint256[](1);
+        perpETHHardcaps[0] = 375000000000; // 375000 USDC
+
+        manager.addPool(4, singleUSDC, perpETHHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Spot ARB: ARB and USDC
+        address[] memory spotARB = new address[](2);
+        spotARB[0] = address(arb);
+        spotARB[1] = address(usdc);
+
+        uint256[] memory spotARBHardcaps = new uint256[](2);
+        spotARBHardcaps[0] = 73500 ether; // 73500 ARB
+        spotARBHardcaps[1] = 75000000000; // 75000 USDC
+
+        manager.addPool(5, spotARB, spotARBHardcaps, VertexManager.PoolType.Spot, externalAccount);
+
+        // Perp ARB: USDC
+        uint256[] memory perpHardcaps = new uint256[](1);
+        perpHardcaps[0] = 90000000000; // 90000 USDC
+
+        manager.addPool(6, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp BNB: USDC
+        manager.addPool(8, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp XRP: USDC
+        manager.addPool(10, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp SOL: USDC
+        manager.addPool(12, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp MATIC: USDC
+        manager.addPool(14, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp SUI: USDC
+        manager.addPool(16, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp OP: USDC
+        manager.addPool(18, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp APT: USDC
+        manager.addPool(20, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp LTC: USDC
+        manager.addPool(22, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp BCH: USDC
+        manager.addPool(24, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp COMP: USDC
+        manager.addPool(26, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp MKR: USDC
+        manager.addPool(28, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp mPEPE: USDC
+        manager.addPool(30, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Spot USDT: USDT and USDC
+        address[] memory spotUSDT = new address[](2);
+        spotUSDT[0] = address(usdt);
+        spotUSDT[1] = address(usdc);
+
+        uint256[] memory spotUSDTHardcaps = new uint256[](2);
+        spotUSDTHardcaps[0] = 45000000000; // 45000 USDT
+        spotUSDTHardcaps[1] = 45000000000; // 45000 USDC
+
+        manager.addPool(31, spotUSDT, spotUSDTHardcaps, VertexManager.PoolType.Spot, externalAccount);
+
+        // Perp DOGE: USDC
+        manager.addPool(34, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp LINK: USDC
+        manager.addPool(36, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
 
         vm.stopBroadcast();
     }

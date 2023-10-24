@@ -21,6 +21,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     // Elixir contracts
     VertexManager public manager;
 
+    // Elixir external account
+    address public externalAccount;
+
     // Tokens
     IERC20Metadata public BTC;
     IERC20Metadata public USDC;
@@ -63,7 +66,12 @@ contract Handler is CommonBase, StdCheats, StdUtils {
                                CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(VertexManager _manager, address[] memory _spotTokens, address[] memory _perpTokens) {
+    constructor(
+        VertexManager _manager,
+        address[] memory _spotTokens,
+        address[] memory _perpTokens,
+        address _externalAccount
+    ) {
         manager = _manager;
         BTC = IERC20Metadata(_perpTokens[0]);
         USDC = IERC20Metadata(_perpTokens[1]);
@@ -71,6 +79,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         spotTokens = _spotTokens;
         perpTokens = _perpTokens;
+        externalAccount = _externalAccount;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -182,6 +191,8 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         manager.withdrawPerp(2, perpTokens, amounts);
 
         vm.stopPrank();
+
+        process();
 
         ghost_withdraws[address(BTC)] += amountBTC;
         ghost_withdraws[address(USDC)] += amountUSDC;
@@ -309,6 +320,18 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
             deal(token, router, manager.getUserPendingAmount(id, token, user) + manager.getUserFee(id, token, user));
         }
+    }
+
+    function process() public {
+        vm.startPrank(externalAccount);
+
+        // Loop through the queue and process each transaction using the idTo provided.
+        for (uint128 i = manager.queueUpTo() + 1; i < manager.queueCount() + 1; i++) {
+            VertexManager.Spot memory spot = manager.nextSpot();
+            manager.unqueue(i, spot.amount);
+        }
+
+        vm.stopPrank();
     }
 
     // Exclude from coverage report

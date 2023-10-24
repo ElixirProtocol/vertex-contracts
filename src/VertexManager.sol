@@ -253,6 +253,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param newFee The new fee.
     error FeeTooHigh(uint256 newFee);
 
+    /// @notice Emitted when the amount given to withdraw is less than the fee to pay.
+    /// @param amount The amount given to withdraw.
+    /// @param fee The fee to pay.
+    error AmountTooLow(uint256 amount, uint256 fee);
+
     /// @notice Emitted when the given spot ID to withdrtaw is not valid.
     error InvalidSpot(uint128 spotId, uint128 queueUpTo);
 
@@ -427,6 +432,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
             // Check that the token is supported in this pool.
             if (!tokenData.isActive) revert UnsupportedToken(tokens[i], id);
+
+            // Check that the amount is at least the fee to pay.
+            if (amounts[i] < getWithdrawFee(tokens[i])) revert AmountTooLow(amounts[i], getWithdrawFee(tokens[i]));
 
             // Substract amount from the active market making balance.
             tokenData.userActiveAmount[msg.sender] -= amounts[i];

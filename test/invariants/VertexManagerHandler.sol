@@ -101,12 +101,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         USDC.approve(address(manager), amountUSDC);
         WETH.approve(address(manager), amountWETH);
 
-        uint256[] memory amounts = new uint256[](3);
-        amounts[0] = amountBTC;
-        amounts[1] = amountUSDC;
-        amounts[2] = amountWETH;
-
-        manager.depositPerp(2, perpTokens, amounts, currentActor);
+        manager.depositPerp(2, perpTokens[0], amountBTC, currentActor);
+        manager.depositPerp(2, perpTokens[1], amountUSDC, currentActor);
+        manager.depositPerp(2, perpTokens[2], amountWETH, currentActor);
 
         vm.stopPrank();
 
@@ -129,7 +126,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         BTC.approve(address(manager), amountBTC);
         USDC.approve(address(manager), amountUSDC);
 
-        manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, currentActor);
+        manager.depositSpot(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, currentActor);
 
         vm.stopPrank();
 
@@ -183,12 +180,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         vm.startPrank(currentActor);
 
-        uint256[] memory amounts = new uint256[](3);
-        amounts[0] = amountBTC;
-        amounts[1] = amountUSDC;
-        amounts[2] = amountWETH;
-
-        manager.withdrawPerp(2, perpTokens, amounts);
+        manager.withdrawPerp(2, perpTokens[0], amountBTC);
+        manager.withdrawPerp(2, perpTokens[1], amountUSDC);
+        manager.withdrawPerp(2, perpTokens[2], amountWETH);
 
         vm.stopPrank();
 
@@ -249,7 +243,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         uint256 beforeUSDC = USDC.balanceOf(currentActor);
         uint256 beforeWETH = WETH.balanceOf(currentActor);
 
-        manager.claim(currentActor, perpTokens, 2);
+        manager.claim(currentActor, perpTokens[0], 2);
+        manager.claim(currentActor, perpTokens[1], 2);
+        manager.claim(currentActor, perpTokens[2], 2);
 
         uint256 receivedBTC = BTC.balanceOf(currentActor) - beforeBTC;
         uint256 receivedUSDC = USDC.balanceOf(currentActor) - beforeUSDC;
@@ -275,7 +271,8 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         uint256 beforeBTC = BTC.balanceOf(currentActor);
         uint256 beforeUSDC = USDC.balanceOf(currentActor);
 
-        manager.claim(currentActor, spotTokens, 1);
+        manager.claim(currentActor, spotTokens[0], 1);
+        manager.claim(currentActor, spotTokens[1], 1);
 
         uint256 receivedBTC = BTC.balanceOf(currentActor) - beforeBTC;
         uint256 receivedUSDC = USDC.balanceOf(currentActor) - beforeUSDC;

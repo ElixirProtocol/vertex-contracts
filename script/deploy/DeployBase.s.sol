@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 
 import {IEndpoint, VertexManager} from "../../src/VertexManager.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
-import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
 abstract contract DeployBase is Script {
     // Environment specific variables.
@@ -46,6 +46,13 @@ abstract contract DeployBase is Script {
     function setup() internal {
         deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
 
+        // Get the token decimals.
+        uint256 btcDecimals = IERC20Metadata(btc).decimals();
+        uint256 usdcDecimals = IERC20Metadata(usdc).decimals();
+        uint256 ethDecimals = IERC20Metadata(eth).decimals();
+        uint256 arbDecimals = IERC20Metadata(arb).decimals();
+        uint256 usdtDecimals = IERC20Metadata(usdt).decimals();
+
         // Deploy with key.
         vm.startBroadcast(deployerKey);
 
@@ -67,16 +74,16 @@ abstract contract DeployBase is Script {
         manager.updateToken(usdt, 31);
 
         // Give approval to create pools.
-        IERC20(usdc).approve(address(manager), type(uint256).max);
+        IERC20Metadata(usdc).approve(address(manager), type(uint256).max);
 
         // Spot BTC: WBTC and USDC
         address[] memory spotBTC = new address[](2);
-        spotBTC[0] = address(btc);
-        spotBTC[1] = address(usdc);
+        spotBTC[0] = btc;
+        spotBTC[1] = usdc;
 
         uint256[] memory spotBTCHardcaps = new uint256[](2);
-        spotBTCHardcaps[0] = 1371000000; // 13.71 WBTC
-        spotBTCHardcaps[1] = 375000000000; // 375000 USDC
+        spotBTCHardcaps[0] = 1371 * 10 ** btcDecimals - 2; // 13.71 WBTC
+        spotBTCHardcaps[1] = 375000 * 10 ** usdcDecimals; // 375000 USDC
 
         manager.addPool(1, spotBTC, spotBTCHardcaps, VertexManager.PoolType.Spot, externalAccount);
 
@@ -85,41 +92,38 @@ abstract contract DeployBase is Script {
         singleUSDC[0] = usdc;
 
         uint256[] memory perpBTCHardcaps = new uint256[](1);
-        perpBTCHardcaps[0] = 375000000000; // 375000 USDC
+        perpBTCHardcaps[0] = 375000 * 10 ** usdcDecimals; // 375000 USDC
 
         manager.addPool(2, singleUSDC, perpBTCHardcaps, VertexManager.PoolType.Perp, externalAccount);
 
         // Spot ETH: ETH and USDC
         address[] memory spotETH = new address[](2);
-        spotETH[0] = address(eth);
-        spotETH[1] = address(usdc);
+        spotETH[0] = eth;
+        spotETH[1] = usdc;
 
         uint256[] memory spotETHHardcaps = new uint256[](2);
-        spotETHHardcaps[0] = 227 ether; // 227 ETH
-        spotETHHardcaps[1] = 375000000000; // 375000 USDC
+        spotETHHardcaps[0] = 227 * 10 ** ethDecimals; // 227 ETH
+        spotETHHardcaps[1] = 375000 * 10 ** usdcDecimals; // 375000 USDC
 
         manager.addPool(3, spotETH, spotETHHardcaps, VertexManager.PoolType.Spot, externalAccount);
 
         // Perp ETH: USDC
-        uint256[] memory perpETHHardcaps = new uint256[](1);
-        perpETHHardcaps[0] = 375000000000; // 375000 USDC
-
-        manager.addPool(4, singleUSDC, perpETHHardcaps, VertexManager.PoolType.Perp, externalAccount);
+        manager.addPool(4, singleUSDC, perpBTCHardcaps, VertexManager.PoolType.Perp, externalAccount);
 
         // Spot ARB: ARB and USDC
         address[] memory spotARB = new address[](2);
-        spotARB[0] = address(arb);
-        spotARB[1] = address(usdc);
+        spotARB[0] = arb;
+        spotARB[1] = usdc;
 
         uint256[] memory spotARBHardcaps = new uint256[](2);
-        spotARBHardcaps[0] = 73500 ether; // 73500 ARB
-        spotARBHardcaps[1] = 75000000000; // 75000 USDC
+        spotARBHardcaps[0] = 73500 * 10 ** arbDecimals; // 73500 ARB
+        spotARBHardcaps[1] = 75000 * 10 ** usdcDecimals; // 75000 USDC
 
         manager.addPool(5, spotARB, spotARBHardcaps, VertexManager.PoolType.Spot, externalAccount);
 
         // Perp ARB: USDC
         uint256[] memory perpHardcaps = new uint256[](1);
-        perpHardcaps[0] = 90000000000; // 90000 USDC
+        perpHardcaps[0] = 90000 * 10 ** usdcDecimals; // 90000 USDC
 
         manager.addPool(6, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
 
@@ -161,12 +165,12 @@ abstract contract DeployBase is Script {
 
         // Spot USDT: USDT and USDC
         address[] memory spotUSDT = new address[](2);
-        spotUSDT[0] = address(usdt);
-        spotUSDT[1] = address(usdc);
+        spotUSDT[0] = usdt;
+        spotUSDT[1] = usdc;
 
         uint256[] memory spotUSDTHardcaps = new uint256[](2);
-        spotUSDTHardcaps[0] = 45000000000; // 45000 USDT
-        spotUSDTHardcaps[1] = 45000000000; // 45000 USDC
+        spotUSDTHardcaps[0] = 45000 * 10 ** usdtDecimals; // 45000 USDT
+        spotUSDTHardcaps[1] = 45000 * 10 ** usdcDecimals; // 45000 USDC
 
         manager.addPool(31, spotUSDT, spotUSDTHardcaps, VertexManager.PoolType.Spot, externalAccount);
 

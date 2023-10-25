@@ -61,7 +61,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         bool isActive;
     }
 
-    /// @notice The queue spot data structure.
+    /// @notice The data structure of queue spots.
     struct Spot {
         // The sender of the withdrawal.
         address sender;
@@ -75,7 +75,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         uint256 amount;
     }
 
-    /// @notice The pools managed by this contract given their ID.
+    /// @notice The pools managed given an ID.
     mapping(uint256 id => Pool pool) public pools;
 
     /// @notice The Vertex product IDs of token addresses.
@@ -93,7 +93,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice The perp witrhdraw queue up to.
     uint128 public queueUpTo;
 
-    /// @notice The Vertex slow mode fee
+    /// @notice The Vertex slow mode fee.
     uint256 public slowModeFee = 1000000;
 
     /// @notice Vertex's Endpoint contract.
@@ -117,21 +117,21 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Emitted when a deposit is made.
     /// @param caller The caller of the deposit function, for which tokens are taken from.
-    /// @param receiver The receiver of the virtual LP balance.
+    /// @param receiver The receiver of the LP balance.
     /// @param id The ID of the pool deposting to.
     /// @param token The token deposited.
-    /// @param amount The amount of token deposited.
+    /// @param amount The token amount deposited.
     event Deposit(address indexed caller, address indexed receiver, uint256 indexed id, address token, uint256 amount);
 
     /// @notice Emitted when a withdraw is made.
     /// @param user The user who withdrew.
-    /// @param router The router withdrawn from.
-    /// @param tokenId The token withdrawn.
-    /// @param amount The amount of tokens the user receives.
+    /// @param router The router of the pool withdrawn from.
+    /// @param tokenId The Vertex product ID of the token withdrawn.
+    /// @param amount The token amount the user receives.
     event Withdraw(address indexed user, address indexed router, uint32 tokenId, uint256 indexed amount);
 
     /// @notice Emitted when a perp withdrawal is queued.
-    /// @param spot The spot data structure added to the queue.
+    /// @param spot The spot added to the queue.
     /// @param queueCount The queue count.
     /// @param queueUpTo The queue up to.
     event Queued(Spot spot, uint128 queueCount, uint128 queueUpTo);
@@ -139,10 +139,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Emitted when a claim is made.
     /// @param user The user for which the tokens were claimed.
     /// @param token The token claimed.
-    /// @param amount The amount of token claimed.
+    /// @param amount The token amount claimed.
     event Claim(address indexed user, address indexed token, uint256 indexed amount);
 
-    /// @notice Emitted when the statuses are updated.
+    /// @notice Emitted when the pause statuses are updated.
     /// @param depositPaused True if deposits are paused, false otherwise.
     /// @param withdrawPaused True if withdrawals are paused, false otherwise.
     /// @param claimPaused True if claims are paused, false otherwise.
@@ -150,7 +150,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Emitted when a pool is added.
     /// @param id The ID of the pool.
-    /// @param poolType The type of the pool. True for spot, false for perp.
+    /// @param poolType The type of the pool.
     /// @param router The router address of the pool.
     /// @param tokens The tokens of the pool.
     /// @param hardcaps The hardcaps of the pool.
@@ -161,17 +161,17 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Emitted when tokens are added to a pool.
     /// @param id The ID of the pool.
     /// @param tokens The new tokens of the pool.
-    /// @param hardcaps The hardcaps of the tokens.
+    /// @param hardcaps The hardcaps of the added tokens.
     event PoolTokensAdded(uint256 indexed id, address[] tokens, uint256[] hardcaps);
 
-    /// @notice Emitted when a pool's harcaps are updated.
+    /// @notice Emitted when a pool's hardcaps are updated.
     /// @param id The ID of the pool.
     /// @param hardcaps The new hardcaps of the pool.
     event PoolHardcapsUpdated(uint256 indexed id, uint256[] hardcaps);
 
     /// @notice Emitted when the Vertex product ID of a token is updated.
-    /// @param token The token address to update the product ID of.
-    /// @param productId The new product ID of the token.
+    /// @param token The token address.
+    /// @param productId The new Vertex product ID of the token.
     event TokenUpdated(address indexed token, uint256 indexed productId);
 
     /*//////////////////////////////////////////////////////////////
@@ -181,16 +181,16 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Emitted when the receiver is the zero address.
     error ZeroAddress();
 
-    /// @notice Emitted when an array includes duplicated tokens.
+    /// @notice Emitted when a token is duplicated.
     /// @param token The duplicated token.
     error DuplicatedToken(address token);
 
-    /// @notice Emitted when the token to support is already supported.
-    /// @param token The token input.
+    /// @notice Emitted when a token is already supported.
+    /// @param token The token address.
     /// @param id The ID of the pool.
     error AlreadySupported(address token, uint256 id);
 
-    /// @notice Emitted when the fee index is not within the tokens array.
+    /// @notice Emitted when the fee index is not outside the range.
     /// @param index The index input.
     /// @param array The array input.
     error InvalidFeeIndex(uint256 index, address[] array);
@@ -209,18 +209,18 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param array2 The address array input.
     error MismatchInputs(uint256[] array1, address[] array2);
 
-    /// @notice Emitted when the hardcap of a pool is reached.
-    /// @param token The token address being deposited that exceeds the hardcap.
+    /// @notice Emitted when the hardcap of a pool would be exceeded.
+    /// @param token The token address being deposited.
     /// @param hardcap The hardcap of the pool given the token.
     /// @param activeAmount The active amount of tokens in the pool.
     /// @param amount The amount of tokens being deposited.
     error HardcapReached(address token, uint256 hardcap, uint256 activeAmount, uint256 amount);
 
     /// @notice Emitted when the slippage is too high.
-    /// @param amount1 The amount of quote tokens given.
-    /// @param amount1Low The low limit of the quote amount.
-    /// @param amount1High The high limit of the quote amount.
-    error SlippageTooHigh(uint256 amount1, uint256 amount1Low, uint256 amount1High);
+    /// @param amount The amount of tokens given.
+    /// @param amountLow The low limit of token amounts.
+    /// @param amountHigh The high limit of token amounts.
+    error SlippageTooHigh(uint256 amount, uint256 amountLow, uint256 amountHigh);
 
     /// @notice Emitted when the pool is not valid or used in the incorrect function.
     /// @param id The ID of the pool.
@@ -235,7 +235,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param token The address of the token.
     error InvalidToken(address token);
 
-    /// @notice Emitted when the tokens array does not contain only two tokens.
+    /// @notice Emitted when the tokens array length is not two.
     /// @param tokens The tokens array input.
     error InvalidTokens(address[] tokens);
 
@@ -248,7 +248,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param fee The fee to pay.
     error AmountTooLow(uint256 amount, uint256 fee);
 
-    /// @notice Emitted when the given spot ID to withdrtaw is not valid.
+    /// @notice Emitted when the given spot ID to unqueue is not valid.
     error InvalidSpot(uint128 spotId, uint128 queueUpTo);
 
     /// @notice Emitted when the caller is not the external account of the pool's router.
@@ -300,7 +300,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Set Vertex's endpoint address.
         endpoint = IEndpoint(_endpoint);
 
-        // Set the slow mode fee value.
+        // Set the slow mode fee.
         slowModeFee = _slowModeFee;
 
         // Set the payment token for slow-mode transactions through Vertex.
@@ -311,17 +311,17 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                         DEPOSIT/WITHDRAWAL ENTRY
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Deposits tokens into a perp pool to market make on Vertex.
-    /// @param id The pool ID to deposit tokens to.
+    /// @notice Deposit a token into a perp pool.
+    /// @param id The pool ID.
     /// @param token The token to deposit.
-    /// @param amount The amount of token to deposit.
+    /// @param amount The token amount to deposit.
     /// @param receiver The receiver of the virtual LP balance.
     function depositPerp(uint256 id, address token, uint256 amount, address receiver)
         external
         whenDepositNotPaused
         nonReentrant
     {
-        // Fetch the pool data.
+        // Fetch the pool storage.
         Pool storage pool = pools[id];
 
         // Check that the pool is perp.
@@ -334,12 +334,13 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         _deposit(id, pool, token, amount, receiver);
     }
 
-    /// @notice Deposits tokens into a spot pool to market make on Vertex.
-    /// @param id The ID of the pool to deposit to.
-
+    /// @notice Deposits tokens into a spot pool.
+    /// @param id The ID of the pool to deposit.
+    /// @param token0 The base token.
+    /// @param token1 The quote token.
     /// @param amount0 The amount of base tokens.
-    /// @param amount1Low The low limit of the quote amount.
-    /// @param amount1High The high limit of the quote amount.
+    /// @param amount1Low The low limit of the quote token amount.
+    /// @param amount1High The high limit of the quote token amount.
     /// @param receiver The receiver of the virtual LP balance.
     function depositSpot(
         uint256 id,
@@ -350,7 +351,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         uint256 amount1High,
         address receiver
     ) external whenDepositNotPaused nonReentrant {
-        // Fetch the pool data.
+        // Fetch the pool storage.
         Pool storage pool = pools[id];
 
         // Check that the pool is spot.
@@ -377,27 +378,27 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Requests to withdraw a token from a perp pool.
     /// @dev Requests are placed into a FIFO queue, which is processed by the Elixir market-making network and passed on to Vertex via the `unqueue` function.
-    /// After processed by Vertex, the user (or anyone on behalf of it) can call the `claim` function.
+    /// @dev After processed by Vertex, the user (or anyone on behalf of it) can call the `claim` function.
     /// @param id The ID of the pool to withdraw from.
     /// @param token The token to withdraw.
     /// @param amount The amount of token shares to withdraw.
     function withdrawPerp(uint256 id, address token, uint256 amount) external whenWithdrawNotPaused nonReentrant {
-        // Fetch the pool data.
+        // Fetch the pool storage.
         Pool storage pool = pools[id];
 
         // Check that the pool is perp.
         if (pool.poolType != PoolType.Perp) revert InvalidPool(id);
 
-        // Get the token data.
+        // Get the token storage.
         Token storage tokenData = pool.tokens[token];
 
-        // Check that the token is supported in this pool.
+        // Check that the token is supported by the pool.
         if (!tokenData.isActive) revert UnsupportedToken(token, id);
 
         // Check that the amount is at least the fee to pay.
         if (amount < getWithdrawFee(token)) revert AmountTooLow(amount, getWithdrawFee(token));
 
-        // Substract amount from the active market making balance.
+        // Substract amount from the active market making balance of the caller.
         tokenData.userActiveAmount[msg.sender] -= amount;
 
         // Substract amount from the active pool market making balance.
@@ -410,9 +411,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     }
 
     /// @notice Withdraws tokens from a spot pool.
-    /// @dev After requests are processed by Vertex, user (or anyone on behalf of it) should call the claim function.
+    /// @dev After processed by Vertex, the user (or anyone on behalf of it) can call the `claim` function.
     /// @param id The ID of the pool to withdraw from.
-    /// @param tokens The list of tokens to withdraw.
+    /// @param tokens The tokens to withdraw.
     /// @param amount0 The amount of base tokens.
     /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
     function withdrawSpot(uint256 id, address[] calldata tokens, uint256 amount0, uint256 feeIndex)

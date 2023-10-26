@@ -550,14 +550,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Transfer tokens from the caller to this contract.
         IERC20Metadata(token).safeTransferFrom(msg.sender, address(router), amount);
 
-        // Create Vertex deposit payload request.
-        IEndpoint.DepositCollateral memory depositPayload =
-            IEndpoint.DepositCollateral(router.contractSubaccount(), tokenToProduct[token], uint128(amount));
-
-        // Send deposit request to router.
-        _sendTransaction(
-            router, abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositPayload))
-        );
+        // Deposit funds to Vertex.
+        endpoint.depositCollateralWithReferral(router.contractSubaccount(), tokenToProduct[token], uint128(amount), "");
 
         // Add amount to the active market making balance of the user.
         tokenData.userActiveAmount[receiver] += amount;
@@ -795,12 +789,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param router The pool router.
     /// @param transaction The transaction to forward.
     function _sendTransaction(VertexRouter router, bytes memory transaction) private {
-        // Deposit collateral doens't have fees.
-        if (uint8(transaction[0]) != uint8(IEndpoint.TransactionType.DepositCollateral)) {
-            // Fetch payment fee from owner. This can be reimbursed on withdrawals after tokens are received.
-            paymentToken.safeTransferFrom(owner(), address(router), slowModeFee);
-        }
+        // Fetch payment fee from owner. This can be reimbursed on withdrawals after tokens are received.
+        paymentToken.safeTransferFrom(owner(), address(router), slowModeFee);
 
+        // Submit slow-mode tx to Vertex.
         router.submitSlowModeTransaction(transaction);
     }
 

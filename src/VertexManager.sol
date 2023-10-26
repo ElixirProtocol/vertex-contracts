@@ -550,8 +550,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Transfer tokens from the caller to this contract.
         IERC20Metadata(token).safeTransferFrom(msg.sender, address(router), amount);
 
-        // Deposit funds to Vertex.
-        endpoint.depositCollateralWithReferral(router.contractSubaccount(), tokenToProduct[token], uint128(amount), "");
+        // Deposit funds to Vertex through router.
+        router.submitSlowModeDeposit(tokenToProduct[token], uint128(amount), "");
 
         // Add amount to the active market making balance of the user.
         tokenData.userActiveAmount[receiver] += amount;

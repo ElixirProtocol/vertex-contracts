@@ -79,6 +79,15 @@ contract VertexRouter {
         endpoint.submitSlowModeTransaction(transaction);
     }
 
+    /// @notice Sends a deposit to Vertex.
+    /// @dev By calling this function, the sender and msg.sender are the same.
+    /// @param productId The Vertex product ID.
+    /// @param amount The amount to deposit.
+    /// @param referral The Vertex referral code to use for this deposit.
+    function submitSlowModeDeposit(uint32 productId, uint128 amount, string memory referral) external onlyManager {
+        endpoint.depositCollateralWithReferral(contractSubaccount, productId, amount, referral);
+    }
+
     /*//////////////////////////////////////////////////////////////
                              TOKEN TRANSFER
     //////////////////////////////////////////////////////////////*/

@@ -550,8 +550,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Transfer tokens from the caller to this contract.
         IERC20Metadata(token).safeTransferFrom(msg.sender, address(router), amount);
 
-        // Deposit funds to Vertex through router.
-        router.submitSlowModeDeposit(tokenToProduct[token], uint128(amount), "");
+        // Deposit funds to Vertex through router. Uses the default referral code of "-1".
+        router.submitSlowModeDeposit(tokenToProduct[token], uint128(amount), "-1");
 
         // Add amount to the active market making balance of the user.
         tokenData.userActiveAmount[receiver] += amount;
@@ -770,6 +770,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         return amount.mulDiv(balance, activeAmount, Math.Rounding.Down);
     }
 
+    /// TODO: Fix this because it's increasing the variable when it should only be viewed.
     /// @notice Returns the next spot in the queue to process.
     function nextSpot() external returns (Spot memory) {
         return queue[queueUpTo++];

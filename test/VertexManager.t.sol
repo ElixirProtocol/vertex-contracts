@@ -91,7 +91,7 @@ contract TestVertexManager is Test {
         externalAccount = users[3];
         vm.label(externalAccount, "External Account");
 
-        networkFork = vm.createFork(networkRpcUrl, 135327062);
+        networkFork = vm.createFork(networkRpcUrl, 144587276);
 
         vm.selectFork(networkFork);
 

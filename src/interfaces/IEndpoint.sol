@@ -67,10 +67,10 @@ interface IEndpoint {
 
     /// @notice Submits a deposit transaction to Vertex.
     function depositCollateralWithReferral(
-        bytes32 subaccount,
+        bytes12 subaccountName,
         uint32 productId,
         uint128 amount,
-        string memory referralCode
+        string calldata referralCode
     ) external;
 
     /// @notice Returns a slow-mode transaction.

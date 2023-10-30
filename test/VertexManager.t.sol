@@ -1669,4 +1669,17 @@ contract TestVertexManager is Test {
         assertEq(BTC.balanceOf(address(this)), amountBTC - (afterClaimBTC - beforeClaimBTC));
         assertEq(USDC.balanceOf(address(this)), amountUSDC - (afterClaimUSDC - beforeClaimUSDC));
     }
+
+    /// @notice Unit test getting the current Vertex balances.
+    function testGetVertexBalance() public {
+        spotDepositSetUp();
+        
+        // Get the router address.
+        (address router,,,) = manager.getPoolToken(1, address(BTC));
+
+        uint256[] memory balances = manager.getUpdatedVertexBalances(VertexRouter(router), manager.getCurrentVertexBalances(VertexRouter(router), spotTokens), spotTokens);
+        
+        assertEq(balances[0], 0);
+        assertEq(balances[1], 0);
+    }
 }

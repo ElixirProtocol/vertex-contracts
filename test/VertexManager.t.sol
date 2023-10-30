@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import {Utils} from "./utils/Utils.sol";
 import {MockTokenDecimals} from "./utils/MockTokenDecimals.sol";
+import {VertexManagerFee} from "./utils/VertexManagerFee.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
@@ -1683,5 +1684,47 @@ contract TestVertexManager is Test {
 
         assertEq(balances[0], 0);
         assertEq(balances[1], 0);
+    }
+
+    /// @notice Unit test for skipping the spot in the queue.
+    function testSkipSpot() public {
+        perpDepositSetUp();
+
+        uint256 amountBTC = manager.getWithdrawFee(address(BTC));
+        deal(address(BTC), address(this), amountBTC);
+
+        BTC.approve(address(manager), amountBTC);
+
+        // Deposit 10 BTC and withdraw 10 BTC.
+        manager.depositPerp(2, address(BTC), amountBTC, address(this));
+        manager.withdrawPerp(2, address(BTC), amountBTC);
+
+        // Change the price so that the amountBTC is below $1 for slow-mode fee.
+        vm.startPrank(owner);
+        manager.upgradeTo(address(new VertexManagerFee()));
+        vm.stopPrank();
+        VertexManagerFee(address(manager)).increaseFee();
+
+        VertexManager.Spot memory spot = manager.nextSpot();
+
+        assertEq(spot.sender, address(this));
+        assertEq(spot.poolId, 2);
+        assertEq(spot.tokenId, 1);
+        assertEq(spot.amount, amountBTC);
+
+        assertEq(manager.getUserActiveAmount(2, address(BTC), address(this)), 0);
+
+        // Spot in queue skipped.
+        vm.prank(externalAccount);
+        manager.unqueue(1, amountBTC);
+
+        assertEq(manager.getUserActiveAmount(2, address(BTC), address(this)), amountBTC);
+
+        spot = manager.nextSpot();
+
+        assertEq(spot.sender, address(0));
+        assertEq(spot.poolId, 0);
+        assertEq(spot.tokenId, 0);
+        assertEq(spot.amount, 0);
     }
 }

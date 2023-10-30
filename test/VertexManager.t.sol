@@ -928,14 +928,19 @@ contract TestVertexManager is Test {
     function testPerpChecks() public {
         perpDepositSetUp();
 
+        // Deposit checks
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
         manager.depositPerp(69, address(0), 0, address(this));
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.ZeroAddress.selector));
         manager.depositPerp(2, address(0), 0, address(0));
 
+        // Withdraw checks
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
         manager.withdrawPerp(69, address(0), 0);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.UnsupportedToken.selector, address(0), 2));
+        manager.withdrawPerp(2, address(0), 1 ether);
 
         vm.expectRevert(
             abi.encodeWithSelector(VertexManager.AmountTooLow.selector, 0, manager.getWithdrawFee(perpTokens[0]))
@@ -947,6 +952,7 @@ contract TestVertexManager is Test {
     function testSpotChecks(uint72 amountBTC) public {
         vm.assume(amountBTC > 0);
         spotDepositSetUp();
+        perpDepositSetUp();
 
         uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
@@ -956,6 +962,7 @@ contract TestVertexManager is Test {
         BTC.approve(address(manager), amountBTC);
         USDC.approve(address(manager), amountUSDC);
 
+        // Deposit checks
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
         manager.depositSpot(69, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, address(this));
 
@@ -972,17 +979,13 @@ contract TestVertexManager is Test {
 
         manager.depositSpot(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, address(this));
 
-        // invalid pool
+        // Withdraw checks
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
         manager.withdrawSpot(69, spotTokens, amountBTC, 0);
 
-        // invalid tokens
-        address[] memory emptyTokens = new address[](0);
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidTokens.selector, new address[](0)));
+        manager.withdrawSpot(1, new address[](0), amountBTC, 0);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidTokens.selector, emptyTokens));
-        manager.withdrawSpot(1, emptyTokens, amountBTC, 0);
-
-        // duplicated tokens
         address[] memory duplicatedTokens = new address[](2);
         duplicatedTokens[0] = address(BTC);
         duplicatedTokens[1] = address(BTC);
@@ -990,7 +993,6 @@ contract TestVertexManager is Test {
         vm.expectRevert(abi.encodeWithSelector(VertexManager.DuplicatedToken.selector, address(BTC)));
         manager.withdrawSpot(1, duplicatedTokens, amountBTC, 0);
 
-        // invalid fee index
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidFeeIndex.selector, 69, spotTokens));
         manager.withdrawSpot(1, spotTokens, amountBTC, 69);
     }
@@ -1111,6 +1113,40 @@ contract TestVertexManager is Test {
         // Claim tokens for user and owner.
         manager.claim(address(this), spotTokens[0], 1);
         manager.claim(address(this), spotTokens[1], 1);
+    }
+
+    /// @notice Unit test for safety checks on unqueue function.
+    function testUnqueue() public {
+        perpDepositSetUp();
+
+        uint256 amountBTC = 10 * 10 ** 8; // 10 BTC
+        uint256 amountUSDC = 100 * 10 ** 6; // 100 USDC
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+
+        // Get the pool router.
+        (address router,,,) = manager.getPoolToken(2, address(BTC));
+
+        // Deposit 10 BTC.
+        manager.depositPerp(2, address(BTC), amountBTC, address(this));
+
+        // Withdraw 10 BTC.
+        manager.withdrawPerp(2, address(BTC), amountBTC);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidSpot.selector, 69, 0));
+        manager.unqueue(69, 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(VertexManager.NotExternalAccount.selector, router, externalAccount, address(this))
+        );
+        manager.unqueue(1, amountBTC);
+
+        vm.prank(externalAccount);
+        manager.unqueue(1, amountBTC);
     }
 
     // TODO: Test to skip spot in queue.
@@ -1435,6 +1471,64 @@ contract TestVertexManager is Test {
     function testGetWithdraw() public {
         uint256 output = manager.getWithdrawAmount(1, 1, 1);
         assertEq(output, 1);
+    }
+
+    /// @notice Unit test for getting the next spot in queue.
+    function testGetNextSpot() public {
+        perpDepositSetUp();
+
+        uint256 amountBTC = 10 * 10 ** 8; // 10 BTC
+        uint256 amountUSDC = 100 * 10 ** 6; // 100 USDC
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+
+        // Deposit 10 BTC and 100 USDC.
+        manager.depositPerp(2, address(BTC), amountBTC, address(this));
+        manager.depositPerp(2, address(USDC), amountUSDC, address(this));
+
+        // Withdraw 10 BTC paying fee in BTC.
+        manager.withdrawPerp(2, address(BTC), amountBTC);
+
+        VertexManager.Spot memory spot = manager.nextSpot();
+
+        assertEq(spot.sender, address(this));
+        assertEq(spot.poolId, 2);
+        assertEq(spot.tokenId, 1);
+        assertEq(spot.amount, amountBTC);
+
+        // Withdraw 100 USDC paying fee in USDC.
+        manager.withdrawPerp(2, address(USDC), amountUSDC);
+
+        spot = manager.nextSpot();
+
+        assertEq(spot.sender, address(this));
+        assertEq(spot.poolId, 2);
+        assertEq(spot.tokenId, 1);
+        assertEq(spot.amount, amountBTC);
+
+        vm.prank(externalAccount);
+        manager.unqueue(1, amountBTC);
+
+        spot = manager.nextSpot();
+
+        assertEq(spot.sender, address(this));
+        assertEq(spot.poolId, 2);
+        assertEq(spot.tokenId, 0);
+        assertEq(spot.amount, amountUSDC);
+
+        vm.prank(externalAccount);
+        manager.unqueue(2, amountUSDC);
+
+        spot = manager.nextSpot();
+
+        assertEq(spot.sender, address(0));
+        assertEq(spot.poolId, 0);
+        assertEq(spot.tokenId, 0);
+        assertEq(spot.amount, 0);
     }
 
     /// @notice Unit test for reversed spot deposits.

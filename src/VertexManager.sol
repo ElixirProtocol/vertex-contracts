@@ -772,7 +772,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Returns the next spot in the queue to process.
     function nextSpot() external view returns (Spot memory) {
-        return queue[queueUpTo + 1];
+        return queue[queueUpTo];
     }
 
     /// @notice Returns the type and payload of a Vertex slow-mode transaction.
@@ -805,16 +805,15 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param amountToReceive The amount the user should receive from the withdraw.
     function unqueue(uint128 spotId, uint256 amountToReceive) external {
         // Check that next spot in queue matches the given spot ID.
-        if (spotId - 1 == queueUpTo) revert InvalidSpot(spotId, queueUpTo);
+        if (spotId != queueUpTo + 1) revert InvalidSpot(spotId, queueUpTo);
 
         // Get the spot data from the queue.
-        Spot memory spot = queue[queueUpTo - 1];
+        Spot memory spot = queue[queueUpTo];
 
         // Get the router of the pool.
         VertexRouter router = VertexRouter(spot.router);
 
         // Get the external account of the router.
-        // TODO: Check security below.
         address externalAccount = address(uint160(bytes20(router.externalSubaccount())));
 
         // Check that the sender is the external account of the router.
@@ -827,6 +826,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         _withdraw(
             pools[spot.poolId].tokens[token], spot.sender, getWithdrawFee(token), spot.tokenId, amountToReceive, router
         );
+
+        // Increase the queue up to.
+        queueUpTo++;
     }
 
     /// @notice Manages the paused status of deposits, withdrawals, and claims

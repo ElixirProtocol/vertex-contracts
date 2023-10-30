@@ -770,10 +770,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         return amount.mulDiv(balance, activeAmount, Math.Rounding.Down);
     }
 
-    /// TODO: Fix this because it's increasing the variable when it should only be viewed.
     /// @notice Returns the next spot in the queue to process.
-    function nextSpot() external returns (Spot memory) {
-        return queue[queueUpTo++];
+    function nextSpot() external view returns (Spot memory) {
+        return queue[queueUpTo + 1];
     }
 
     /// @notice Returns the type and payload of a Vertex slow-mode transaction.

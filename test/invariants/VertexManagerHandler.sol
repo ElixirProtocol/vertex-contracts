@@ -91,25 +91,15 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         amountUSDC = bound(amountUSDC, 0, USDC.balanceOf(address(this)));
         amountWETH = bound(amountWETH, 0, WETH.balanceOf(address(this)));
 
-        _pay(currentActor, BTC, amountBTC);
-        _pay(currentActor, USDC, amountUSDC);
-        _pay(currentActor, WETH, amountWETH);
-
-        vm.startPrank(currentActor);
-
-        BTC.approve(address(manager), amountBTC);
-        USDC.approve(address(manager), amountUSDC);
-        WETH.approve(address(manager), amountWETH);
-
-        manager.depositPerp(2, perpTokens[0], amountBTC, currentActor);
-        manager.depositPerp(2, perpTokens[1], amountUSDC, currentActor);
-        manager.depositPerp(2, perpTokens[2], amountWETH, currentActor);
-
-        vm.stopPrank();
-
-        ghost_deposits[address(BTC)] += amountBTC;
-        ghost_deposits[address(USDC)] += amountUSDC;
-        ghost_deposits[address(WETH)] += amountWETH;
+        manager.getWithdrawFee(address(BTC)) > amountBTC
+            ? console.log("pass")
+            : _depositPerp(perpTokens[0], amountBTC, currentActor);
+        manager.getWithdrawFee(address(USDC)) > amountUSDC
+            ? console.log("pass")
+            : _depositPerp(perpTokens[1], amountUSDC, currentActor);
+        manager.getWithdrawFee(address(WETH)) > amountWETH
+            ? console.log("pass")
+            : _depositPerp(perpTokens[2], amountWETH, currentActor);
     }
 
     function depositSpot(uint256 amountBTC) public createActor {
@@ -134,63 +124,23 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         ghost_deposits[address(USDC)] += amountUSDC;
     }
 
-    function withdrawPerp(
-        uint256 actorSeed,
-        uint256 amountBTC,
-        uint256 amountUSDC,
-        uint256 amountWETH,
-        uint256 feeIndex
-    ) public useActor(actorSeed) {
-        feeIndex = bound(feeIndex, 0, 2);
+    function withdrawPerp(uint256 actorSeed, uint256 amountBTC, uint256 amountUSDC, uint256 amountWETH)
+        public
+        useActor(actorSeed)
+    {
+        amountBTC = bound(amountBTC, 0, manager.getUserActiveAmount(2, address(BTC), currentActor));
+        amountUSDC = bound(amountUSDC, 0, manager.getUserActiveAmount(2, address(USDC), currentActor));
+        amountWETH = bound(amountWETH, 0, manager.getUserActiveAmount(2, address(WETH), currentActor));
 
-        uint256 fee;
-        uint256 userActiveAmountBTC = manager.getUserActiveAmount(2, address(BTC), currentActor);
-        uint256 userActiveAmountUSDC = manager.getUserActiveAmount(2, address(USDC), currentActor);
-        uint256 userActiveAmountWETH = manager.getUserActiveAmount(2, address(WETH), currentActor);
-
-        amountBTC = bound(amountBTC, 0, userActiveAmountBTC);
-        amountUSDC = bound(amountUSDC, 0, userActiveAmountUSDC);
-        amountWETH = bound(amountWETH, 0, userActiveAmountWETH);
-
-        if (feeIndex == 0) {
-            fee = manager.getWithdrawFee(address(BTC));
-
-            if (amountBTC < fee) {
-                return;
-            }
-
-            ghost_fees[address(BTC)] += fee;
-        } else if (feeIndex == 1) {
-            fee = manager.getWithdrawFee(address(USDC));
-
-            if (amountUSDC < fee) {
-                return;
-            }
-
-            ghost_fees[address(USDC)] += fee;
-        } else {
-            fee = manager.getWithdrawFee(address(WETH));
-
-            if (amountWETH < fee) {
-                return;
-            }
-
-            ghost_fees[address(WETH)] += fee;
-        }
-
-        vm.startPrank(currentActor);
-
-        manager.withdrawPerp(2, perpTokens[0], amountBTC);
-        manager.withdrawPerp(2, perpTokens[1], amountUSDC);
-        manager.withdrawPerp(2, perpTokens[2], amountWETH);
-
-        vm.stopPrank();
-
-        process();
-
-        ghost_withdraws[address(BTC)] += amountBTC;
-        ghost_withdraws[address(USDC)] += amountUSDC;
-        ghost_withdraws[address(WETH)] += amountWETH;
+        manager.getWithdrawFee(address(BTC)) > amountBTC
+            ? console.log("pass")
+            : _withdrawPerp(perpTokens[0], amountBTC, currentActor);
+        manager.getWithdrawFee(address(USDC)) > amountUSDC
+            ? console.log("pass")
+            : _withdrawPerp(perpTokens[1], amountUSDC, currentActor);
+        manager.getWithdrawFee(address(WETH)) > amountWETH
+            ? console.log("pass")
+            : _withdrawPerp(perpTokens[2], amountWETH, currentActor);
     }
 
     function withdrawSpot(uint256 actorSeed, uint256 amountBTC, uint256 feeIndex) public useActor(actorSeed) {
@@ -317,6 +267,34 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
             deal(token, router, manager.getUserPendingAmount(id, token, user) + manager.getUserFee(id, token, user));
         }
+    }
+
+    function _depositPerp(address token, uint256 amount, address actor) private {
+        _pay(actor, IERC20Metadata(token), amount);
+
+        vm.startPrank(actor);
+
+        IERC20Metadata(token).approve(address(manager), amount);
+
+        manager.depositPerp(2, token, amount, actor);
+
+        vm.stopPrank();
+
+        ghost_deposits[token] += amount;
+    }
+
+    function _withdrawPerp(address token, uint256 amount, address actor) private {
+        ghost_fees[token] += manager.getWithdrawFee(token);
+
+        vm.startPrank(actor);
+
+        manager.withdrawPerp(2, token, amount);
+
+        vm.stopPrank();
+
+        process();
+
+        ghost_withdraws[token] += amount;
     }
 
     function process() public {

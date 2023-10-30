@@ -822,10 +822,20 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Get the token address.
         address token = productToToken[spot.tokenId];
 
-        // Execute the withdraw logic.
-        _withdraw(
-            pools[spot.poolId].tokens[token], spot.sender, getWithdrawFee(token), spot.tokenId, amountToReceive, router
-        );
+        // Get the token data.
+        Token storage tokenData = pools[spot.poolId].tokens[token];
+
+        // Skip the spot if the amount is enough to pay the fee.
+        if (amountToReceive < getWithdrawFee(token)) {
+            // Substract amount from the active market making balance of the caller.
+            tokenData.userActiveAmount[spot.sender] += spot.amount;
+
+            // Substract amount from the active pool market making balance.
+            tokenData.activeAmount += spot.amount;
+        } else {
+            // Execute the withdraw logic.
+            _withdraw(tokenData, spot.sender, getWithdrawFee(token), spot.tokenId, amountToReceive, router);
+        }
 
         // Increase the queue up to.
         queueUpTo++;

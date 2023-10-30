@@ -61,7 +61,21 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         bool isActive;
     }
 
-    /// @notice The pools managed by this contract given their ID.
+    /// @notice The data structure of queue spots.
+    struct Spot {
+        // The sender of the withdrawal.
+        address sender;
+        // The pool to withdraw from.
+        uint256 poolId;
+        // The router address of the pool.
+        address router;
+        // The Vertex product to withdraw.
+        uint32 tokenId;
+        // The amount of LP shares to withdraw.
+        uint256 amount;
+    }
+
+    /// @notice The pools managed given an ID.
     mapping(uint256 id => Pool pool) public pools;
 
     /// @notice The Vertex product IDs of token addresses.
@@ -70,8 +84,17 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice The token addresses of Vertex product IDs.
     mapping(uint32 id => address token) public productToToken;
 
-    /// @notice The Vertex slow mode fee
-    uint256 public slowModeFee;
+    /// @notice The perp withdraw queue.
+    mapping(uint128 => Spot) public queue;
+
+    /// @notice The perp withdraw queue count.
+    uint128 public queueCount;
+
+    /// @notice The perp witrhdraw queue up to.
+    uint128 public queueUpTo;
+
+    /// @notice The Vertex slow mode fee.
+    uint256 public slowModeFee = 1000000;
 
     /// @notice Vertex's Endpoint contract.
     IEndpoint public endpoint;
@@ -94,33 +117,40 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Emitted when a deposit is made.
     /// @param caller The caller of the deposit function, for which tokens are taken from.
-    /// @param receiver The receiver of the virtual LP balance.
+    /// @param receiver The receiver of the LP balance.
     /// @param id The ID of the pool deposting to.
-    /// @param tokens The list of tokens deposited.
-    /// @param amounts The amount of tokens deposited.
-    event Deposit(address indexed caller, address indexed receiver, uint256 id, address[] tokens, uint256[] amounts);
+    /// @param token The token deposited.
+    /// @param amount The token amount deposited.
+    event Deposit(address indexed caller, address indexed receiver, uint256 indexed id, address token, uint256 amount);
 
     /// @notice Emitted when a withdraw is made.
     /// @param user The user who withdrew.
-    /// @param id The ID of the pool withdrawn from.
-    /// @param tokens The list of tokens withdrawn.
-    /// @param amounts The amounts of tokens withdrawn.
-    event Withdraw(address indexed user, uint256 id, address[] tokens, uint256[] amounts);
+    /// @param router The router of the pool withdrawn from.
+    /// @param tokenId The Vertex product ID of the token withdrawn.
+    /// @param amount The token amount the user receives.
+    event Withdraw(address indexed user, address indexed router, uint32 tokenId, uint256 indexed amount);
+
+    /// @notice Emitted when a perp withdrawal is queued.
+    /// @param spot The spot added to the queue.
+    /// @param queueCount The queue count.
+    /// @param queueUpTo The queue up to.
+    event Queued(Spot spot, uint128 queueCount, uint128 queueUpTo);
 
     /// @notice Emitted when a claim is made.
     /// @param user The user for which the tokens were claimed.
-    /// @param tokens The tokens claimed.
-    event Claim(address indexed user, address[] tokens);
+    /// @param token The token claimed.
+    /// @param amount The token amount claimed.
+    event Claim(address indexed user, address indexed token, uint256 indexed amount);
 
-    /// @notice Emitted when the statuses are updated.
+    /// @notice Emitted when the pause statuses are updated.
     /// @param depositPaused True if deposits are paused, false otherwise.
     /// @param withdrawPaused True if withdrawals are paused, false otherwise.
     /// @param claimPaused True if claims are paused, false otherwise.
-    event PauseUpdated(bool depositPaused, bool withdrawPaused, bool claimPaused);
+    event PauseUpdated(bool indexed depositPaused, bool indexed withdrawPaused, bool indexed claimPaused);
 
     /// @notice Emitted when a pool is added.
     /// @param id The ID of the pool.
-    /// @param poolType The type of the pool. True for spot, false for perp.
+    /// @param poolType The type of the pool.
     /// @param router The router address of the pool.
     /// @param tokens The tokens of the pool.
     /// @param hardcaps The hardcaps of the pool.
@@ -131,45 +161,36 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Emitted when tokens are added to a pool.
     /// @param id The ID of the pool.
     /// @param tokens The new tokens of the pool.
-    /// @param hardcaps The hardcaps of the tokens.
+    /// @param hardcaps The hardcaps of the added tokens.
     event PoolTokensAdded(uint256 indexed id, address[] tokens, uint256[] hardcaps);
 
-    /// @notice Emitted when a pool's harcaps are updated.
+    /// @notice Emitted when a pool's hardcaps are updated.
     /// @param id The ID of the pool.
     /// @param hardcaps The new hardcaps of the pool.
     event PoolHardcapsUpdated(uint256 indexed id, uint256[] hardcaps);
 
     /// @notice Emitted when the Vertex product ID of a token is updated.
-    /// @param token The token address to update the product ID of.
-    /// @param productId The new product ID of the token.
+    /// @param token The token address.
+    /// @param productId The new Vertex product ID of the token.
     event TokenUpdated(address indexed token, uint256 indexed productId);
-
-    /// @notice Emitted when the slow mode fee is updated.
-    /// @param newFee The new fee.
-    event SlowModeFeeUpdated(uint256 newFee);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Emitted when a tokens array is empty.
-    /// @param array The array input.
-    error EmptyTokens(address[] array);
-
     /// @notice Emitted when the receiver is the zero address.
     error ZeroAddress();
 
-    /// @notice Emitted when an array includes duplicated tokens.
+    /// @notice Emitted when a token is duplicated.
     /// @param token The duplicated token.
-    /// @param array The array input.
-    error DuplicatedTokens(address token, address[] array);
+    error DuplicatedToken(address token);
 
-    /// @notice Emitted when the token to support is already supported.
-    /// @param token The token input.
+    /// @notice Emitted when a token is already supported.
+    /// @param token The token address.
     /// @param id The ID of the pool.
     error AlreadySupported(address token, uint256 id);
 
-    /// @notice Emitted when the fee index is not within the tokens array.
+    /// @notice Emitted when the fee index is not outside the range.
     /// @param index The index input.
     /// @param array The array input.
     error InvalidFeeIndex(uint256 index, address[] array);
@@ -188,18 +209,18 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param array2 The address array input.
     error MismatchInputs(uint256[] array1, address[] array2);
 
-    /// @notice Emitted when the hardcap of a pool is reached.
-    /// @param token The token address being deposited that exceeds the hardcap.
+    /// @notice Emitted when the hardcap of a pool would be exceeded.
+    /// @param token The token address being deposited.
     /// @param hardcap The hardcap of the pool given the token.
     /// @param activeAmount The active amount of tokens in the pool.
     /// @param amount The amount of tokens being deposited.
     error HardcapReached(address token, uint256 hardcap, uint256 activeAmount, uint256 amount);
 
     /// @notice Emitted when the slippage is too high.
-    /// @param amount1 The amount of quote tokens given.
-    /// @param amount1Low The low limit of the quote amount.
-    /// @param amount1High The high limit of the quote amount.
-    error SlippageTooHigh(uint256 amount1, uint256 amount1Low, uint256 amount1High);
+    /// @param amount The amount of tokens given.
+    /// @param amountLow The low limit of token amounts.
+    /// @param amountHigh The high limit of token amounts.
+    error SlippageTooHigh(uint256 amount, uint256 amountLow, uint256 amountHigh);
 
     /// @notice Emitted when the pool is not valid or used in the incorrect function.
     /// @param id The ID of the pool.
@@ -214,13 +235,24 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param token The address of the token.
     error InvalidToken(address token);
 
-    /// @notice Emitted when the tokens array does not contain only two tokens.
+    /// @notice Emitted when the tokens array length is not two.
     /// @param tokens The tokens array input.
     error InvalidTokens(address[] tokens);
 
     /// @notice Emitted when the new fee is above 100 USDC.
     /// @param newFee The new fee.
     error FeeTooHigh(uint256 newFee);
+
+    /// @notice Emitted when the amount given to withdraw is less than the fee to pay.
+    /// @param amount The amount given to withdraw.
+    /// @param fee The fee to pay.
+    error AmountTooLow(uint256 amount, uint256 fee);
+
+    /// @notice Emitted when the given spot ID to unqueue is not valid.
+    error InvalidSpot(uint128 spotId, uint128 queueUpTo);
+
+    /// @notice Emitted when the caller is not the external account of the pool's router.
+    error NotExternalAccount(address router, address externalAccount, address caller);
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
@@ -268,7 +300,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Set Vertex's endpoint address.
         endpoint = IEndpoint(_endpoint);
 
-        // Set the slow mode fee value.
+        // Set the slow mode fee.
         slowModeFee = _slowModeFee;
 
         // Set the payment token for slow-mode transactions through Vertex.
@@ -279,131 +311,109 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                         DEPOSIT/WITHDRAWAL ENTRY
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Deposits tokens into a perp pool to market make on Vertex.
-    /// @param id The pool ID to deposit tokens to.
-    /// @param tokens The list of tokens to deposit.
-    /// @param amounts The list of token amounts to deposit.
+    /// @notice Deposit a token into a perp pool.
+    /// @param id The pool ID.
+    /// @param token The token to deposit.
+    /// @param amount The token amount to deposit.
     /// @param receiver The receiver of the virtual LP balance.
-    function depositPerp(uint256 id, address[] calldata tokens, uint256[] memory amounts, address receiver)
+    function depositPerp(uint256 id, address token, uint256 amount, address receiver)
         external
         whenDepositNotPaused
         nonReentrant
-        returns (uint256[] memory)
     {
-        // Fetch the pool data.
+        // Fetch the pool storage.
         Pool storage pool = pools[id];
 
         // Check that the pool is perp.
         if (pool.poolType != PoolType.Perp) revert InvalidPool(id);
 
-        // Check that the tokens array is not empty.
-        if (tokens.length == 0) revert EmptyTokens(tokens);
-
-        // Check that the length of the tokens and amounts arrays match.
-        if (tokens.length != amounts.length) revert MismatchInputs(amounts, tokens);
-
         // Check that the receiver is not the zero address.
         if (receiver == address(0)) revert ZeroAddress();
 
         // Execute the deposit logic.
-        _deposit(id, pool, tokens, amounts, receiver);
-
-        return amounts;
+        _deposit(id, pool, token, amount, receiver);
     }
 
-    /// @notice Deposits tokens into a spot pool to market make on Vertex.
-    /// @param id The ID of the pool to deposit to.
-    /// @param tokens The list of tokens to deposit.
+    /// @notice Deposits tokens into a spot pool.
+    /// @param id The ID of the pool to deposit.
+    /// @param token0 The base token.
+    /// @param token1 The quote token.
     /// @param amount0 The amount of base tokens.
-    /// @param amount1Low The low limit of the quote amount.
-    /// @param amount1High The high limit of the quote amount.
+    /// @param amount1Low The low limit of the quote token amount.
+    /// @param amount1High The high limit of the quote token amount.
     /// @param receiver The receiver of the virtual LP balance.
     function depositSpot(
         uint256 id,
-        address[] calldata tokens,
+        address token0,
+        address token1,
         uint256 amount0,
         uint256 amount1Low,
         uint256 amount1High,
         address receiver
-    ) external whenDepositNotPaused nonReentrant returns (uint256[] memory) {
-        // Fetch the pool data.
+    ) external whenDepositNotPaused nonReentrant {
+        // Fetch the pool storage.
         Pool storage pool = pools[id];
 
         // Check that the pool is spot.
         if (pool.poolType != PoolType.Spot) revert InvalidPool(id);
 
-        // Check that the tokens array only includes two tokens.
-        if (tokens.length != 2) revert InvalidTokens(tokens);
-
         // Check that the tokens are not duplicated.
-        if (tokens[0] == tokens[1]) revert DuplicatedTokens(tokens[0], tokens);
+        if (token0 == token1) revert DuplicatedToken(token0);
 
         // Check that the receiver is not the zero address.
         if (receiver == address(0)) revert ZeroAddress();
 
         // Get the balanced amount of quote tokens.
-        uint256 amount1 = getBalancedAmount(tokens[0], tokens[1], amount0);
+        uint256 amount1 = getBalancedAmount(token0, token1, amount0);
 
         // Check for slippage based on the given quote amount (amount1) range.
         if (amount1 < amount1Low || amount1 > amount1High) {
             revert SlippageTooHigh(amount1, amount1Low, amount1High);
         }
 
-        // Create amounts array.
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = amount0;
-        amounts[1] = amount1;
-
         // Execute the deposit logic.
-        _deposit(id, pool, tokens, amounts, receiver);
-
-        return amounts;
+        _deposit(id, pool, token0, amount0, receiver);
+        _deposit(id, pool, token1, amount1, receiver);
     }
 
-    /// @notice Withdraws tokens from a perp pool.
-    /// @dev After requests are processed by Vertex, user (or anyone on behalf of it) should call the claim function.
+    /// @notice Requests to withdraw a token from a perp pool.
+    /// @dev Requests are placed into a FIFO queue, which is processed by the Elixir market-making network and passed on to Vertex via the `unqueue` function.
+    /// @dev After processed by Vertex, the user (or anyone on behalf of it) can call the `claim` function.
     /// @param id The ID of the pool to withdraw from.
-    /// @param tokens The list of tokens to withdraw.
-    /// @param amounts The list of token amounts to withdraw.
-    /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
-    function withdrawPerp(uint256 id, address[] calldata tokens, uint256[] memory amounts, uint256 feeIndex)
-        external
-        whenWithdrawNotPaused
-        nonReentrant
-    {
-        // Fetch the pool data.
+    /// @param token The token to withdraw.
+    /// @param amount The amount of token shares to withdraw.
+    function withdrawPerp(uint256 id, address token, uint256 amount) external whenWithdrawNotPaused nonReentrant {
+        // Fetch the pool storage.
         Pool storage pool = pools[id];
 
         // Check that the pool is perp.
         if (pool.poolType != PoolType.Perp) revert InvalidPool(id);
 
-        // Check that the tokens array is not empty.
-        if (tokens.length == 0) revert EmptyTokens(tokens);
+        // Get the token storage.
+        Token storage tokenData = pool.tokens[token];
 
-        // Check that the length of the tokens and amounts arrays match.
-        if (tokens.length != amounts.length) revert MismatchInputs(amounts, tokens);
+        // Check that the token is supported by the pool.
+        if (!tokenData.isActive) revert UnsupportedToken(token, id);
 
-        // Check that the tokens are not duplicated.
-        for (uint256 i = 0; i < tokens.length; i++) {
-            address token = tokens[i];
-            for (uint256 j = 0; j < tokens.length; j++) {
-                if ((j != i) && (token == tokens[j])) {
-                    revert DuplicatedTokens(token, tokens);
-                }
-            }
-        }
+        // Check that the amount is at least the fee to pay.
+        if (amount < getWithdrawFee(token)) revert AmountTooLow(amount, getWithdrawFee(token));
 
-        // Check that the feeIndex is within the tokens array.
-        if (feeIndex >= tokens.length) revert InvalidFeeIndex(feeIndex, tokens);
+        // Substract amount from the active market making balance of the caller.
+        tokenData.userActiveAmount[msg.sender] -= amount;
 
-        // Execute the withdraw logic.
-        _withdraw(id, pool, tokens, amounts, feeIndex);
+        // Substract amount from the active pool market making balance.
+        tokenData.activeAmount -= amount;
+
+        // Add to queue.
+        queue[queueCount++] = Spot(msg.sender, id, pool.router, tokenToProduct[token], amount);
+
+        emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
 
     /// @notice Withdraws tokens from a spot pool.
-    /// @dev After requests are processed by Vertex, user (or anyone on behalf of it) should call the claim function.
+    /// @dev After processed by Vertex, the user (or anyone on behalf of it) can call the `claim` function.
     /// @param id The ID of the pool to withdraw from.
-    /// @param tokens The list of tokens to withdraw.
+    /// @param tokens The tokens to withdraw.
     /// @param amount0 The amount of base tokens.
     /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
     function withdrawSpot(uint256 id, address[] calldata tokens, uint256 amount0, uint256 feeIndex)
@@ -421,7 +431,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         if (tokens.length != 2) revert InvalidTokens(tokens);
 
         // Check that the tokens are not duplicated.
-        if (tokens[0] == tokens[1]) revert DuplicatedTokens(tokens[0], tokens);
+        if (tokens[0] == tokens[1]) revert DuplicatedToken(tokens[0]);
 
         // Check that the feeIndex is within the tokens array.
         if (feeIndex >= tokens.length) revert InvalidFeeIndex(feeIndex, tokens);
@@ -429,140 +439,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Get the balanced amount of quote tokens.
         uint256 amount1 = getBalancedAmount(tokens[0], tokens[1], amount0);
 
-        // Create amounts array.
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = amount0;
-        amounts[1] = amount1;
-
-        // Execute the withdraw logic.
-        _withdraw(id, pool, tokens, amounts, feeIndex);
-    }
-
-    /// @notice Claim received tokens from the pending balance and fees.
-    /// @param user The address to claim the tokens for.
-    /// @param tokens The tokens to claim for the user.
-    /// @param id The ID of the pool to claim the tokens from.
-    function claim(address user, address[] memory tokens, uint256 id) external whenClaimNotPaused nonReentrant {
-        // Fetch the pool data.
-        Pool storage pool = pools[id];
-
-        // Check that the pool exists.
-        if (pool.router == address(0)) revert InvalidPool(id);
-
-        // Check that the tokens array is not empty.
-        if (tokens.length == 0) revert EmptyTokens(tokens);
-
-        // Check that the user is not the zero address.
-        if (user == address(0)) revert ZeroAddress();
-
-        // Fetch the pool router.
-        VertexRouter router = VertexRouter(pool.router);
-
-        // Loop over tokens and claim if they are available.
-        for (uint256 i = 0; i < tokens.length; i++) {
-            // Get the token data.
-            Token storage tokenData = pool.tokens[tokens[i]];
-
-            // Fetch the user's pending balance. No danger if amount is 0.
-            uint256 amount = tokenData.userPendingAmount[user];
-
-            // Fetch Elixir's pending fee balance.
-            uint256 fee = tokenData.fees[user];
-
-            // Resets the pending balance of the user.
-            tokenData.userPendingAmount[user] = 0;
-
-            // Resets the Elixir pending fee balance.
-            tokenData.fees[user] = 0;
-
-            // Fetch the tokens from the router.
-            router.claimToken(tokens[i], amount + fee);
-
-            // Transfers the tokens after to prevent reentrancy.
-            IERC20Metadata(tokens[i]).safeTransfer(owner(), fee);
-            IERC20Metadata(tokens[i]).safeTransfer(user, amount);
-        }
-
-        emit Claim(user, tokens);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                    INTERNAL DEPOSIT/WITHDRAW LOGIC
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Internal deposit logic for both spot and perp pools.
-    /// @param id The id of the pool.
-    /// @param pool The data of the pool to deposit.
-    /// @param tokens The list of tokens to deposit.
-    /// @param amounts The list of token amounts to deposit.
-    /// @param receiver The receiver of the virtual LP balance.
-    function _deposit(
-        uint256 id,
-        Pool storage pool,
-        address[] calldata tokens,
-        uint256[] memory amounts,
-        address receiver
-    ) private {
-        // Fetch the router of the pool.
-        VertexRouter router = VertexRouter(pool.router);
-
-        // Loop over amounts to fetch and redirect tokens to Vertex.
-        for (uint256 i = 0; i < amounts.length; i++) {
-            // Skip zero amounts.
-            if (amounts[i] == 0) continue;
-
-            // Get the token address.
-            address token = tokens[i];
-
-            // Get the token data.
-            Token storage tokenData = pool.tokens[token];
-
-            // Check that the token is supported in this pool.
-            if (!tokenData.isActive) revert UnsupportedToken(token, id);
-
-            // Get the amount of token to deposit.
-            uint256 amount = amounts[i];
-
-            // Check if the amount exceeds the token's pool hardcap.
-            if (tokenData.activeAmount + amount > tokenData.hardcap) {
-                revert HardcapReached(token, tokenData.hardcap, tokenData.activeAmount, amount);
-            }
-
-            // Transfer tokens from the caller to this contract.
-            IERC20Metadata(token).safeTransferFrom(msg.sender, address(router), amount);
-
-            // Create Vertex deposit payload request.
-            IEndpoint.DepositCollateral memory depositPayload =
-                IEndpoint.DepositCollateral(router.contractSubaccount(), tokenToProduct[token], uint128(amount));
-
-            // Send deposit request to router.
-            _sendTransaction(
-                router, abi.encodePacked(uint8(IEndpoint.TransactionType.DepositCollateral), abi.encode(depositPayload))
-            );
-
-            // Add amount to the active market making balance of the user.
-            tokenData.userActiveAmount[receiver] += amount;
-
-            // Add amount to the active pool market making balance.
-            tokenData.activeAmount += amount;
-        }
-
-        emit Deposit(msg.sender, receiver, id, tokens, amounts);
-    }
-
-    /// @notice Internal withdraw logic for both spot and perp pools.
-    /// @param id The ID of the pool to withdraw from.
-    /// @param pool The data of the pool to withdraw from.
-    /// @param tokens The list of tokens to withdraw.
-    /// @param amounts The list of token amounts to withdraw.
-    /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
-    function _withdraw(
-        uint256 id,
-        Pool storage pool,
-        address[] calldata tokens,
-        uint256[] memory amounts,
-        uint256 feeIndex
-    ) private {
         // Fetch the router of the pool.
         VertexRouter router = VertexRouter(pool.router);
 
@@ -570,10 +446,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         uint256[] memory balances = getUpdatedVertexBalances(router, getCurrentVertexBalances(router, tokens), tokens);
 
         // Loop over amounts and send withdraw requests to Vertex.
-        for (uint256 i = 0; i < amounts.length; i++) {
-            // Skip zero amounts if not fee index.
-            if (amounts[i] == 0 && i != feeIndex) continue;
-
+        for (uint256 i = 0; i < tokens.length; i++) {
             // Get the token address.
             address token = tokens[i];
 
@@ -584,7 +457,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             if (!tokenData.isActive) revert UnsupportedToken(token, id);
 
             // Get the requested amount of token to withdraw.
-            uint256 amount = amounts[i];
+            uint256 amount = i == 0 ? amount0 : amount1;
 
             // Calculate the amount to receive.
             uint256 amountToReceive = getWithdrawAmount(balances[i], amount, tokenData.activeAmount);
@@ -595,32 +468,131 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             // Substract requested amount from the active pool market making balance.
             tokenData.activeAmount -= amount;
 
-            // Add amount to the user pending balance.
-            if (i == feeIndex) {
-                // Calculate the reimburse fee amount for the token.
-                uint256 fee = getWithdrawFee(token);
-
-                // Add fee to the Elixir balance.
-                tokenData.fees[msg.sender] += fee;
-
-                tokenData.userPendingAmount[msg.sender] += (amountToReceive - fee);
-            } else {
-                tokenData.userPendingAmount[msg.sender] += amountToReceive;
-            }
-
-            // Create Vertex withdraw payload request.
-            IEndpoint.WithdrawCollateral memory withdrawPayload = IEndpoint.WithdrawCollateral(
-                router.contractSubaccount(), tokenToProduct[token], uint128(amountToReceive), 0
-            );
-
-            // Send withdraw requests to Vertex.
-            _sendTransaction(
-                router,
-                abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
+            // Execute the withdraw logic.
+            _withdraw(
+                tokenData,
+                msg.sender,
+                i == feeIndex ? getWithdrawFee(token) : 0,
+                tokenToProduct[token],
+                amountToReceive,
+                router
             );
         }
+    }
 
-        emit Withdraw(msg.sender, id, tokens, amounts);
+    /// @notice Claim received tokens from the pending balance and fees.
+    /// @param user The address to claim for.
+    /// @param token The token to claim.
+    /// @param id The ID of the pool to claim from.
+    function claim(address user, address token, uint256 id) external whenClaimNotPaused nonReentrant {
+        // Fetch the pool data.
+        Pool storage pool = pools[id];
+
+        // Check that the pool exists.
+        if (pool.router == address(0)) revert InvalidPool(id);
+
+        // Check that the user is not the zero address.
+        if (user == address(0)) revert ZeroAddress();
+
+        // Fetch the pool router.
+        VertexRouter router = VertexRouter(pool.router);
+
+        // Get the token data.
+        Token storage tokenData = pool.tokens[token];
+
+        // Fetch the user's pending balance. No danger if amount is 0.
+        uint256 amount = tokenData.userPendingAmount[user];
+
+        // Fetch Elixir's pending fee balance.
+        uint256 fee = tokenData.fees[user];
+
+        // Resets the pending balance of the user.
+        tokenData.userPendingAmount[user] = 0;
+
+        // Resets the Elixir pending fee balance.
+        tokenData.fees[user] = 0;
+
+        // Fetch the tokens from the router.
+        router.claimToken(token, amount + fee);
+
+        // Transfers the tokens after to prevent reentrancy.
+        IERC20Metadata(token).safeTransfer(owner(), fee);
+        IERC20Metadata(token).safeTransfer(user, amount);
+
+        emit Claim(user, token, amount);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    INTERNAL DEPOSIT/WITHDRAW LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Internal deposit logic for both spot and perp pools.
+    /// @param id The id of the pool.
+    /// @param pool The data of the pool to deposit.
+    /// @param token The tokens to deposit.
+    /// @param amount The amounts of token to deposit.
+    /// @param receiver The receiver of the virtual LP balance.
+    function _deposit(uint256 id, Pool storage pool, address token, uint256 amount, address receiver) private {
+        // Fetch the router of the pool.
+        VertexRouter router = VertexRouter(pool.router);
+
+        // Get the token data.
+        Token storage tokenData = pool.tokens[token];
+
+        // Check that the token is supported in this pool.
+        if (!tokenData.isActive) revert UnsupportedToken(token, id);
+
+        // Check if the amount exceeds the token's pool hardcap.
+        if (tokenData.activeAmount + amount > tokenData.hardcap) {
+            revert HardcapReached(token, tokenData.hardcap, tokenData.activeAmount, amount);
+        }
+
+        // Transfer tokens from the caller to this contract.
+        IERC20Metadata(token).safeTransferFrom(msg.sender, address(router), amount);
+
+        // Deposit funds to Vertex through router. Uses the default referral code of "-1".
+        router.submitSlowModeDeposit(tokenToProduct[token], uint128(amount), "-1");
+
+        // Add amount to the active market making balance of the user.
+        tokenData.userActiveAmount[receiver] += amount;
+
+        // Add amount to the active pool market making balance.
+        tokenData.activeAmount += amount;
+
+        emit Deposit(msg.sender, receiver, id, token, amount);
+    }
+
+    /// @notice Internal withdraw logic for both spot and perp pools.
+    /// @param tokenData The data of the token to withdraw.
+    /// @param sender The sender of the withdraw.
+    /// @param fee The fee to pay.
+    /// @param tokenId The Vertex product ID of the token to withdraw.
+    /// @param amountToReceive The amount of tokens the user receives.
+    /// @param router The router of the pool.
+    function _withdraw(
+        Token storage tokenData,
+        address sender,
+        uint256 fee,
+        uint32 tokenId,
+        uint256 amountToReceive,
+        VertexRouter router
+    ) private {
+        // Add fee to the Elixir balance.
+        tokenData.fees[sender] += fee;
+
+        // Update the user pending balance.
+        tokenData.userPendingAmount[sender] += (amountToReceive - fee);
+
+        // Create Vertex withdraw payload request.
+        IEndpoint.WithdrawCollateral memory withdrawPayload =
+            IEndpoint.WithdrawCollateral(router.contractSubaccount(), tokenId, uint128(amountToReceive), 0);
+
+        // Send withdraw requests to Vertex.
+        _sendTransaction(
+            router, abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
+        );
+
+        emit Withdraw(sender, address(router), tokenId, amountToReceive);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -722,10 +694,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         returns (uint256[] memory)
     {
         // Substract or add pending balance changes in Vertex sequencer queue.
-        IEndpoint.SlowModeConfig memory queue = endpoint.slowModeConfig();
+        IEndpoint.SlowModeConfig memory vertexQueue = endpoint.slowModeConfig();
 
         // Loop over queue and check transaction to get the pending balance changes.
-        for (uint64 i = queue.txUpTo; i < queue.txCount; i++) {
+        for (uint64 i = vertexQueue.txUpTo; i < vertexQueue.txCount; i++) {
             // Fetch the transaction.
             (, address sender, bytes memory transaction) = endpoint.slowModeTxs(i);
 
@@ -777,15 +749,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         return balances;
     }
 
-    /// @notice Returns the calculated amount of tokens to receive when withdrawing, given an amount of tokens and the pool balance on Vertex.
-    /// @param balance The Vertex balance of the pool.
-    /// @param amount The amount of tokens withdrawing.
-    /// @param activeAmount The active amount of tokens in the pool.
-    function getWithdrawAmount(uint256 balance, uint256 amount, uint256 activeAmount) public pure returns (uint256) {
-        // Calculate the amount to receive via percentage of ownership, accounting for any trading losses.
-        return amount.mulDiv(balance, activeAmount, Math.Rounding.Down);
-    }
-
     /// @notice Returns the balanced amount of quote tokens given an amount of base tokens.
     /// @param token0 The base token.
     /// @param token1 The quote token.
@@ -796,6 +759,21 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             10 ** (18 + IERC20Metadata(token0).decimals() - IERC20Metadata(token1).decimals()),
             Math.Rounding.Down
         );
+    }
+
+    /// @notice Returns the calculated amount of tokens to receive when withdrawing, given an amount of tokens and the pool balance on Vertex.
+    /// @param balance The Vertex balance of the pool.
+    /// @param amount The amount of tokens withdrawing.
+    /// @param activeAmount The active amount of tokens in the pool.
+    function getWithdrawAmount(uint256 balance, uint256 amount, uint256 activeAmount) public pure returns (uint256) {
+        // Calculate the amount to receive via percentage of ownership, accounting for any trading losses.
+        return amount.mulDiv(balance, activeAmount, Math.Rounding.Down);
+    }
+
+    /// TODO: Fix this because it's increasing the variable when it should only be viewed.
+    /// @notice Returns the next spot in the queue to process.
+    function nextSpot() external returns (Spot memory) {
+        return queue[queueUpTo++];
     }
 
     /// @notice Returns the type and payload of a Vertex slow-mode transaction.
@@ -812,18 +790,45 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param router The pool router.
     /// @param transaction The transaction to forward.
     function _sendTransaction(VertexRouter router, bytes memory transaction) private {
-        // Deposit collateral doens't have fees.
-        if (uint8(transaction[0]) != uint8(IEndpoint.TransactionType.DepositCollateral)) {
-            // Fetch payment fee from owner. This can be reimbursed on withdrawals after tokens are received.
-            paymentToken.safeTransferFrom(owner(), address(router), slowModeFee);
-        }
+        // Fetch payment fee from owner. This can be reimbursed on withdrawals after tokens are received.
+        paymentToken.safeTransferFrom(owner(), address(router), slowModeFee);
 
+        // Submit slow-mode tx to Vertex.
         router.submitSlowModeTransaction(transaction);
     }
 
     /*//////////////////////////////////////////////////////////////
                           PERMISSIONED FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice Processes the next spot in the withdraw perp queue.
+    /// @param spotId The ID of the spot queue to process.
+    /// @param amountToReceive The amount the user should receive from the withdraw.
+    function unqueue(uint128 spotId, uint256 amountToReceive) external {
+        // Check that next spot in queue matches the given spot ID.
+        if (spotId - 1 == queueUpTo) revert InvalidSpot(spotId, queueUpTo);
+
+        // Get the spot data from the queue.
+        Spot memory spot = queue[queueUpTo - 1];
+
+        // Get the router of the pool.
+        VertexRouter router = VertexRouter(spot.router);
+
+        // Get the external account of the router.
+        // TODO: Check security below.
+        address externalAccount = address(uint160(bytes20(router.externalSubaccount())));
+
+        // Check that the sender is the external account of the router.
+        if (msg.sender != externalAccount) revert NotExternalAccount(address(router), externalAccount, msg.sender);
+
+        // Get the token address.
+        address token = productToToken[spot.tokenId];
+
+        // Execute the withdraw logic.
+        _withdraw(
+            pools[spot.poolId].tokens[token], spot.sender, getWithdrawFee(token), spot.tokenId, amountToReceive, router
+        );
+    }
 
     /// @notice Manages the paused status of deposits, withdrawals, and claims
     /// @param _depositPaused True to pause deposits, false otherwise.
@@ -942,17 +947,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         productToToken[productId] = token;
 
         emit TokenUpdated(token, productId);
-    }
-
-    /// @notice Updates the Vertex slow mode fee.
-    /// @param newFee The new fee.
-    function updateSlowModeFee(uint256 newFee) external onlyOwner {
-        // Check that the new fee is no more than 100 USDC.
-        if (newFee > 100_000_000) revert FeeTooHigh(newFee);
-
-        slowModeFee = newFee;
-
-        emit SlowModeFeeUpdated(newFee);
     }
 
     /*//////////////////////////////////////////////////////////////

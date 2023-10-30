@@ -65,6 +65,14 @@ interface IEndpoint {
     /// @notice Submits a slow-mode transaction to Vertex.
     function submitSlowModeTransaction(bytes calldata transaction) external;
 
+    /// @notice Submits a deposit transaction to Vertex.
+    function depositCollateralWithReferral(
+        bytes12 subaccountName,
+        uint32 productId,
+        uint128 amount,
+        string calldata referralCode
+    ) external;
+
     /// @notice Returns a slow-mode transaction.
     function slowModeTxs(uint64 txId) external view returns (uint64 executableAt, address sender, bytes calldata tx);
 }

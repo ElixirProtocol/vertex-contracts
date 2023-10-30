@@ -91,7 +91,7 @@ contract TestInvariantsVertexManager is Test {
         manager = VertexManager(address(proxy));
 
         // Wrap into the handler.
-        handler = new Handler(manager, spotTokens, perpTokens);
+        handler = new Handler(manager, spotTokens, perpTokens, address(this));
 
         // Approve the manager to move USDC for fee payments.
         USDC.approve(address(manager), type(uint256).max);

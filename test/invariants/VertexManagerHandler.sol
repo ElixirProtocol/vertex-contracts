@@ -21,6 +21,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     // Elixir contracts
     VertexManager public manager;
 
+    // Elixir external account
+    address public externalAccount;
+
     // Tokens
     IERC20Metadata public BTC;
     IERC20Metadata public USDC;
@@ -63,7 +66,12 @@ contract Handler is CommonBase, StdCheats, StdUtils {
                                CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(VertexManager _manager, address[] memory _spotTokens, address[] memory _perpTokens) {
+    constructor(
+        VertexManager _manager,
+        address[] memory _spotTokens,
+        address[] memory _perpTokens,
+        address _externalAccount
+    ) {
         manager = _manager;
         BTC = IERC20Metadata(_perpTokens[0]);
         USDC = IERC20Metadata(_perpTokens[1]);
@@ -71,6 +79,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         spotTokens = _spotTokens;
         perpTokens = _perpTokens;
+        externalAccount = _externalAccount;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -92,12 +101,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         USDC.approve(address(manager), amountUSDC);
         WETH.approve(address(manager), amountWETH);
 
-        uint256[] memory amounts = new uint256[](3);
-        amounts[0] = amountBTC;
-        amounts[1] = amountUSDC;
-        amounts[2] = amountWETH;
-
-        manager.depositPerp(2, perpTokens, amounts, currentActor);
+        manager.depositPerp(2, perpTokens[0], amountBTC, currentActor);
+        manager.depositPerp(2, perpTokens[1], amountUSDC, currentActor);
+        manager.depositPerp(2, perpTokens[2], amountWETH, currentActor);
 
         vm.stopPrank();
 
@@ -120,7 +126,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         BTC.approve(address(manager), amountBTC);
         USDC.approve(address(manager), amountUSDC);
 
-        manager.depositSpot(1, spotTokens, amountBTC, amountUSDC, amountUSDC, currentActor);
+        manager.depositSpot(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, currentActor);
 
         vm.stopPrank();
 
@@ -174,14 +180,13 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         vm.startPrank(currentActor);
 
-        uint256[] memory amounts = new uint256[](3);
-        amounts[0] = amountBTC;
-        amounts[1] = amountUSDC;
-        amounts[2] = amountWETH;
-
-        manager.withdrawPerp(2, perpTokens, amounts, feeIndex);
+        manager.withdrawPerp(2, perpTokens[0], amountBTC);
+        manager.withdrawPerp(2, perpTokens[1], amountUSDC);
+        manager.withdrawPerp(2, perpTokens[2], amountWETH);
 
         vm.stopPrank();
+
+        process();
 
         ghost_withdraws[address(BTC)] += amountBTC;
         ghost_withdraws[address(USDC)] += amountUSDC;
@@ -238,7 +243,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         uint256 beforeUSDC = USDC.balanceOf(currentActor);
         uint256 beforeWETH = WETH.balanceOf(currentActor);
 
-        manager.claim(currentActor, perpTokens, 2);
+        manager.claim(currentActor, perpTokens[0], 2);
+        manager.claim(currentActor, perpTokens[1], 2);
+        manager.claim(currentActor, perpTokens[2], 2);
 
         uint256 receivedBTC = BTC.balanceOf(currentActor) - beforeBTC;
         uint256 receivedUSDC = USDC.balanceOf(currentActor) - beforeUSDC;
@@ -264,7 +271,8 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         uint256 beforeBTC = BTC.balanceOf(currentActor);
         uint256 beforeUSDC = USDC.balanceOf(currentActor);
 
-        manager.claim(currentActor, spotTokens, 1);
+        manager.claim(currentActor, spotTokens[0], 1);
+        manager.claim(currentActor, spotTokens[1], 1);
 
         uint256 receivedBTC = BTC.balanceOf(currentActor) - beforeBTC;
         uint256 receivedUSDC = USDC.balanceOf(currentActor) - beforeUSDC;
@@ -309,6 +317,18 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
             deal(token, router, manager.getUserPendingAmount(id, token, user) + manager.getUserFee(id, token, user));
         }
+    }
+
+    function process() public {
+        vm.startPrank(externalAccount);
+
+        // Loop through the queue and process each transaction using the idTo provided.
+        for (uint128 i = manager.queueUpTo() + 1; i < manager.queueCount() + 1; i++) {
+            VertexManager.Spot memory spot = manager.nextSpot();
+            manager.unqueue(i, spot.amount);
+        }
+
+        vm.stopPrank();
     }
 
     // Exclude from coverage report

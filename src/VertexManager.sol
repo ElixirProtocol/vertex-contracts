@@ -550,8 +550,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Transfer tokens from the caller to this contract.
         IERC20Metadata(token).safeTransferFrom(msg.sender, address(router), amount);
 
-        // Deposit funds to Vertex through router. Uses the default referral code of "-1".
-        router.submitSlowModeDeposit(tokenToProduct[token], uint128(amount), "-1");
+        // Deposit funds to Vertex through router.
+        router.submitSlowModeDeposit(tokenToProduct[token], uint128(amount), "9O7rUEUljP");
 
         // Add amount to the active market making balance of the user.
         tokenData.userActiveAmount[receiver] += amount;
@@ -825,12 +825,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Get the token data.
         Token storage tokenData = pools[spot.poolId].tokens[token];
 
-        // Skip the spot if the amount is enough to pay the fee.
+        // Skip/revert the spot if the amount is not enough to pay the fee.
         if (amountToReceive < getWithdrawFee(token)) {
-            // Substract amount from the active market making balance of the caller.
+            // Add amount from the active market making balance of the spot sender.
             tokenData.userActiveAmount[spot.sender] += spot.amount;
 
-            // Substract amount from the active pool market making balance.
+            // Add amount from the active pool market making balance.
             tokenData.activeAmount += spot.amount;
         } else {
             // Execute the withdraw logic.

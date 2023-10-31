@@ -825,12 +825,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Get the token data.
         Token storage tokenData = pools[spot.poolId].tokens[token];
 
-        // Skip the spot if the amount is enough to pay the fee.
+        // Skip/revert the spot if the amount is not enough to pay the fee.
         if (amountToReceive < getWithdrawFee(token)) {
-            // Substract amount from the active market making balance of the caller.
+            // Add amount from the active market making balance of the spot sender.
             tokenData.userActiveAmount[spot.sender] += spot.amount;
 
-            // Substract amount from the active pool market making balance.
+            // Add amount from the active pool market making balance.
             tokenData.activeAmount += spot.amount;
         } else {
             // Execute the withdraw logic.

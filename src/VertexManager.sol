@@ -199,6 +199,12 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @notice Emitted when the caller is not the external account of the pool's router.
     error NotExternalAccount(address router, address externalAccount, address caller);
 
+    /// @notice Emitted when the allowance given is not enough.
+    error InsufficientAllowance(address token, uint256 amount);
+
+    /// @notice Emitted when the balance is not enough.
+    error InsufficientBalance(address token, uint256 amount);
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -275,8 +281,11 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the receiver is not the zero address.
         if (receiver == address(0)) revert ZeroAddress();
 
+        // Check that the token  is supported by the pool.
+        if (!pool.tokens[token].isActive) revert UnsupportedToken(token, id);
+
         // Execute the deposit logic.
-        _deposit(id, pool, token, amount, receiver);
+        _deposit(msg.sender, id, pool, token, amount, receiver);
     }
 
     /// @notice Deposits tokens into a spot pool.
@@ -308,22 +317,37 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the receiver is not the zero address.
         if (receiver == address(0)) revert ZeroAddress();
 
-        // bytes memory encodedTx = abi.encode(txn);
-        bytes memory transaction = abi.encode(
-            DepositSpot({
-                id: id,
-                router: pool.router,
-                token0: token0,
-                token1: token1,
-                amount0: amount0,
-                amount1Low: amount1Low,
-                amount1High: amount1High,
-                receiver: receiver
-            })
-        );
+        // Check that the tokens are supported by the pool.
+        if (!pool.tokens[token0].isActive) revert UnsupportedToken(token0, id);
+        if (!pool.tokens[token1].isActive) revert UnsupportedToken(token1, id);
+
+        // Check that the user has given allowance.
+        if (IERC20Metadata(token0).allowance(msg.sender, address(this)) < amount0) {
+            revert InsufficientAllowance(token0, amount0);
+        }
+
+        // Check that the user has enough balance.
+        if (IERC20Metadata(token0).balanceOf(msg.sender) < amount0) revert InsufficientBalance(token0, amount0);
+
+        // TODO: DEPOSIT TOKEN0 OTHERWISE EASY DOS.
 
         // Add to queue.
-        queue[queueCount++] = Spot(msg.sender, SpotType.DepositSpot, transaction);
+        queue[queueCount++] = Spot(
+            msg.sender,
+            pool.router,
+            SpotType.DepositSpot,
+            abi.encode(
+                DepositSpot({
+                    id: id,
+                    token0: token0,
+                    token1: token1,
+                    amount0: amount0,
+                    amount1Low: amount1Low,
+                    amount1High: amount1High,
+                    receiver: receiver
+                })
+            )
+        );
 
         emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
@@ -350,11 +374,8 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the amount is at least the fee to pay.
         if (amount < getWithdrawFee(token)) revert AmountTooLow(amount, getWithdrawFee(token));
 
-        bytes memory transaction =
-            abi.encode(WithdrawPerp({id: id, router: pool.router, tokenId: tokenToProduct[token], amount: amount}));
-
         // Add to queue.
-        queue[queueCount++] = Spot(msg.sender, SpotType.WithdrawPerp, transaction);
+        queue[queueCount++] = Spot(msg.sender, pool.router, SpotType.WithdrawPerp, abi.encode(WithdrawPerp({id: id, tokenId: tokenToProduct[token], amount: amount})));
 
         emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
@@ -379,13 +400,13 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the tokens are not duplicated.
         if (token0 == token1) revert DuplicatedToken(token0);
 
-        // TODO: Check that the user has enough active amount for amount0.
-
-        bytes memory transaction =
-            abi.encode(WithdrawSpot({id: id, router: pool.router, token0: token0, token1: token1, amount0: amount0}));
+        // Check that the user has enough active amount0.
+        if (pools[id].tokens[token0].userActiveAmount[msg.sender] < amount0) {
+            revert InsufficientBalance(token0, amount0);
+        }
 
         // Add to queue.
-        queue[queueCount++] = Spot(msg.sender, SpotType.WithdrawSpot, transaction);
+        queue[queueCount++] = Spot(msg.sender, pool.router, SpotType.WithdrawSpot, abi.encode(WithdrawSpot({id: id, token0: token0, token1: token1, amount0: amount0})));
 
         emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
@@ -437,20 +458,20 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Internal deposit logic for both spot and perp pools.
+    /// @param caller The user who is depositing.
     /// @param id The id of the pool.
     /// @param pool The data of the pool to deposit.
     /// @param token The tokens to deposit.
     /// @param amount The amounts of token to deposit.
     /// @param receiver The receiver of the virtual LP balance.
-    function _deposit(uint256 id, Pool storage pool, address token, uint256 amount, address receiver) private {
+    function _deposit(address caller, uint256 id, Pool storage pool, address token, uint256 amount, address receiver)
+        private
+    {
         // Fetch the router of the pool.
         VertexRouter router = VertexRouter(pool.router);
 
         // Get the token data.
         Token storage tokenData = pool.tokens[token];
-
-        // Check that the token is supported in this pool.
-        if (!tokenData.isActive) revert UnsupportedToken(token, id);
 
         // Check if the amount exceeds the token's pool hardcap.
         if (tokenData.activeAmount + amount > tokenData.hardcap) {
@@ -458,7 +479,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         }
 
         // Transfer tokens from the caller to this contract.
-        IERC20Metadata(token).safeTransferFrom(msg.sender, address(router), amount);
+        IERC20Metadata(token).safeTransferFrom(caller, address(router), amount);
 
         // Deposit funds to Vertex through router.
         router.submitSlowModeDeposit(tokenToProduct[token], uint128(amount), "9O7rUEUljP");
@@ -469,7 +490,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Add amount to the active pool market making balance.
         tokenData.activeAmount += amount;
 
-        emit Deposit(msg.sender, receiver, id, token, amount);
+        emit Deposit(caller, receiver, id, token, amount);
     }
 
     /// @notice Internal withdraw logic for both spot and perp pools.
@@ -602,30 +623,15 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         return (uint8(transaction[0]), transaction[1:]);
     }
 
-    /// @notice Reverts if the caller is not the router's external account.
-    /// @param router The router to check against.
-    function _checkCaller(address router) private view {
-        // Get the external account of the router.
-        address externalAccount = address(uint160(bytes20(VertexRouter(router).externalSubaccount())));
-
-        // Check that the sender is the external account of the router.
-        if (msg.sender != externalAccount) revert NotExternalAccount(router, externalAccount, msg.sender);
-    }
-
     /// @notice Processes a spot transaction given a response.
-    /// @param queueId The spot ID in queue.
+    /// @param spot The spot to process.
     /// @param response The response for the spot in queue.
-    function processSpot(uint128 queueId, bytes memory response) public {
+    function processSpot(Spot calldata spot, bytes memory response) public {
         // TODO: Check security and change to error.
         require(msg.sender == address(this), "only callable to execute slow mode txs");
 
-        // Get the spot data from the queue.
-        Spot memory spot = queue[queueId];
-
         if (spot.spotType == SpotType.DepositSpot) {
             DepositSpot memory spotTxn = abi.decode(spot.transaction, (DepositSpot));
-
-            _checkCaller(spotTxn.router);
 
             DepositSpotResponse memory responseTxn = abi.decode(response, (DepositSpotResponse));
 
@@ -635,15 +641,13 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
             }
 
             // Execute the deposit logic.
-            _deposit(spotTxn.id, pools[spotTxn.id], spotTxn.token0, spotTxn.amount0, spotTxn.receiver);
-            _deposit(spotTxn.id, pools[spotTxn.id], spotTxn.token1, responseTxn.amount1, spotTxn.receiver);
+            _deposit(spot.sender, spotTxn.id, pools[spotTxn.id], spotTxn.token0, spotTxn.amount0, spotTxn.receiver);
+            _deposit(spot.sender, spotTxn.id, pools[spotTxn.id], spotTxn.token1, responseTxn.amount1, spotTxn.receiver);
 
             // TODO: What happens is user removes allowance or doens't have enough balance?
             // TODO: Or what happens if the token is not supportd? A try-catch function here is needed, similar to Vertex's Endpoint.
         } else if (spot.spotType == SpotType.WithdrawPerp) {
             WithdrawPerp memory spotTxn = abi.decode(spot.transaction, (WithdrawPerp));
-
-            _checkCaller(spotTxn.router);
 
             WithdrawPerpResponse memory responseTxn = abi.decode(response, (WithdrawPerpResponse));
 
@@ -663,12 +667,10 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
                 getWithdrawFee(token),
                 spotTxn.tokenId,
                 responseTxn.amountToReceive,
-                VertexRouter(spotTxn.router)
+                VertexRouter(spot.router)
             );
         } else if (spot.spotType == SpotType.WithdrawSpot) {
             WithdrawSpot memory spotTxn = abi.decode(spot.transaction, (WithdrawSpot));
-
-            _checkCaller(spotTxn.router);
 
             WithdrawSpotResponse memory responseTxn = abi.decode(response, (WithdrawSpotResponse));
 
@@ -680,7 +682,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
                 getWithdrawFee(spotTxn.token0),
                 tokenToProduct[spotTxn.token0],
                 responseTxn.amount0ToReceive,
-                VertexRouter(spotTxn.router)
+                VertexRouter(spot.router)
             );
             // Execute the withdraw logic for token1.
             _withdraw(
@@ -690,7 +692,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
                 getWithdrawFee(spotTxn.token1),
                 tokenToProduct[spotTxn.token1],
                 responseTxn.amount1ToReceive,
-                VertexRouter(spotTxn.router)
+                VertexRouter(spot.router)
             );
         } else {
             // TODO: Change to better error.
@@ -724,9 +726,18 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that next spot in queue matches the given spot ID.
         if (spotId != queueUpTo + 1) revert InvalidSpot(spotId, queueUpTo);
 
+        // Get the spot data from the queue.
+        Spot memory spot = queue[queueUpTo];
+
+        // Get the external account of the router.
+        address externalAccount = address(uint160(bytes20(VertexRouter(spot.router).externalSubaccount())));
+
+        // Check that the sender is the external account of the router.
+        if (msg.sender != externalAccount) revert NotExternalAccount(spot.router, externalAccount, msg.sender);
+
         if (response.length != 0) {
             // Process spot. Skips if fail or revert.
-            try this.processSpot(queueUpTo, response) {} catch {}
+            try this.processSpot(spot, response) {} catch {}
         } else {
             // Intetionally skip.
         }

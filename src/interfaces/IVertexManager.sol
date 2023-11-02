@@ -4,6 +4,7 @@ pragma solidity 0.8.18;
 interface IVertexManager {
     /// @notice The types of spots supported by this contract.
     enum SpotType {
+        Empty,
         DepositSpot,
         WithdrawPerp,
         WithdrawSpot
@@ -13,8 +14,6 @@ interface IVertexManager {
     struct DepositSpot {
         // The ID of the pool.
         uint256 id;
-        // The router address of the pool.
-        address router;
         // The token0 address.
         address token0;
         // The token1 address.
@@ -33,8 +32,6 @@ interface IVertexManager {
     struct WithdrawPerp {
         // The ID of the pool.
         uint256 id;
-        // The router address of the pool.
-        address router;
         // The Vertex product ID of the token.
         uint32 tokenId;
         // The amount of token shares to withdraw.
@@ -45,8 +42,6 @@ interface IVertexManager {
     struct WithdrawSpot {
         // The ID of the pool.
         uint256 id;
-        // The router address of the pool.
-        address router;
         // The token0 address.
         address token0;
         // The token1 address.
@@ -114,6 +109,8 @@ interface IVertexManager {
     struct Spot {
         // The sender of the request.
         address sender;
+        // The router address of the pool.
+        address router;
         // The type of request.
         SpotType spotType;
         // The transaction to process.

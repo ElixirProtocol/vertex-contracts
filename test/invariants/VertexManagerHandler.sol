@@ -299,11 +299,8 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         for (uint128 i = manager.queueUpTo() + 1; i < manager.queueCount() + 1; i++) {
             VertexManager.Spot memory spot = manager.nextSpot();
 
-            // Check the type of the spot.
-            (uint8 spotType, bytes memory txn) = manager.decodeTx(spot.transaction);
-
-            if (spotType == uint8(IVertexManager.SpotType.DepositSpot)) {
-                IVertexManager.DepositSpot memory spotTxn = abi.decode(txn, (IVertexManager.DepositSpot));
+            if (spot.spotType == IVertexManager.SpotType.DepositSpot) {
+                IVertexManager.DepositSpot memory spotTxn = abi.decode(spot.transaction, (IVertexManager.DepositSpot));
 
                 manager.unqueue(
                     i,
@@ -313,12 +310,12 @@ contract Handler is CommonBase, StdCheats, StdUtils {
                         })
                     )
                 );
-            } else if (spotType == uint8(IVertexManager.SpotType.WithdrawPerp)) {
-                IVertexManager.WithdrawPerp memory spotTxn = abi.decode(txn, (IVertexManager.WithdrawPerp));
+            } else if (spot.spotType == IVertexManager.SpotType.WithdrawPerp) {
+                IVertexManager.WithdrawPerp memory spotTxn = abi.decode(spot.transaction, (IVertexManager.WithdrawPerp));
 
                 manager.unqueue(i, abi.encode(IVertexManager.WithdrawPerpResponse({amountToReceive: spotTxn.amount})));
-            } else if (spotType == uint8(IVertexManager.SpotType.WithdrawSpot)) {
-                IVertexManager.WithdrawSpot memory spotTxn = abi.decode(txn, (IVertexManager.WithdrawSpot));
+            } else if (spot.spotType == IVertexManager.SpotType.WithdrawSpot) {
+                IVertexManager.WithdrawSpot memory spotTxn = abi.decode(spot.transaction, (IVertexManager.WithdrawSpot));
 
                 uint256 amount1 = manager.getBalancedAmount(spotTxn.token0, spotTxn.token1, spotTxn.amount0);
 

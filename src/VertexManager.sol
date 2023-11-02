@@ -10,6 +10,7 @@ import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.
 import {UUPSUpgradeable} from "openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
 
+import {IVertexManager} from "./interfaces/IVertexManager.sol";
 import {IClearinghouse} from "./interfaces/IClearinghouse.sol";
 import {IEndpoint} from "./interfaces/IEndpoint.sol";
 import {IEngine} from "../src/interfaces/IEngine.sol";
@@ -20,92 +21,13 @@ import {VertexRouter} from "./VertexRouter.sol";
 /// @author The Elixir Team
 /// @custom:security-contact security@elixir.finance
 /// @notice Pool manager contract to provide liquidity for spot and perp market making on Vertex Protocol.
-contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard {
+contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard {
     using Math for uint256;
     using SafeERC20 for IERC20Metadata;
 
     /*//////////////////////////////////////////////////////////////
                                 VARIABLES
     //////////////////////////////////////////////////////////////*/
-
-    /// @notice The types of pools supported by this contract.
-    enum PoolType {
-        Inactive,
-        Spot,
-        Perp
-    }
-
-    /// @notice The types of spots supported by this contract.
-    enum SpotType {
-        DepositSpot,
-        WithdrawPerp
-    }
-
-    /// @notice The structure for spot deposits to be processed by Elixir.
-    struct DepositSpot {
-        // The ID of the pool.
-        uint256 id;
-        // The router address of the pool.
-        address router;
-        // The token0 address.
-        address token0;
-        // The token1 address.
-        address token1;
-        // The amount of token0 to deposit.
-        uint256 amount0;
-        // The low limit of token1 to deposit.
-        uint256 amount1Low;
-        // The high limit of token1 to deposit.
-        uint256 amount1High;
-        // The receiver of the virtual LP balance.
-        address receiver;
-    }
-
-    /// @notice The structure of perp withdrawals to be processed by Elixir.
-    struct WithdrawPerp {
-        // The ID of the pool.
-        uint256 id;
-        // The router address of the pool.
-        address router;
-        // The Vertex product ID of the token.
-        uint32 tokenId;
-        // The amount of token shares to withdraw.
-        uint256 amount;
-    }
-
-    /// @notice The data structure of pools.
-    struct Pool {
-        // The router address of the pool.
-        address router;
-        // The pool type. True for spot, false for perp.
-        PoolType poolType;
-        // The data of the supported tokens in the pool.
-        mapping(address token => Token data) tokens;
-    }
-
-    /// @notice The data structure of tokens.
-    struct Token {
-        // The active market making balance of users for a token within a pool.
-        mapping(address user => uint256 balance) userActiveAmount;
-        // The pending amounts of users for a token within a pool.
-        mapping(address user => uint256 amount) userPendingAmount;
-        // The pending fees of a token within a pool.
-        mapping(address user => uint256 amount) fees;
-        // The total active amounts of a token within a pool.
-        uint256 activeAmount;
-        // The hardcap of the token within a pool.
-        uint256 hardcap;
-        // The status of the token within a pool. True if token is supported.
-        bool isActive;
-    }
-
-    /// @notice The data structure of queue spots.
-    struct Spot {
-        // The sender of the withdrawal.
-        address sender;
-        // The transaction to process.
-        bytes transaction;
-    }
 
     /// @notice The pools managed given an ID.
     mapping(uint256 id => Pool pool) public pools;
@@ -866,9 +788,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // Get the spot data from the queue.
         Spot memory spot = queue[queueUpTo];
-
-        // Get the type of transaction of the spot.
-        // SpotType spotType = SpotType(uint8(spot.transaction[0]));
 
         // Decode the spot.
         (uint8 spotType, bytes memory spotTx) = this.decodeTx(spot.transaction);

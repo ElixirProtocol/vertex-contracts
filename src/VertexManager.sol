@@ -362,12 +362,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the amount is at least the fee to pay.
         if (amount < getWithdrawFee(token)) revert AmountTooLow(amount, getWithdrawFee(token));
 
-        // Substract amount from the active market making balance of the caller.
-        tokenData.userActiveAmount[msg.sender] -= amount;
-
-        // Substract amount from the active pool market making balance.
-        tokenData.activeAmount -= amount;
-
         bytes memory transaction = abi.encodePacked(
             uint8(SpotType.WithdrawPerp),
             abi.encode(WithdrawPerp({id: id, router: pool.router, tokenId: tokenToProduct[token], amount: amount}))
@@ -382,10 +376,10 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @notice Withdraws tokens from a spot pool.
     /// @dev After processed by Vertex, the user (or anyone on behalf of it) can call the `claim` function.
     /// @param id The ID of the pool to withdraw from.
-    /// @param tokens The tokens to withdraw.
+    /// @param token0 The base token.
+    /// @param token1 The quote token.
     /// @param amount0 The amount of base tokens.
-    /// @param feeIndex The index of the token list to apply to the withdrawal fee to.
-    function withdrawSpot(uint256 id, address[] calldata tokens, uint256 amount0, uint256 feeIndex)
+    function withdrawSpot(uint256 id, address token0, address token1, uint256 amount0)
         external
         whenWithdrawNotPaused
         nonReentrant
@@ -396,57 +390,20 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the pool is spot.
         if (pool.poolType != PoolType.Spot) revert InvalidPool(id);
 
-        // Check that the tokens array only includes two tokens.
-        if (tokens.length != 2) revert InvalidTokens(tokens);
-
         // Check that the tokens are not duplicated.
-        if (tokens[0] == tokens[1]) revert DuplicatedToken(tokens[0]);
+        if (token0 == token1) revert DuplicatedToken(token0);
 
-        // Check that the feeIndex is within the tokens array.
-        if (feeIndex >= tokens.length) revert InvalidFeeIndex(feeIndex, tokens);
+        // TODO: Check that the user has enough active amount for amount0.
 
-        // Get the balanced amount of quote tokens.
-        uint256 amount1 = getBalancedAmount(tokens[0], tokens[1], amount0);
+        bytes memory transaction = abi.encodePacked(
+            uint8(SpotType.WithdrawSpot),
+            abi.encode(WithdrawSpot({id: id, router: pool.router, token0: token0, token1: token1, amount0: amount0}))
+        );
 
-        // Fetch the router of the pool.
-        VertexRouter router = VertexRouter(pool.router);
+        // Add to queue.
+        queue[queueCount++] = Spot(msg.sender, transaction);
 
-        // Get the Vertex balances.
-        uint256[] memory balances = getUpdatedVertexBalances(router, getCurrentVertexBalances(router, tokens), tokens);
-
-        // Loop over amounts and send withdraw requests to Vertex.
-        for (uint256 i = 0; i < tokens.length; i++) {
-            // Get the token address.
-            address token = tokens[i];
-
-            // Get the token data.
-            Token storage tokenData = pool.tokens[token];
-
-            // Check that the token is supported in this pool.
-            if (!tokenData.isActive) revert UnsupportedToken(token, id);
-
-            // Get the requested amount of token to withdraw.
-            uint256 amount = i == 0 ? amount0 : amount1;
-
-            // Calculate the amount to receive.
-            uint256 amountToReceive = getWithdrawAmount(balances[i], amount, tokenData.activeAmount);
-
-            // Substract requested amount from the active market making balance.
-            tokenData.userActiveAmount[msg.sender] -= amount;
-
-            // Substract requested amount from the active pool market making balance.
-            tokenData.activeAmount -= amount;
-
-            // Execute the withdraw logic.
-            _withdraw(
-                tokenData,
-                msg.sender,
-                i == feeIndex ? getWithdrawFee(token) : 0,
-                tokenToProduct[token],
-                amountToReceive,
-                router
-            );
-        }
+        emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
 
     /// @notice Claim received tokens from the pending balance and fees.
@@ -535,17 +492,25 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param tokenData The data of the token to withdraw.
     /// @param sender The sender of the withdraw.
     /// @param fee The fee to pay.
+    /// @param amount The amount of token to substract from active balances.
     /// @param tokenId The Vertex product ID of the token to withdraw.
     /// @param amountToReceive The amount of tokens the user receives.
     /// @param router The router of the pool.
     function _withdraw(
         Token storage tokenData,
         address sender,
+        uint256 amount,
         uint256 fee,
         uint32 tokenId,
         uint256 amountToReceive,
         VertexRouter router
     ) private {
+        // Substract amount from the active market making balance of the caller.
+        tokenData.userActiveAmount[sender] -= amount;
+
+        // Substract amount from the active pool market making balance.
+        tokenData.activeAmount -= amount;
+
         // Add fee to the Elixir balance.
         tokenData.fees[sender] += fee;
 
@@ -621,103 +586,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         return pools[id].tokens[token].fees[user];
     }
 
-    /// @notice Fetches the current Vertex balances of a pool.
-    /// @param router The router of the pool.
-    /// @param tokens The tokens to fetch the balances of.
-    function getCurrentVertexBalances(VertexRouter router, address[] memory tokens)
-        public
-        view
-        returns (uint256[] memory balances)
-    {
-        // Set the balances length.
-        balances = new uint256[](tokens.length);
-
-        // Loop over tokens and get the balances.
-        for (uint256 i = 0; i < tokens.length; i++) {
-            // Get the token address.
-            address token = tokens[i];
-
-            // Get the token Vertex product ID.
-            uint32 productId = tokenToProduct[token];
-
-            // Get the Vertex balance fo the token by product.
-            IEngine.Balance memory balance = IEngine(
-                IClearinghouse(endpoint.clearinghouse()).getEngineByProduct(productId)
-            ).getBalance(productId, router.contractSubaccount());
-
-            // Format the balance back to the original decimals, as Vertex uses 18 decimals and rounds down.
-            uint256 decimals = 10 ** (18 - IERC20Metadata(token).decimals());
-
-            // Convert back to native decimals. Round up if the token has less than 18 decimals.
-            balances[i] = decimals == 1 ? uint256(balance.amount) : uint256(balance.amount).ceilDiv(decimals);
-        }
-    }
-
-    /// @notice Fetches the updated Vertex balance of a pool.
-    /// @param router The router of the pool.
-    /// @param balances The balances to update.
-    /// @param tokens The tokens to get the updated balances of.
-    function getUpdatedVertexBalances(VertexRouter router, uint256[] memory balances, address[] memory tokens)
-        public
-        view
-        returns (uint256[] memory)
-    {
-        // Substract or add pending balance changes in Vertex sequencer queue.
-        IEndpoint.SlowModeConfig memory vertexQueue = endpoint.slowModeConfig();
-
-        // Loop over queue and check transaction to get the pending balance changes.
-        for (uint64 i = vertexQueue.txUpTo; i < vertexQueue.txCount; i++) {
-            // Fetch the transaction.
-            (, address sender, bytes memory transaction) = endpoint.slowModeTxs(i);
-
-            // Skip if the router is not the one given.
-            if (sender != address(router)) continue;
-
-            // Decode the transaction type.
-            (uint8 txType, bytes memory payload) = this.decodeTx(transaction);
-
-            // If the transaction is a withdraw, substract the amount from the balance.
-            if (txType == uint8(IEndpoint.TransactionType.WithdrawCollateral)) {
-                // Decode the withdraw payload.
-                IEndpoint.WithdrawCollateral memory withdrawPayload =
-                    abi.decode(payload, (IEndpoint.WithdrawCollateral));
-
-                // Get the token address from the product ID.
-                address token = productToToken[withdrawPayload.productId];
-
-                // Substract from balance if this is a token the user wants to withdraw.
-                for (uint256 j = 0; j < tokens.length; j++) {
-                    // Break the loop when the token is found.
-                    if (token == tokens[j]) {
-                        balances[j] -= withdrawPayload.amount;
-                        break;
-                    }
-                }
-            }
-            // If the transaction is a deposit, add the amount to the balance.
-            else if (txType == uint8(IEndpoint.TransactionType.DepositCollateral)) {
-                // Decode the deposit payload.
-                IEndpoint.DepositCollateral memory depositPayload = abi.decode(payload, (IEndpoint.DepositCollateral));
-
-                // Get the token address from the product ID.
-                address token = productToToken[depositPayload.productId];
-
-                // Add to balance if this is a token the user wants to deposit.
-                for (uint256 j = 0; j < tokens.length; j++) {
-                    // Break the loop when the token is found.
-                    if (token == tokens[j]) {
-                        balances[j] += depositPayload.amount;
-                        break;
-                    }
-                }
-            } else {
-                continue;
-            }
-        }
-
-        return balances;
-    }
-
     /// @notice Returns the balanced amount of quote tokens given an amount of base tokens.
     /// @param token0 The base token.
     /// @param token1 The quote token.
@@ -752,12 +620,101 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
 
     /// @notice Reverts if the caller is not the router's external account.
     /// @param router The router to check against.
-    function checkCaller(address router) private view {
+    function _checkCaller(address router) private view {
         // Get the external account of the router.
         address externalAccount = address(uint160(bytes20(VertexRouter(router).externalSubaccount())));
 
         // Check that the sender is the external account of the router.
         if (msg.sender != externalAccount) revert NotExternalAccount(router, externalAccount, msg.sender);
+    }
+
+    /// @notice Processes a spot transaction given a response.
+    /// @param queueId The spot ID in queue.
+    /// @param response The response for the spot in queue.
+    function processSpot(uint128 queueId, bytes memory response) public {
+        // TODO: Check security and change to error.
+        require(msg.sender == address(this), "only callable to execute slow mode txs");
+
+        // Get the spot data from the queue.
+        Spot memory spot = queue[queueId];
+
+        // Decode the spot.
+        (uint8 spotType, bytes memory txn) = this.decodeTx(spot.transaction);
+
+        if (spotType == uint8(SpotType.DepositSpot)) {
+            DepositSpot memory spotTxn = abi.decode(txn, (DepositSpot));
+
+            _checkCaller(spotTxn.router);
+
+            DepositSpotResponse memory responseTxn = abi.decode(response, (DepositSpotResponse));
+
+            // Check for slippage based on the needed amount1.
+            if (responseTxn.amount1 < spotTxn.amount1Low || responseTxn.amount1 > spotTxn.amount1High) {
+                revert SlippageTooHigh(responseTxn.amount1, spotTxn.amount1Low, spotTxn.amount1High);
+            }
+
+            // Execute the deposit logic.
+            _deposit(spotTxn.id, pools[spotTxn.id], spotTxn.token0, spotTxn.amount0, spotTxn.receiver);
+            _deposit(spotTxn.id, pools[spotTxn.id], spotTxn.token1, responseTxn.amount1, spotTxn.receiver);
+
+            // TODO: What happens is user removes allowance or doens't have enough balance?
+            // TODO: Or what happens if the token is not supportd? A try-catch function here is needed, similar to Vertex's Endpoint.
+        } else if (spotType == uint8(SpotType.WithdrawPerp)) {
+            WithdrawPerp memory spotTxn = abi.decode(txn, (WithdrawPerp));
+
+            _checkCaller(spotTxn.router);
+
+            WithdrawPerpResponse memory responseTxn = abi.decode(response, (WithdrawPerpResponse));
+
+            // Get the token address.
+            address token = productToToken[spotTxn.tokenId];
+
+            // Get the token data.
+            Token storage tokenData = pools[spotTxn.id].tokens[token];
+
+            // TODO: Remove this as we are not substracting from active amount.
+            // If not enough for fee, tx will revert and be skipped from queue.
+
+            _withdraw(
+                tokenData,
+                spot.sender,
+                spotTxn.amount,
+                getWithdrawFee(token),
+                spotTxn.tokenId,
+                responseTxn.amountToReceive,
+                VertexRouter(spotTxn.router)
+            );
+        } else if (spotType == uint8(SpotType.WithdrawSpot)) {
+            WithdrawSpot memory spotTxn = abi.decode(txn, (WithdrawSpot));
+
+            _checkCaller(spotTxn.router);
+
+            WithdrawSpotResponse memory responseTxn = abi.decode(response, (WithdrawSpotResponse));
+
+            // Execute the withdraw logic for token0.
+            _withdraw(
+                pools[spotTxn.id].tokens[spotTxn.token0],
+                spot.sender,
+                spotTxn.amount0,
+                getWithdrawFee(spotTxn.token0),
+                tokenToProduct[spotTxn.token0],
+                responseTxn.amount0ToReceive,
+                VertexRouter(spotTxn.router)
+            );
+            // Execute the withdraw logic for token1.
+            _withdraw(
+                pools[spotTxn.id].tokens[spotTxn.token1],
+                spot.sender,
+                responseTxn.amount1,
+                getWithdrawFee(spotTxn.token1),
+                tokenToProduct[spotTxn.token1],
+                responseTxn.amount1ToReceive,
+                VertexRouter(spotTxn.router)
+            );
+        } else {
+            // TODO: Change to better error.
+            revert("Invalid transaction type");
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -781,55 +738,13 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
 
     /// @notice Processes the next spot in the withdraw perp queue.
     /// @param spotId The ID of the spot queue to process.
-    /// @param amountToReceive The amount the user should receive from the withdraw.
-    function unqueue(uint128 spotId, uint256 amountToReceive) external {
+    /// @param response The response to the spot transaction.
+    function unqueue(uint128 spotId, bytes memory response) external {
         // Check that next spot in queue matches the given spot ID.
         if (spotId != queueUpTo + 1) revert InvalidSpot(spotId, queueUpTo);
 
-        // Get the spot data from the queue.
-        Spot memory spot = queue[queueUpTo];
-
-        // Decode the spot.
-        (uint8 spotType, bytes memory spotTx) = this.decodeTx(spot.transaction);
-
-        if (spotType == uint8(SpotType.DepositSpot)) {
-            DepositSpot memory txn = abi.decode(spotTx, (DepositSpot));
-
-            checkCaller(txn.router);
-
-            // TODO: DepositSpot logic
-        } else if (spotType == uint8(SpotType.WithdrawPerp)) {
-            WithdrawPerp memory txn = abi.decode(spotTx, (WithdrawPerp));
-
-            checkCaller(txn.router);
-
-            // Get the token address.
-            address token = productToToken[txn.tokenId];
-
-            // Get the token data.
-            Token storage tokenData = pools[txn.id].tokens[token];
-
-            // Skip/revert the spot if the amount is not enough to pay the fee.
-            if (amountToReceive < getWithdrawFee(token)) {
-                // Add amount from the active market making balance of the spot sender.
-                tokenData.userActiveAmount[spot.sender] += txn.amount;
-
-                // Add amount from the active pool market making balance.
-                tokenData.activeAmount += txn.amount;
-            } else {
-                // Execute the withdraw logic.
-                _withdraw(
-                    tokenData,
-                    spot.sender,
-                    getWithdrawFee(token),
-                    txn.tokenId,
-                    amountToReceive,
-                    VertexRouter(txn.router)
-                );
-            }
-        } else {
-            revert("Invalid transaction type");
-        }
+        // Process spot. Skips if fail or revert.
+        try this.processSpot(queueUpTo, response) {} catch {}
 
         // Increase the queue up to.
         queueUpTo++;

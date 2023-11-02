@@ -5,7 +5,8 @@ interface IVertexManager {
     /// @notice The types of spots supported by this contract.
     enum SpotType {
         DepositSpot,
-        WithdrawPerp
+        WithdrawPerp,
+        WithdrawSpot
     }
 
     /// @notice The structure for spot deposits to be processed by Elixir.
@@ -40,7 +41,45 @@ interface IVertexManager {
         uint256 amount;
     }
 
-     /// @notice The types of pools supported by this contract.
+    /// @notice The structure of spot withdrawals to be processed by Elixir.
+    struct WithdrawSpot {
+        // The ID of the pool.
+        uint256 id;
+        // The router address of the pool.
+        address router;
+        // The token0 address.
+        address token0;
+        // The token1 address.
+        address token1;
+        // The amount of token0 shares to withdraw.
+        uint256 amount0;
+    }
+
+    /// @notice The response structure for DepositSpot.
+    struct DepositSpotResponse {
+        // The amount of token1 needed.
+        uint256 amount1;
+        // The amount of shares.
+        uint256 shares;
+    }
+
+    /// @notice The response structure for WithdrawPerp.
+    struct WithdrawPerpResponse {
+        // The amount of of tokens the user should receive.
+        uint256 amountToReceive;
+    }
+
+    /// @notice The response structure for WithdrawSpot.
+    struct WithdrawSpotResponse {
+        // The amount of token1 to use.
+        uint256 amount1;
+        // The amount of token0 the user should receive.
+        uint256 amount0ToReceive;
+        // The amount of token1 the user should receive.
+        uint256 amount1ToReceive;
+    }
+
+    /// @notice The types of pools supported by this contract.
     enum PoolType {
         Inactive,
         Spot,

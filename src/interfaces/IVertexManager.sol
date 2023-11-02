@@ -59,8 +59,6 @@ interface IVertexManager {
     struct DepositSpotResponse {
         // The amount of token1 needed.
         uint256 amount1;
-        // The amount of shares.
-        uint256 shares;
     }
 
     /// @notice The response structure for WithdrawPerp.
@@ -114,8 +112,10 @@ interface IVertexManager {
 
     /// @notice The data structure of queue spots.
     struct Spot {
-        // The sender of the withdrawal.
+        // The sender of the request.
         address sender;
+        // The type of request.
+        SpotType spotType;
         // The transaction to process.
         bytes transaction;
     }

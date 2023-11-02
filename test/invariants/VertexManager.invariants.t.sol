@@ -11,7 +11,7 @@ import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 import {Math} from "openzeppelin/utils/math/Math.sol";
 
 import {IEndpoint} from "../../src/interfaces/IEndpoint.sol";
-import {VertexManager} from "../../src/VertexManager.sol";
+import {VertexManager, IVertexManager} from "../../src/VertexManager.sol";
 import {Handler} from "./VertexManagerHandler.sol";
 
 contract TestInvariantsVertexManager is Test {
@@ -100,10 +100,10 @@ contract TestInvariantsVertexManager is Test {
         deal(address(USDC), address(this), type(uint256).max);
 
         // Add perp pool.
-        manager.addPool(2, perpTokens, perpHardcaps, VertexManager.PoolType.Perp, address(this));
+        manager.addPool(2, perpTokens, perpHardcaps, IVertexManager.PoolType.Perp, address(this));
 
         // Add spot pool.
-        manager.addPool(1, spotTokens, spotHardcaps, VertexManager.PoolType.Spot, address(this));
+        manager.addPool(1, spotTokens, spotHardcaps, IVertexManager.PoolType.Spot, address(this));
 
         // Add token support.
         manager.updateToken(address(USDC), 0);

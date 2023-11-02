@@ -144,11 +144,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param id The ID of the pool.
     error AlreadySupported(address token, uint256 id);
 
-    /// @notice Emitted when the fee index is not outside the range.
-    /// @param index The index input.
-    /// @param array The array input.
-    error InvalidFeeIndex(uint256 index, address[] array);
-
     /// @notice Emitted when deposits are paused.
     error DepositsPaused();
 
@@ -188,10 +183,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @notice Emitted when the token is not valid because it has more than 18 decimals.
     /// @param token The address of the token.
     error InvalidToken(address token);
-
-    /// @notice Emitted when the tokens array length is not two.
-    /// @param tokens The tokens array input.
-    error InvalidTokens(address[] tokens);
 
     /// @notice Emitted when the new fee is above 100 USDC.
     /// @param newFee The new fee.
@@ -318,24 +309,21 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         if (receiver == address(0)) revert ZeroAddress();
 
         // bytes memory encodedTx = abi.encode(txn);
-        bytes memory transaction = abi.encodePacked(
-            uint8(SpotType.DepositSpot),
-            abi.encode(
-                DepositSpot({
-                    id: id,
-                    router: pool.router,
-                    token0: token0,
-                    token1: token1,
-                    amount0: amount0,
-                    amount1Low: amount1Low,
-                    amount1High: amount1High,
-                    receiver: receiver
-                })
-            )
+        bytes memory transaction = abi.encode(
+            DepositSpot({
+                id: id,
+                router: pool.router,
+                token0: token0,
+                token1: token1,
+                amount0: amount0,
+                amount1Low: amount1Low,
+                amount1High: amount1High,
+                receiver: receiver
+            })
         );
 
         // Add to queue.
-        queue[queueCount++] = Spot(msg.sender, transaction);
+        queue[queueCount++] = Spot(msg.sender, SpotType.DepositSpot, transaction);
 
         emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
@@ -362,13 +350,11 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the amount is at least the fee to pay.
         if (amount < getWithdrawFee(token)) revert AmountTooLow(amount, getWithdrawFee(token));
 
-        bytes memory transaction = abi.encodePacked(
-            uint8(SpotType.WithdrawPerp),
-            abi.encode(WithdrawPerp({id: id, router: pool.router, tokenId: tokenToProduct[token], amount: amount}))
-        );
+        bytes memory transaction =
+            abi.encode(WithdrawPerp({id: id, router: pool.router, tokenId: tokenToProduct[token], amount: amount}));
 
         // Add to queue.
-        queue[queueCount++] = Spot(msg.sender, transaction);
+        queue[queueCount++] = Spot(msg.sender, SpotType.WithdrawPerp, transaction);
 
         emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
@@ -395,13 +381,11 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
 
         // TODO: Check that the user has enough active amount for amount0.
 
-        bytes memory transaction = abi.encodePacked(
-            uint8(SpotType.WithdrawSpot),
-            abi.encode(WithdrawSpot({id: id, router: pool.router, token0: token0, token1: token1, amount0: amount0}))
-        );
+        bytes memory transaction =
+            abi.encode(WithdrawSpot({id: id, router: pool.router, token0: token0, token1: token1, amount0: amount0}));
 
         // Add to queue.
-        queue[queueCount++] = Spot(msg.sender, transaction);
+        queue[queueCount++] = Spot(msg.sender, SpotType.WithdrawSpot, transaction);
 
         emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
@@ -590,7 +574,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param token0 The base token.
     /// @param token1 The quote token.
     /// @param amount0 The amount of base tokens.
-    function getBalancedAmount(address token0, address token1, uint256 amount0) public view returns (uint256) {
+    function getBalancedAmount(address token0, address token1, uint256 amount0) external view returns (uint256) {
         return amount0.mulDiv(
             (getPrice(tokenToProduct[token0]) * (10 ** 18)) / getPrice(tokenToProduct[token1]),
             10 ** (18 + IERC20Metadata(token0).decimals() - IERC20Metadata(token1).decimals()),
@@ -638,11 +622,8 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Get the spot data from the queue.
         Spot memory spot = queue[queueId];
 
-        // Decode the spot.
-        (uint8 spotType, bytes memory txn) = this.decodeTx(spot.transaction);
-
-        if (spotType == uint8(SpotType.DepositSpot)) {
-            DepositSpot memory spotTxn = abi.decode(txn, (DepositSpot));
+        if (spot.spotType == SpotType.DepositSpot) {
+            DepositSpot memory spotTxn = abi.decode(spot.transaction, (DepositSpot));
 
             _checkCaller(spotTxn.router);
 
@@ -659,8 +640,8 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
 
             // TODO: What happens is user removes allowance or doens't have enough balance?
             // TODO: Or what happens if the token is not supportd? A try-catch function here is needed, similar to Vertex's Endpoint.
-        } else if (spotType == uint8(SpotType.WithdrawPerp)) {
-            WithdrawPerp memory spotTxn = abi.decode(txn, (WithdrawPerp));
+        } else if (spot.spotType == SpotType.WithdrawPerp) {
+            WithdrawPerp memory spotTxn = abi.decode(spot.transaction, (WithdrawPerp));
 
             _checkCaller(spotTxn.router);
 
@@ -684,8 +665,8 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
                 responseTxn.amountToReceive,
                 VertexRouter(spotTxn.router)
             );
-        } else if (spotType == uint8(SpotType.WithdrawSpot)) {
-            WithdrawSpot memory spotTxn = abi.decode(txn, (WithdrawSpot));
+        } else if (spot.spotType == SpotType.WithdrawSpot) {
+            WithdrawSpot memory spotTxn = abi.decode(spot.transaction, (WithdrawSpot));
 
             _checkCaller(spotTxn.router);
 
@@ -743,8 +724,12 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that next spot in queue matches the given spot ID.
         if (spotId != queueUpTo + 1) revert InvalidSpot(spotId, queueUpTo);
 
-        // Process spot. Skips if fail or revert.
-        try this.processSpot(queueUpTo, response) {} catch {}
+        if (response.length != 0) {
+            // Process spot. Skips if fail or revert.
+            try this.processSpot(queueUpTo, response) {} catch {}
+        } else {
+            // Intetionally skip.
+        }
 
         // Increase the queue up to.
         queueUpTo++;

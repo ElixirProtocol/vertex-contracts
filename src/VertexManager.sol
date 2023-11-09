@@ -199,11 +199,11 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @notice Emitted when the caller is not the external account of the pool's router.
     error NotExternalAccount(address router, address externalAccount, address caller);
 
-    /// @notice Emitted when the allowance given is not enough.
-    error InsufficientAllowance(address token, uint256 amount);
+    /// @notice Emitted when the queue spot type is invalid.
+    error InvalidSpotType(Spot spot);
 
-    /// @notice Emitted when the balance is not enough.
-    error InsufficientBalance(address token, uint256 amount);
+    /// @notice Emitted when the caller is not the smart contract itself.
+    error NotSelf();
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
@@ -281,14 +281,16 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the receiver is not the zero address.
         if (receiver == address(0)) revert ZeroAddress();
 
-        // Check that the token  is supported by the pool.
-        if (!pool.tokens[token].isActive) revert UnsupportedToken(token, id);
+        // TODO: Take $1 fee for gas.
 
         // Execute the deposit logic.
         _deposit(msg.sender, id, pool, token, amount, receiver);
     }
 
+    // TODO: fees: depositspot: $1, withdrawspot/perp: $2 (1 vertex, 1 elixir)
+
     /// @notice Deposits tokens into a spot pool.
+    /// @dev Requests are placed into a FIFO queue, which is processed by the Elixir market-making network and passed on to Vertex via the `unqueue` function.
     /// @param id The ID of the pool to deposit.
     /// @param token0 The base token.
     /// @param token1 The quote token.
@@ -317,19 +319,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the receiver is not the zero address.
         if (receiver == address(0)) revert ZeroAddress();
 
-        // Check that the tokens are supported by the pool.
-        if (!pool.tokens[token0].isActive) revert UnsupportedToken(token0, id);
-        if (!pool.tokens[token1].isActive) revert UnsupportedToken(token1, id);
-
-        // Check that the user has given allowance.
-        if (IERC20Metadata(token0).allowance(msg.sender, address(this)) < amount0) {
-            revert InsufficientAllowance(token0, amount0);
-        }
-
-        // Check that the user has enough balance.
-        if (IERC20Metadata(token0).balanceOf(msg.sender) < amount0) revert InsufficientBalance(token0, amount0);
-
-        // TODO: DEPOSIT TOKEN0 OTHERWISE EASY DOS.
+        // TODO: Take $1 fee for gas.
 
         // Add to queue.
         queue[queueCount++] = Spot(
@@ -374,14 +364,21 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the amount is at least the fee to pay.
         if (amount < getWithdrawFee(token)) revert AmountTooLow(amount, getWithdrawFee(token));
 
+        // TODO: Add perp check for active amount. like spot.
+
         // Add to queue.
-        queue[queueCount++] = Spot(msg.sender, pool.router, SpotType.WithdrawPerp, abi.encode(WithdrawPerp({id: id, tokenId: tokenToProduct[token], amount: amount})));
+        queue[queueCount++] = Spot(
+            msg.sender,
+            pool.router,
+            SpotType.WithdrawPerp,
+            abi.encode(WithdrawPerp({id: id, tokenId: tokenToProduct[token], amount: amount}))
+        );
 
         emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
 
     /// @notice Withdraws tokens from a spot pool.
-    /// @dev After processed by Vertex, the user (or anyone on behalf of it) can call the `claim` function.
+    /// @dev Requests are placed into a FIFO queue, which is processed by the Elixir market-making network and passed on to Vertex via the `unqueue` function.
     /// @param id The ID of the pool to withdraw from.
     /// @param token0 The base token.
     /// @param token1 The quote token.
@@ -400,13 +397,15 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the tokens are not duplicated.
         if (token0 == token1) revert DuplicatedToken(token0);
 
-        // Check that the user has enough active amount0.
-        if (pools[id].tokens[token0].userActiveAmount[msg.sender] < amount0) {
-            revert InsufficientBalance(token0, amount0);
-        }
+        // TODO: Take $1 fee for gas.
 
         // Add to queue.
-        queue[queueCount++] = Spot(msg.sender, pool.router, SpotType.WithdrawSpot, abi.encode(WithdrawSpot({id: id, token0: token0, token1: token1, amount0: amount0})));
+        queue[queueCount++] = Spot(
+            msg.sender,
+            pool.router,
+            SpotType.WithdrawSpot,
+            abi.encode(WithdrawSpot({id: id, token0: token0, token1: token1, amount0: amount0}))
+        );
 
         emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
@@ -467,16 +466,19 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     function _deposit(address caller, uint256 id, Pool storage pool, address token, uint256 amount, address receiver)
         private
     {
-        // Fetch the router of the pool.
-        VertexRouter router = VertexRouter(pool.router);
-
         // Get the token data.
         Token storage tokenData = pool.tokens[token];
+
+        // Check that the token is supported by the pool.
+        if (!tokenData.isActive) revert UnsupportedToken(token, id);
 
         // Check if the amount exceeds the token's pool hardcap.
         if (tokenData.activeAmount + amount > tokenData.hardcap) {
             revert HardcapReached(token, tokenData.hardcap, tokenData.activeAmount, amount);
         }
+
+        // Fetch the router of the pool.
+        VertexRouter router = VertexRouter(pool.router);
 
         // Transfer tokens from the caller to this contract.
         IERC20Metadata(token).safeTransferFrom(caller, address(router), amount);
@@ -627,8 +629,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param spot The spot to process.
     /// @param response The response for the spot in queue.
     function processSpot(Spot calldata spot, bytes memory response) public {
-        // TODO: Check security and change to error.
-        require(msg.sender == address(this), "only callable to execute slow mode txs");
+        if (msg.sender != address(this)) revert NotSelf();
 
         if (spot.spotType == SpotType.DepositSpot) {
             DepositSpot memory spotTxn = abi.decode(spot.transaction, (DepositSpot));
@@ -643,9 +644,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
             // Execute the deposit logic.
             _deposit(spot.sender, spotTxn.id, pools[spotTxn.id], spotTxn.token0, spotTxn.amount0, spotTxn.receiver);
             _deposit(spot.sender, spotTxn.id, pools[spotTxn.id], spotTxn.token1, responseTxn.amount1, spotTxn.receiver);
-
-            // TODO: What happens is user removes allowance or doens't have enough balance?
-            // TODO: Or what happens if the token is not supportd? A try-catch function here is needed, similar to Vertex's Endpoint.
         } else if (spot.spotType == SpotType.WithdrawPerp) {
             WithdrawPerp memory spotTxn = abi.decode(spot.transaction, (WithdrawPerp));
 
@@ -656,9 +654,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
 
             // Get the token data.
             Token storage tokenData = pools[spotTxn.id].tokens[token];
-
-            // TODO: Remove this as we are not substracting from active amount.
-            // If not enough for fee, tx will revert and be skipped from queue.
 
             _withdraw(
                 tokenData,
@@ -695,8 +690,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
                 VertexRouter(spot.router)
             );
         } else {
-            // TODO: Change to better error.
-            revert("Invalid transaction type");
+            revert InvalidSpotType(spot);
         }
     }
 
@@ -723,9 +717,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param spotId The ID of the spot queue to process.
     /// @param response The response to the spot transaction.
     function unqueue(uint128 spotId, bytes memory response) external {
-        // Check that next spot in queue matches the given spot ID.
-        if (spotId != queueUpTo + 1) revert InvalidSpot(spotId, queueUpTo);
-
         // Get the spot data from the queue.
         Spot memory spot = queue[queueUpTo];
 
@@ -736,6 +727,9 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         if (msg.sender != externalAccount) revert NotExternalAccount(spot.router, externalAccount, msg.sender);
 
         if (response.length != 0) {
+            // Check that next spot in queue matches the given spot ID.
+            if (spotId != queueUpTo + 1) revert InvalidSpot(spotId, queueUpTo);
+
             // Process spot. Skips if fail or revert.
             try this.processSpot(spot, response) {} catch {}
         } else {
@@ -745,6 +739,11 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Increase the queue up to.
         queueUpTo++;
     }
+
+    // TODO: Write spam on docs -- immunefi prevention.
+    // TODO: Write on pause checks docs.
+    // TODO: Update on fees and spamming queue prevention.
+    // TODO: Maximimze checks on pre-queue functions to prevent spam + take gas fee to process queue.
 
     /// @notice Manages the paused status of deposits, withdrawals, and claims
     /// @param _depositPaused True to pause deposits, false otherwise.

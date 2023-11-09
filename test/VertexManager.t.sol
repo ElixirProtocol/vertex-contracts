@@ -889,9 +889,6 @@ contract TestVertexManager is Test {
 
         deal(address(USDC), address(this), amountUSDC);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InsufficientBalance.selector, spotTokens[0], amountBTC));
-        manager.depositSpot(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, address(this));
-
         deal(address(BTC), address(this), amountBTC);
         manager.depositSpot(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, address(this));
 
@@ -926,9 +923,6 @@ contract TestVertexManager is Test {
 
         deal(address(BTC), address(this), amountBTC);
         deal(address(USDC), address(this), amountUSDC);
-
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InsufficientAllowance.selector, spotTokens[0], amountBTC));
-        manager.depositSpot(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, address(this));
 
         BTC.approve(address(manager), amountBTC);
         manager.depositSpot(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, address(this));
@@ -1003,13 +997,10 @@ contract TestVertexManager is Test {
         vm.expectRevert(abi.encodeWithSelector(VertexManager.ZeroAddress.selector));
         manager.depositSpot(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, address(0));
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.UnsupportedToken.selector, address(0x69), 1));
-        manager.depositSpot(1, address(0x69), spotTokens[1], amountBTC, amountUSDC * 2, amountUSDC * 4, address(this));
+        // vm.expectRevert(abi.encodeWithSelector(VertexManager.UnsupportedToken.selector, address(0x69), 1));
+        // manager.depositSpot(1, address(0x69), spotTokens[1], amountBTC, amountUSDC * 2, amountUSDC * 4, address(this));
 
         // Withdraw checks
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InsufficientBalance.selector, spotTokens[0], amountBTC));
-        manager.withdrawSpot(1, spotTokens[0], spotTokens[1], amountBTC);
-
         manager.depositSpot(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, address(this));
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
@@ -1031,31 +1022,31 @@ contract TestVertexManager is Test {
     }
 
     /// @notice Unit test for unsuported tokens in both deposit and withdraw functions.
-    function testUnsupportedToken(uint72 amountBTC) public {
-        // BTC amount to deposit should be at least the withdraw fee (otherwise not enough to pay fee).
-        vm.assume(amountBTC >= manager.getWithdrawFee(address(BTC)));
-        spotDepositSetUp();
+    // function testUnsupportedToken(uint72 amountBTC) public {
+    //     // BTC amount to deposit should be at least the withdraw fee (otherwise not enough to pay fee).
+    //     vm.assume(amountBTC >= manager.getWithdrawFee(address(BTC)));
+    //     spotDepositSetUp();
 
-        deal(address(BTC), address(this), amountBTC);
-        deal(address(USDC), address(this), type(uint256).max);
+    //     deal(address(BTC), address(this), amountBTC);
+    //     deal(address(USDC), address(this), type(uint256).max);
 
-        BTC.approve(address(manager), amountBTC);
-        USDC.approve(address(manager), type(uint256).max);
+    //     BTC.approve(address(manager), amountBTC);
+    //     USDC.approve(address(manager), type(uint256).max);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.UnsupportedToken.selector, address(WETH), 1));
-        manager.depositSpot(1, address(WETH), address(USDC), 0, 0, type(uint256).max, address(this));
+    //     vm.expectRevert(abi.encodeWithSelector(VertexManager.UnsupportedToken.selector, address(WETH), 1));
+    //     manager.depositSpot(1, address(WETH), address(USDC), 0, 0, type(uint256).max, address(this));
 
-        manager.depositSpot(1, address(BTC), address(USDC), amountBTC, 0, type(uint256).max, address(this));
+    //     manager.depositSpot(1, address(BTC), address(USDC), amountBTC, 0, type(uint256).max, address(this));
 
-        // address[] memory tokens = new address[](2);
-        // tokens[0] = address(WETH);
-        // tokens[1] = address(USDC);
+    // address[] memory tokens = new address[](2);
+    // tokens[0] = address(WETH);
+    // tokens[1] = address(USDC);
 
-        // vm.expectRevert(abi.encodeWithSelector(VertexManager.UnsupportedToken.selector, address(WETH), 1));
-        // manager.withdrawSpot(1, address(WETH), , 0, 0);
+    // vm.expectRevert(abi.encodeWithSelector(VertexManager.UnsupportedToken.selector, address(WETH), 1));
+    // manager.withdrawSpot(1, address(WETH), , 0, 0);
 
-        // TODO: Update with now revert when unqueueing if token is not supported. Or should it check before when withdrawing?
-    }
+    // TODO: Update with now revert when unqueueing if token is not supported. Or should it check before when withdrawing?
+    // }
 
     /// @notice Unit test for a failed deposit due to exceeding the hardcap.
     function testHardcapReached() public {
@@ -1154,13 +1145,14 @@ contract TestVertexManager is Test {
         // Withdraw 10 BTC.
         manager.withdrawPerp(2, address(BTC), amountBTC);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidSpot.selector, 69, 0));
-        manager.unqueue(69, bytes(""));
-
         vm.expectRevert(
             abi.encodeWithSelector(VertexManager.NotExternalAccount.selector, router, externalAccount, address(this))
         );
         manager.unqueue(1, bytes(""));
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidSpot.selector, 69, 0));
+        vm.prank(externalAccount);
+        manager.unqueue(69, abi.encode(IVertexManager.WithdrawPerpResponse({amountToReceive: amountBTC})));
 
         vm.prank(externalAccount);
         manager.unqueue(1, abi.encode(IVertexManager.WithdrawPerpResponse({amountToReceive: amountBTC})));

@@ -275,6 +275,8 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         vm.stopPrank();
 
+        process();
+
         ghost_deposits[token] += amount;
     }
 
@@ -310,6 +312,10 @@ contract Handler is CommonBase, StdCheats, StdUtils {
                         })
                     )
                 );
+            } else if (spot.spotType == IVertexManager.SpotType.DepositPerp) {
+                IVertexManager.DepositPerp memory spotTxn = abi.decode(spot.transaction, (IVertexManager.DepositPerp));
+
+                manager.unqueue(i, abi.encode(IVertexManager.DepositPerpResponse({shares: spotTxn.amount})));
             } else if (spot.spotType == IVertexManager.SpotType.WithdrawPerp) {
                 IVertexManager.WithdrawPerp memory spotTxn = abi.decode(spot.transaction, (IVertexManager.WithdrawPerp));
 

@@ -7,7 +7,20 @@ interface IVertexManager {
         Empty,
         DepositSpot,
         WithdrawPerp,
-        WithdrawSpot
+        WithdrawSpot,
+        DepositPerp
+    }
+
+    /// @notice The structure for perp deposits to be processed by Elixir.
+    struct DepositPerp {
+        // The ID of the pool.
+        uint256 id;
+        // The token address.
+        address token;
+        // The amount of token to deposit.
+        uint256 amount;
+        // The receiver address.
+        address receiver;
     }
 
     /// @notice The structure for spot deposits to be processed by Elixir.
@@ -54,6 +67,12 @@ interface IVertexManager {
     struct DepositSpotResponse {
         // The amount of token1 needed.
         uint256 amount1;
+    }
+
+    /// @notice The response structure for DepositPerp.
+    struct DepositPerpResponse {
+        // The amount of shares to receive.
+        uint256 shares;
     }
 
     /// @notice The response structure for WithdrawPerp.

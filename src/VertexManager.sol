@@ -75,7 +75,15 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param id The ID of the pool deposting to.
     /// @param token The token deposited.
     /// @param amount The token amount deposited.
-    event Deposit(address indexed caller, address indexed receiver, uint256 indexed id, address token, uint256 amount);
+    /// @param shares The amount of shares received.
+    event Deposit(
+        address indexed caller,
+        address indexed receiver,
+        uint256 indexed id,
+        address token,
+        uint256 amount,
+        uint256 shares
+    );
 
     /// @notice Emitted when a withdraw is made.
     /// @param user The user who withdrew.
@@ -283,8 +291,15 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
 
         // TODO: Take $1 fee for gas.
 
-        // Execute the deposit logic.
-        _deposit(msg.sender, id, pool, token, amount, receiver);
+        // Add to queue.
+        queue[queueCount++] = Spot(
+            msg.sender,
+            pool.router,
+            SpotType.DepositPerp,
+            abi.encode(DepositPerp({id: id, token: token, amount: amount, receiver: receiver}))
+        );
+
+        emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
 
     // TODO: fees: depositspot: $1, withdrawspot/perp: $2 (1 vertex, 1 elixir)
@@ -463,9 +478,15 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param token The tokens to deposit.
     /// @param amount The amounts of token to deposit.
     /// @param receiver The receiver of the virtual LP balance.
-    function _deposit(address caller, uint256 id, Pool storage pool, address token, uint256 amount, address receiver)
-        private
-    {
+    function _deposit(
+        address caller,
+        uint256 id,
+        Pool storage pool,
+        address token,
+        uint256 amount,
+        uint256 shares,
+        address receiver
+    ) private {
         // Get the token data.
         Token storage tokenData = pool.tokens[token];
 
@@ -473,8 +494,8 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         if (!tokenData.isActive) revert UnsupportedToken(token, id);
 
         // Check if the amount exceeds the token's pool hardcap.
-        if (tokenData.activeAmount + amount > tokenData.hardcap) {
-            revert HardcapReached(token, tokenData.hardcap, tokenData.activeAmount, amount);
+        if (tokenData.activeAmount + shares > tokenData.hardcap) {
+            revert HardcapReached(token, tokenData.hardcap, tokenData.activeAmount, shares);
         }
 
         // Fetch the router of the pool.
@@ -487,12 +508,12 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         router.submitSlowModeDeposit(tokenToProduct[token], uint128(amount), "9O7rUEUljP");
 
         // Add amount to the active market making balance of the user.
-        tokenData.userActiveAmount[receiver] += amount;
+        tokenData.userActiveAmount[receiver] += shares;
 
         // Add amount to the active pool market making balance.
-        tokenData.activeAmount += amount;
+        tokenData.activeAmount += shares;
 
-        emit Deposit(caller, receiver, id, token, amount);
+        emit Deposit(caller, receiver, id, token, amount, shares);
     }
 
     /// @notice Internal withdraw logic for both spot and perp pools.
@@ -642,8 +663,39 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
             }
 
             // Execute the deposit logic.
-            _deposit(spot.sender, spotTxn.id, pools[spotTxn.id], spotTxn.token0, spotTxn.amount0, spotTxn.receiver);
-            _deposit(spot.sender, spotTxn.id, pools[spotTxn.id], spotTxn.token1, responseTxn.amount1, spotTxn.receiver);
+            _deposit(
+                spot.sender,
+                spotTxn.id,
+                pools[spotTxn.id],
+                spotTxn.token0,
+                spotTxn.amount0,
+                spotTxn.amount0,
+                spotTxn.receiver
+            );
+            _deposit(
+                spot.sender,
+                spotTxn.id,
+                pools[spotTxn.id],
+                spotTxn.token1,
+                responseTxn.amount1,
+                responseTxn.amount1,
+                spotTxn.receiver
+            );
+        } else if (spot.spotType == SpotType.DepositPerp) {
+            DepositPerp memory spotTxn = abi.decode(spot.transaction, (DepositPerp));
+
+            DepositPerpResponse memory responseTxn = abi.decode(response, (DepositPerpResponse));
+
+            // Execute the deposit logic.
+            _deposit(
+                spot.sender,
+                spotTxn.id,
+                pools[spotTxn.id],
+                spotTxn.token,
+                spotTxn.amount,
+                responseTxn.shares,
+                spotTxn.receiver
+            );
         } else if (spot.spotType == SpotType.WithdrawPerp) {
             WithdrawPerp memory spotTxn = abi.decode(spot.transaction, (WithdrawPerp));
 

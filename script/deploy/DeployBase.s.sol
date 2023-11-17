@@ -180,6 +180,12 @@ abstract contract DeployBase is Script {
         // Perp LINK: USDC
         manager.addPool(36, singleUSDC, perpHardcaps, IVertexManager.PoolType.Perp, externalAccount);
 
+        // Perp DYDX: USDC
+        manager.addPool(38, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
+        // Perp CRV: USDC
+        manager.addPool(40, singleUSDC, perpHardcaps, VertexManager.PoolType.Perp, externalAccount);
+
         vm.stopBroadcast();
     }
 

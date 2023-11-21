@@ -46,6 +46,12 @@ contract VertexRewards is EIP712 {
     /// @notice Error emitted when the user has already claimed the rewards.
     error AlreadyClaimed();
 
+    /// @notice Error emitted when the amount is zero.
+    error InvalidAmount();
+
+    /// @notice Error emitted when the epoch is zero.
+    error InvalidEpoch();
+
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
@@ -74,6 +80,12 @@ contract VertexRewards is EIP712 {
     function claim(uint256 amount, uint32 epoch, bytes memory signature) external {
         // Check if the user already claimed rewards for this epoch.
         if (claimed[msg.sender][epoch] != 0) revert AlreadyClaimed();
+
+        // Check that the amount is not zero.
+        if (amount == 0) revert InvalidAmount();
+
+        // Check that the epoch is not zero.
+        if (epoch == 0) revert InvalidEpoch();
 
         // Generate digest.
         bytes32 digest = _hashTypedDataV4(

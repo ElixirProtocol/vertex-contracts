@@ -74,10 +74,10 @@ contract VertexRewards is EIP712 {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Claims accrued Vertex rewards from Elixir.
-    /// @param amount The amount of rewards to claim.
     /// @param epoch The epoch of the rewards to claim.
+    /// @param amount The amount of rewards to claim.
     /// @param signature The signature of the Vertex reward signer.
-    function claim(uint256 amount, uint32 epoch, bytes memory signature) external {
+    function claim(uint32 epoch, uint256 amount, bytes memory signature) external {
         // Check if the user already claimed rewards for this epoch.
         if (claimed[msg.sender][epoch] != 0) revert AlreadyClaimed();
 
@@ -90,7 +90,7 @@ contract VertexRewards is EIP712 {
         // Generate digest.
         bytes32 digest = _hashTypedDataV4(
             keccak256(
-                abi.encode(keccak256("Claim(address user,uint256 amount,uint32 epoch)"), msg.sender, amount, epoch)
+                abi.encode(keccak256("Claim(address user,uint32 epoch,uint256 amount)"), msg.sender, epoch, amount)
             )
         );
 

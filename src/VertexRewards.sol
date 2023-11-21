@@ -17,11 +17,24 @@ contract VertexRewards is EIP712 {
                                 VARIABLES
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice The amount of Vertex rewards claimed by each user and epoch.
+    mapping(address => mapping(uint32 => uint256)) public claimed;
+
     /// @notice The Vertex token.
-    address public immutable vrtx;
+    IERC20 public immutable vrtx;
 
     /// @notice The reward signer address.
     address public immutable signer;
+
+    /*//////////////////////////////////////////////////////////////
+                                 EVENTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Emitted when a user claims Vertex rewards.
+    /// @param user The user who claimed the rewards.
+    /// @param epoch The epoch of the rewards claimed.
+    /// @param amount The amount of rewards claimed.
+    event Claimed(address indexed user, uint32 indexed epoch, uint256 indexed amount);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -30,9 +43,8 @@ contract VertexRewards is EIP712 {
     /// @notice Error emitted when the ECDSA signer is not correct.
     error NotSigner();
 
-    /*//////////////////////////////////////////////////////////////
-                                MODIFIERS
-    //////////////////////////////////////////////////////////////*/
+    /// @notice Error emitted when the user has already claimed the rewards.
+    error AlreadyClaimed();
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTOR
@@ -43,7 +55,7 @@ contract VertexRewards is EIP712 {
     /// @param _version The version of the Vertex rewards contract.
     /// @param _vrtx The Vertex token address.
     /// @param _signer The Vertex reward signer address.
-    constructor(string memory _name, string memory _version, address _vrtx, address _signer) EIP712(_name, _version) {
+    constructor(string memory _name, string memory _version, IERC20 _vrtx, address _signer) EIP712(_name, _version) {
         // Set the token address.
         vrtx = _vrtx;
 
@@ -59,21 +71,26 @@ contract VertexRewards is EIP712 {
     /// @param amount The amount of rewards to claim.
     /// @param epoch The epoch of the rewards to claim.
     /// @param signature The signature of the Vertex reward signer.
-    function claim(uint256 amount, uint256 epoch, bytes memory signature) external {
+    function claim(uint256 amount, uint32 epoch, bytes memory signature) external {
+        // Check if the user already claimed rewards for this epoch.
+        if (claimed[msg.sender][epoch] != 0) revert AlreadyClaimed();
+
+        // Generate digest.
         bytes32 digest = _hashTypedDataV4(
             keccak256(
-                abi.encode(keccak256("Claim(address user,uint256 amount,uint256 epoch)"), msg.sender, amount, epoch)
+                abi.encode(keccak256("Claim(address user,uint256 amount,uint32 epoch)"), msg.sender, amount, epoch)
             )
         );
 
-        // TODO check that hash has not been used before.
-
+        // Check if the signature is valid.
         if (ECDSA.recover(digest, signature) != signer) revert NotSigner();
 
-        // TODO mark as used.
+        // Mark epoch as claimed.
+        claimed[msg.sender][epoch] = amount;
 
-        // TODO: distribute the airdrop to user
+        // Transfer VRTX to user.
+        vrtx.safeTransfer(msg.sender, amount);
 
-        // emit Claimed(msg.sender, _amount);
+        emit Claimed(msg.sender, epoch, amount);
     }
 }

@@ -41,7 +41,7 @@ contract VertexRewards is EIP712 {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Error emitted when the ECDSA signer is not correct.
-    error NotSigner();
+    error InvalidSignature();
 
     /// @notice Error emitted when the user has already claimed the rewards.
     error AlreadyClaimed();
@@ -95,7 +95,7 @@ contract VertexRewards is EIP712 {
         );
 
         // Check if the signature is valid.
-        if (ECDSA.recover(digest, signature) != signer) revert NotSigner();
+        if (ECDSA.recover(digest, signature) != signer) revert InvalidSignature();
 
         // Mark epoch as claimed.
         claimed[msg.sender][epoch] = amount;

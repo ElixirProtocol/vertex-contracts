@@ -5,12 +5,13 @@ import {ECDSA} from "openzeppelin/utils/cryptography/ECDSA.sol";
 import {EIP712} from "openzeppelin/utils/cryptography/EIP712.sol";
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 import {SafeERC20} from "openzeppelin/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "openzeppelin/access/Ownable.sol";
 
 /// @title Elixir VRTX rewards contract
 /// @author The Elixir Team
 /// @custom:security-contact security@elixir.finance
 /// @notice Allows users to claim Vertex rewards accrued through Elixir.
-contract VertexRewards is EIP712 {
+contract VertexRewards is Ownable, EIP712 {
     using SafeERC20 for IERC20;
 
     /*//////////////////////////////////////////////////////////////
@@ -35,6 +36,9 @@ contract VertexRewards is EIP712 {
     /// @param epoch The epoch of the rewards claimed.
     /// @param amount The amount of rewards claimed.
     event Claimed(address indexed user, uint32 indexed epoch, uint256 indexed amount);
+
+    /// @notice Emitted when the owner withdraws VRTX tokens.
+    event Withdraw(uint256 amount);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -104,5 +108,14 @@ contract VertexRewards is EIP712 {
         vrtx.safeTransfer(msg.sender, amount);
 
         emit Claimed(msg.sender, epoch, amount);
+    }
+
+    /// @notice Withdraw a given amount of VRTX tokens.
+    function emergencyWithdraw() external onlyOwner {
+        uint256 amount = vrtx.balanceOf(address(this));
+
+        vrtx.safeTransfer(owner(), amount);
+
+        emit Withdraw(amount);
     }
 }

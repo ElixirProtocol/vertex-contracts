@@ -63,11 +63,7 @@ contract TestVertexRewards is Test {
         // Set the domain hash.
         eip712DomainHash = keccak256(
             abi.encode(
-                TYPEHASH,
-                keccak256(bytes("Vertex Rewards")),
-                keccak256(bytes("1")),
-                block.chainid,
-                address(rewards)
+                TYPEHASH, keccak256(bytes("Vertex Rewards")), keccak256(bytes("1")), block.chainid, address(rewards)
             )
         );
     }
@@ -105,7 +101,11 @@ contract TestVertexRewards is Test {
         // Generate message to sign.
         Claim memory claim = Claim({user: address(this), epoch: epoch, amount: amount});
 
+        assertEq(vrtx.balanceOf(address(rewards)), amount);
+
         rewards.claim(epoch, amount, generateSignature(claim));
+
+        assertEq(vrtx.balanceOf(address(rewards)), 0);
 
         // Generate anonthermessage to sign.
         Claim memory claim2 = Claim({user: address(this), epoch: epoch + 1, amount: amount});
@@ -113,7 +113,11 @@ contract TestVertexRewards is Test {
         // Mint tokens to contract.
         vrtx.mint(address(rewards), amount);
 
+        assertEq(vrtx.balanceOf(address(rewards)), amount);
+
         rewards.claim(epoch + 1, amount, generateSignature(claim2));
+
+        assertEq(vrtx.balanceOf(address(rewards)), 0);
     }
 
     function testAlreadyClaimed() public {
@@ -123,10 +127,16 @@ contract TestVertexRewards is Test {
 
         bytes memory signature = generateSignature(claim);
 
+        assertEq(vrtx.balanceOf(address(rewards)), 100 ether);
+
         rewards.claim(1, 100 ether, signature);
+
+        assertEq(vrtx.balanceOf(address(rewards)), 0);
 
         vm.expectRevert(abi.encodeWithSelector(VertexRewards.AlreadyClaimed.selector));
         rewards.claim(1, 100 ether, signature);
+
+        assertEq(vrtx.balanceOf(address(rewards)), 0);
     }
 
     function testInvalid() public {
@@ -135,7 +145,7 @@ contract TestVertexRewards is Test {
 
         vm.expectRevert(abi.encodeWithSelector(VertexRewards.InvalidEpoch.selector));
         rewards.claim(0, 1, bytes(""));
-        
+
         Claim memory claim = Claim({user: address(this), epoch: 1, amount: 1 ether});
 
         bytes32 digest = getTypedDataHash(claim);
@@ -153,8 +163,12 @@ contract TestVertexRewards is Test {
 
         bytes memory signature = generateSignature(claim);
 
+        assertEq(vrtx.balanceOf(address(rewards)), 100 ether);
+
         vm.expectRevert(abi.encodeWithSelector(VertexRewards.InvalidSignature.selector));
         rewards.claim(1, 100 ether, signature);
+
+        assertEq(vrtx.balanceOf(address(rewards)), 100 ether);
     }
 
     function testNotEnough() public {
@@ -164,5 +178,21 @@ contract TestVertexRewards is Test {
 
         vm.expectRevert("ERC20: transfer amount exceeds balance");
         rewards.claim(1, 100 ether, signature);
+    }
+
+    function testWithdraw() public {
+        vrtx.mint(address(rewards), 100 ether);
+
+        assertEq(vrtx.balanceOf(address(rewards)), 100 ether);
+
+        rewards.emergencyWithdraw();
+
+        assertEq(vrtx.balanceOf(address(rewards)), 0);
+    }
+    
+    function testNotOwner() public {
+        vm.prank(address(0xbeef));
+        vm.expectRevert("Ownable: caller is not the owner");
+        rewards.emergencyWithdraw();
     }
 }

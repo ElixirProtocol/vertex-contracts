@@ -108,7 +108,7 @@ contract TestDistributor is Test {
 
         assertEq(token.balanceOf(address(rewards)), 0);
 
-        // Generate anonthermessage to sign.
+        // Generate anonther message to sign.
         Claim memory claim2 = Claim({user: address(this), token: address(token), amount: amount, nonce: nonce + 1});
 
         // Mint tokens to contract.
@@ -141,11 +141,14 @@ contract TestDistributor is Test {
     }
 
     function testInvalid() public {
+        vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidToken.selector));
+        rewards.claim(address(0), 0, 0, bytes(""));
+
         vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidAmount.selector));
-        rewards.claim(address(token), 1, 0, bytes(""));
+        rewards.claim(address(token), 0, 1, bytes(""));
 
         vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidNonce.selector));
-        rewards.claim(address(token), 0, 1, bytes(""));
+        rewards.claim(address(token), 1, 0, bytes(""));
 
         Claim memory claim = Claim({user: address(this), token: address(token), amount: 1 ether, nonce: 1});
 
@@ -167,7 +170,7 @@ contract TestDistributor is Test {
         assertEq(token.balanceOf(address(rewards)), 100 ether);
 
         vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidSignature.selector));
-        rewards.claim(address(token), 1, 100 ether, signature);
+        rewards.claim(address(token), 100 ether, 1, signature);
 
         assertEq(token.balanceOf(address(rewards)), 100 ether);
     }

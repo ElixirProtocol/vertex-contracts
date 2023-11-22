@@ -31,9 +31,9 @@ contract Distributor is Ownable, EIP712 {
     /// @notice Emitted when a user claims a token amount.
     /// @param user The user who claimed the rewards.
     /// @param token The token claimed.
-    /// @param nonce The nonce of the action.
     /// @param amount The amount of rewards claimed.
-    event Claimed(address indexed user, address indexed token, uint256 nonce, uint256 indexed amount);
+    /// @param nonce The nonce of the action.
+    event Claimed(address indexed user, address indexed token, uint256 indexed amount, uint256 nonce);
 
     /// @notice Emitted when the owner withdraws a token.
     event Withdraw(address indexed token, uint256 indexed amount);
@@ -76,10 +76,10 @@ contract Distributor is Ownable, EIP712 {
 
     /// @notice Claims tokens approved by Elixir.
     /// @param token The token to claim.
-    /// @param nonce The nonce of the action.
     /// @param amount The amount of token to claim.
+    /// @param nonce The nonce of the action.
     /// @param signature The signature of the Vertex signer.
-    function claim(address token, uint256 nonce, uint256 amount, bytes memory signature) external {
+    function claim(address token, uint256 amount, uint256 nonce, bytes memory signature) external {
         // Check that the token is not zero.
         if (token == address(0)) revert InvalidToken();
 
@@ -93,11 +93,11 @@ contract Distributor is Ownable, EIP712 {
         bytes32 digest = _hashTypedDataV4(
             keccak256(
                 abi.encode(
-                    keccak256("Claim(address user,address token,uint256 nonce,uint256 amount)"),
+                    keccak256("Claim(address user,address token,uint256 amount,uint256 nonce)"),
                     msg.sender,
                     token,
-                    nonce,
-                    amount
+                    amount,
+                    nonce
                 )
             )
         );
@@ -114,7 +114,7 @@ contract Distributor is Ownable, EIP712 {
         // Transfer tokens to user.
         IERC20(token).safeTransfer(msg.sender, amount);
 
-        emit Claimed(msg.sender, token, nonce, amount);
+        emit Claimed(msg.sender, token, amount, nonce);
     }
 
     /// @notice Withdraw a given amount of tokens.

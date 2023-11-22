@@ -37,13 +37,14 @@ contract TestDistributor is Test {
     // cast keccak "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
     bytes32 public constant TYPEHASH = 0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f;
 
-    // cast keccak "Claim(address user,uint32 epoch,uint256 amount)"
-    bytes32 public constant CLAIM_TYPEHASH = 0x028b7072b3b189699633f26fd98e08a9228c7e458002373bdb8e2f8d8b3b541a;
+    // cast keccak "Claim(address user,address token,uint256 amount,uint256 nonce)"
+    bytes32 public constant CLAIM_TYPEHASH = 0xc842860edd57fc9c0a15e879d1fed9e117378a23423d6e17899e5106ca1eb849;
 
     struct Claim {
         address user;
-        uint32 epoch;
+        address token;
         uint256 amount;
+        uint256 nonce;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -70,7 +71,7 @@ contract TestDistributor is Test {
 
     // Computes the hash of a claim.
     function getStructHash(Claim memory _claim) internal pure returns (bytes32) {
-        return keccak256(abi.encode(CLAIM_TYPEHASH, _claim.user, _claim.epoch, _claim.amount));
+        return keccak256(abi.encode(CLAIM_TYPEHASH, _claim.user, _claim.token, _claim.amount, _claim.nonce));
     }
 
     // Computes the hash of the fully encoded EIP-712 message for the domain, which can be used to recover the signer
@@ -91,108 +92,108 @@ contract TestDistributor is Test {
                                   TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testDoubleClaim(uint128 amount, uint32 epoch) public {
+    function testDoubleClaim(uint128 amount, uint256 nonce) public {
         // Skip zeros.
-        vm.assume(amount > 0 && amount <= type(uint128).max && epoch > 0 && epoch <= type(uint32).max - 1);
+        vm.assume(amount > 0 && amount <= type(uint128).max && nonce > 0 && nonce <= type(uint256).max - 1);
 
         // Mint tokens to contract.
         token.mint(address(rewards), amount);
 
         // Generate message to sign.
-        Claim memory claim = Claim({user: address(this), epoch: epoch, amount: amount});
+        Claim memory claim = Claim({user: address(this), token: address(token), amount: amount, nonce: nonce});
 
         assertEq(token.balanceOf(address(rewards)), amount);
 
-        rewards.claim(epoch, amount, generateSignature(claim));
+        rewards.claim(address(token), amount, nonce, generateSignature(claim));
 
         assertEq(token.balanceOf(address(rewards)), 0);
 
         // Generate anonthermessage to sign.
-        Claim memory claim2 = Claim({user: address(this), epoch: epoch + 1, amount: amount});
+        Claim memory claim2 = Claim({user: address(this), token: address(token), amount: amount, nonce: nonce + 1});
 
         // Mint tokens to contract.
         token.mint(address(rewards), amount);
 
         assertEq(token.balanceOf(address(rewards)), amount);
 
-        rewards.claim(epoch + 1, amount, generateSignature(claim2));
+        rewards.claim(address(token), amount, nonce + 1, generateSignature(claim2));
 
-        assertEq(vrtx.balanceOf(address(rewards)), 0);
+        assertEq(token.balanceOf(address(rewards)), 0);
     }
 
     function testAlreadyClaimed() public {
-        vrtx.mint(address(rewards), 100 ether);
+        token.mint(address(rewards), 100 ether);
 
-        Claim memory claim = Claim({user: address(this), epoch: 1, amount: 100 ether});
+        Claim memory claim = Claim({user: address(this), token: address(token), amount: 100 ether, nonce: 1});
 
         bytes memory signature = generateSignature(claim);
 
-        assertEq(vrtx.balanceOf(address(rewards)), 100 ether);
+        assertEq(token.balanceOf(address(rewards)), 100 ether);
 
-        rewards.claim(1, 100 ether, signature);
+        rewards.claim(address(token), 100 ether, 1, signature);
 
-        assertEq(vrtx.balanceOf(address(rewards)), 0);
+        assertEq(token.balanceOf(address(rewards)), 0);
 
         vm.expectRevert(abi.encodeWithSelector(Distributor.AlreadyClaimed.selector));
-        rewards.claim(1, 100 ether, signature);
+        rewards.claim(address(token), 100 ether, 1, signature);
 
-        assertEq(vrtx.balanceOf(address(rewards)), 0);
+        assertEq(token.balanceOf(address(rewards)), 0);
     }
 
     function testInvalid() public {
         vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidAmount.selector));
-        rewards.claim(1, 0, bytes(""));
+        rewards.claim(address(token), 1, 0, bytes(""));
 
-        vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidEpoch.selector));
-        rewards.claim(0, 1, bytes(""));
+        vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidNonce.selector));
+        rewards.claim(address(token), 0, 1, bytes(""));
 
-        Claim memory claim = Claim({user: address(this), epoch: 1, amount: 1 ether});
+        Claim memory claim = Claim({user: address(this), token: address(token), amount: 1 ether, nonce: 1});
 
         bytes32 digest = getTypedDataHash(claim);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(0x123, digest);
 
         vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidSignature.selector));
-        rewards.claim(1, 1 ether, abi.encodePacked(r, s, v));
+        rewards.claim(address(token), 1 ether, 1, abi.encodePacked(r, s, v));
     }
 
     function testNotUser() public {
-        vrtx.mint(address(rewards), 100 ether);
+        token.mint(address(rewards), 100 ether);
 
-        Claim memory claim = Claim({user: address(0xbeef), epoch: 1, amount: 100 ether});
+        Claim memory claim = Claim({user: address(0xbeef), token: address(token), amount: 100 ether, nonce: 1});
 
         bytes memory signature = generateSignature(claim);
 
-        assertEq(vrtx.balanceOf(address(rewards)), 100 ether);
+        assertEq(token.balanceOf(address(rewards)), 100 ether);
 
         vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidSignature.selector));
-        rewards.claim(1, 100 ether, signature);
+        rewards.claim(address(token), 1, 100 ether, signature);
 
-        assertEq(vrtx.balanceOf(address(rewards)), 100 ether);
+        assertEq(token.balanceOf(address(rewards)), 100 ether);
     }
 
     function testNotEnough() public {
-        Claim memory claim = Claim({user: address(this), epoch: 1, amount: 100 ether});
+        Claim memory claim = Claim({user: address(this), token: address(token), amount: 100 ether, nonce: 1});
 
         bytes memory signature = generateSignature(claim);
 
         vm.expectRevert("ERC20: transfer amount exceeds balance");
-        rewards.claim(1, 100 ether, signature);
+        rewards.claim(address(token), 100 ether, 1, signature);
     }
 
     function testWithdraw() public {
-        vrtx.mint(address(rewards), 100 ether);
+        token.mint(address(rewards), 100 ether);
 
-        assertEq(vrtx.balanceOf(address(rewards)), 100 ether);
+        assertEq(token.balanceOf(address(rewards)), 100 ether);
 
-        rewards.emergencyWithdraw();
+        rewards.emergencyWithdraw(address(token), 100 ether);
 
-        assertEq(vrtx.balanceOf(address(rewards)), 0);
+        assertEq(token.balanceOf(address(rewards)), 0);
     }
 
     function testNotOwner() public {
         vm.prank(address(0xbeef));
         vm.expectRevert("Ownable: caller is not the owner");
-        rewards.emergencyWithdraw();
+        rewards.emergencyWithdraw(address(0), 0);
     }
 }

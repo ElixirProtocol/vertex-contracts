@@ -76,13 +76,15 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param token The token deposited.
     /// @param amount The token amount deposited.
     /// @param shares The amount of shares received.
+    /// @param router The router of the pool deposited to.
     event Deposit(
-        address indexed caller,
+        address caller,
         address indexed receiver,
         uint256 indexed id,
         address token,
         uint256 amount,
-        uint256 shares
+        uint256 shares,
+        address indexed router
     );
 
     /// @notice Emitted when a withdraw is made.
@@ -513,7 +515,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Add amount to the active pool market making balance.
         tokenData.activeAmount += shares;
 
-        emit Deposit(caller, receiver, id, token, amount, shares);
+        emit Deposit(caller, receiver, id, token, amount, shares, address(router));
     }
 
     /// @notice Internal withdraw logic for both spot and perp pools.

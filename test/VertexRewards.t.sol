@@ -5,17 +5,17 @@ import "forge-std/Test.sol";
 
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 
-import {VertexRewards} from "../src/VertexRewards.sol";
+import {Distributor} from "../src/Distributor.sol";
 
 import {MockToken} from "./utils/MockToken.sol";
 
-contract TestVertexRewards is Test {
+contract TestDistributor is Test {
     /*//////////////////////////////////////////////////////////////
                                 CONTRACTS
     //////////////////////////////////////////////////////////////*/
 
-    MockToken public vrtx;
-    VertexRewards public rewards;
+    MockToken public token;
+    Distributor public rewards;
 
     /*//////////////////////////////////////////////////////////////
                                   USERS
@@ -55,15 +55,15 @@ contract TestVertexRewards is Test {
         signer = vm.addr(privateKey);
 
         // Deploy token.
-        vrtx = new MockToken();
+        token = new MockToken();
 
         // Deploy contract.
-        rewards = new VertexRewards("Vertex Rewards", "1", IERC20(vrtx), signer);
+        rewards = new Distributor("Distributor", "1", signer);
 
         // Set the domain hash.
         eip712DomainHash = keccak256(
             abi.encode(
-                TYPEHASH, keccak256(bytes("Vertex Rewards")), keccak256(bytes("1")), block.chainid, address(rewards)
+                TYPEHASH, keccak256(bytes("Distributor")), keccak256(bytes("1")), block.chainid, address(rewards)
             )
         );
     }
@@ -96,24 +96,24 @@ contract TestVertexRewards is Test {
         vm.assume(amount > 0 && amount <= type(uint128).max && epoch > 0 && epoch <= type(uint32).max - 1);
 
         // Mint tokens to contract.
-        vrtx.mint(address(rewards), amount);
+        token.mint(address(rewards), amount);
 
         // Generate message to sign.
         Claim memory claim = Claim({user: address(this), epoch: epoch, amount: amount});
 
-        assertEq(vrtx.balanceOf(address(rewards)), amount);
+        assertEq(token.balanceOf(address(rewards)), amount);
 
         rewards.claim(epoch, amount, generateSignature(claim));
 
-        assertEq(vrtx.balanceOf(address(rewards)), 0);
+        assertEq(token.balanceOf(address(rewards)), 0);
 
         // Generate anonthermessage to sign.
         Claim memory claim2 = Claim({user: address(this), epoch: epoch + 1, amount: amount});
 
         // Mint tokens to contract.
-        vrtx.mint(address(rewards), amount);
+        token.mint(address(rewards), amount);
 
-        assertEq(vrtx.balanceOf(address(rewards)), amount);
+        assertEq(token.balanceOf(address(rewards)), amount);
 
         rewards.claim(epoch + 1, amount, generateSignature(claim2));
 
@@ -133,17 +133,17 @@ contract TestVertexRewards is Test {
 
         assertEq(vrtx.balanceOf(address(rewards)), 0);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexRewards.AlreadyClaimed.selector));
+        vm.expectRevert(abi.encodeWithSelector(Distributor.AlreadyClaimed.selector));
         rewards.claim(1, 100 ether, signature);
 
         assertEq(vrtx.balanceOf(address(rewards)), 0);
     }
 
     function testInvalid() public {
-        vm.expectRevert(abi.encodeWithSelector(VertexRewards.InvalidAmount.selector));
+        vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidAmount.selector));
         rewards.claim(1, 0, bytes(""));
 
-        vm.expectRevert(abi.encodeWithSelector(VertexRewards.InvalidEpoch.selector));
+        vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidEpoch.selector));
         rewards.claim(0, 1, bytes(""));
 
         Claim memory claim = Claim({user: address(this), epoch: 1, amount: 1 ether});
@@ -152,7 +152,7 @@ contract TestVertexRewards is Test {
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(0x123, digest);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexRewards.InvalidSignature.selector));
+        vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidSignature.selector));
         rewards.claim(1, 1 ether, abi.encodePacked(r, s, v));
     }
 
@@ -165,7 +165,7 @@ contract TestVertexRewards is Test {
 
         assertEq(vrtx.balanceOf(address(rewards)), 100 ether);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexRewards.InvalidSignature.selector));
+        vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidSignature.selector));
         rewards.claim(1, 100 ether, signature);
 
         assertEq(vrtx.balanceOf(address(rewards)), 100 ether);
@@ -189,7 +189,7 @@ contract TestVertexRewards is Test {
 
         assertEq(vrtx.balanceOf(address(rewards)), 0);
     }
-    
+
     function testNotOwner() public {
         vm.prank(address(0xbeef));
         vm.expectRevert("Ownable: caller is not the owner");

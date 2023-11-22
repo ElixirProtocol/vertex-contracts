@@ -36,6 +36,8 @@ contract Distributor is Ownable, EIP712 {
     event Claimed(address indexed user, address indexed token, uint256 indexed amount, uint256 nonce);
 
     /// @notice Emitted when the owner withdraws a token.
+    /// @param token The token withdrawn.
+    /// @param amount The amount of token withdrawn.
     event Withdraw(address indexed token, uint256 indexed amount);
 
     /*//////////////////////////////////////////////////////////////

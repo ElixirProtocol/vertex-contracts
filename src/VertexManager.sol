@@ -70,29 +70,29 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Emitted when a deposit is made.
+    /// @param router The router of the pool deposited to.
     /// @param caller The caller of the deposit function, for which tokens are taken from.
     /// @param receiver The receiver of the LP balance.
     /// @param id The ID of the pool deposting to.
     /// @param token The token deposited.
     /// @param amount The token amount deposited.
     /// @param shares The amount of shares received.
-    /// @param router The router of the pool deposited to.
     event Deposit(
+        address indexed router,
         address caller,
         address indexed receiver,
         uint256 indexed id,
         address token,
         uint256 amount,
-        uint256 shares,
-        address indexed router
+        uint256 shares
     );
 
     /// @notice Emitted when a withdraw is made.
-    /// @param user The user who withdrew.
     /// @param router The router of the pool withdrawn from.
+    /// @param user The user who withdrew.
     /// @param tokenId The Vertex product ID of the token withdrawn.
     /// @param amount The token amount the user receives.
-    event Withdraw(address indexed user, address indexed router, uint32 tokenId, uint256 indexed amount);
+    event Withdraw(address indexed router, address indexed user, uint32 tokenId, uint256 indexed amount);
 
     /// @notice Emitted when a perp withdrawal is queued.
     /// @param spot The spot added to the queue.
@@ -515,7 +515,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Add amount to the active pool market making balance.
         tokenData.activeAmount += shares;
 
-        emit Deposit(caller, receiver, id, token, amount, shares, address(router));
+        emit Deposit(address(router), caller, receiver, id, token, amount, shares);
     }
 
     /// @notice Internal withdraw logic for both spot and perp pools.
@@ -556,7 +556,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
             router, abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
         );
 
-        emit Withdraw(sender, address(router), tokenId, amountToReceive);
+        emit Withdraw(address(router), sender, tokenId, amountToReceive);
     }
 
     /*//////////////////////////////////////////////////////////////

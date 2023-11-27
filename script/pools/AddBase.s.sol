@@ -44,7 +44,7 @@ contract AddPool is Script {
         uint256 decimals = IERC20Metadata(token).decimals();
 
         // Deploy with key.
-        vm.startBroadcast(0xdc91701CD5d5a3Adb34d9afD1756f63d3b2201Ac);
+        vm.startBroadcast(deployerKey);
 
         // Add token support.
         manager.updateToken(token, productId);

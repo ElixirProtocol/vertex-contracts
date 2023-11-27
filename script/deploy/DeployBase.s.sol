@@ -16,6 +16,7 @@ abstract contract DeployBase is Script {
     address public eth;
     address public arb;
     address public usdt;
+    address public vrtx;
 
     // Deploy addresses.
     VertexManager internal managerImplementation;
@@ -32,7 +33,8 @@ abstract contract DeployBase is Script {
         address _usdc,
         address _eth,
         address _arb,
-        address _usdt
+        address _usdt,
+        address _vrtx
     ) {
         endpoint = IEndpoint(_endpoint);
         externalAccount = _externalAccount;
@@ -41,6 +43,7 @@ abstract contract DeployBase is Script {
         eth = _eth;
         arb = _arb;
         usdt = _usdt;
+        vrtx = _vrtx;
     }
 
     function setup() internal {
@@ -52,6 +55,7 @@ abstract contract DeployBase is Script {
         uint256 ethDecimals = IERC20Metadata(eth).decimals();
         uint256 arbDecimals = IERC20Metadata(arb).decimals();
         uint256 usdtDecimals = IERC20Metadata(usdt).decimals();
+        uint256 vrtxDecimals = IERC20Metadata(vrtx).decimals();
 
         // Deploy with key.
         vm.startBroadcast(deployerKey);
@@ -72,6 +76,7 @@ abstract contract DeployBase is Script {
         manager.updateToken(eth, 3);
         manager.updateToken(arb, 5);
         manager.updateToken(usdt, 31);
+        manager.updateToken(vrtx, 41);
 
         // Give approval to create pools.
         IERC20Metadata(usdc).approve(address(manager), type(uint256).max);
@@ -185,6 +190,17 @@ abstract contract DeployBase is Script {
 
         // Perp CRV: USDC
         manager.addPool(40, singleUSDC, perpHardcaps, IVertexManager.PoolType.Perp, externalAccount);
+
+        // Spot VRTX: VRTX and USDC
+        address[] memory spotVRTX = new address[](2);
+        spotVRTX[0] = btc;
+        spotVRTX[1] = usdc;
+
+        uint256[] memory spotVRTXHardcaps = new uint256[](2);
+        spotVRTXHardcaps[0] = 0;
+        spotVRTXHardcaps[1] = 0;
+
+        manager.addPool(41, spotVRTX, spotVRTXHardcaps, IVertexManager.PoolType.Spot, externalAccount);
 
         vm.stopBroadcast();
     }

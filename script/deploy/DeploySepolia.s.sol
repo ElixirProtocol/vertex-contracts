@@ -16,7 +16,8 @@ contract DeploySepolia is DeployBase {
             0xbC47901f4d2C5fc871ae0037Ea05c3F614690781,
             0x94B3173E0a23C28b2BA9a52464AC24c2B032791c,
             0x0881FAabdDdECf1B4c3D5331DF33C13A1b6589ea,
-            0xA1c062ddEf8f7B0a97e3Bb219108Ce73410772cE
+            0xA1c062ddEf8f7B0a97e3Bb219108Ce73410772cE,
+            0x00aBCa5597d51e6C06eCfA655E73CE70A1e2cdCf
         )
     {}
 

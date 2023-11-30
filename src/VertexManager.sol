@@ -664,23 +664,25 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
                 revert SlippageTooHigh(responseTxn.amount1, spotTxn.amount1Low, spotTxn.amount1High);
             }
 
-            // Execute the deposit logic.
+            // Execute deposit logic for token0.
             _deposit(
                 spot.sender,
                 spotTxn.id,
                 pools[spotTxn.id],
                 spotTxn.token0,
                 spotTxn.amount0,
-                spotTxn.amount0,
+                responseTxn.token0Shares,
                 spotTxn.receiver
             );
+
+            // Execute deposit logic for token1.
             _deposit(
                 spot.sender,
                 spotTxn.id,
                 pools[spotTxn.id],
                 spotTxn.token1,
                 responseTxn.amount1,
-                responseTxn.amount1,
+                responseTxn.token1Shares,
                 spotTxn.receiver
             );
         } else if (spot.spotType == SpotType.DepositPerp) {

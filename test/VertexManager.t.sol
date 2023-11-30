@@ -192,11 +192,15 @@ contract TestVertexManager is Test {
             if (spot.spotType == IVertexManager.SpotType.DepositSpot) {
                 IVertexManager.DepositSpot memory spotTxn = abi.decode(spot.transaction, (IVertexManager.DepositSpot));
 
+                uint256 amount1 = manager.getBalancedAmount(spotTxn.token0, spotTxn.token1, spotTxn.amount0);
+
                 manager.unqueue(
                     i,
                     abi.encode(
                         IVertexManager.DepositSpotResponse({
-                            amount1: manager.getBalancedAmount(spotTxn.token0, spotTxn.token1, spotTxn.amount0)
+                            amount1: amount1,
+                            token0Shares: spotTxn.amount0,
+                            token1Shares: amount1
                         })
                     )
                 );
@@ -914,7 +918,16 @@ contract TestVertexManager is Test {
 
         // Silently reverts and spot is skipped.
         vm.prank(externalAccount);
-        manager.unqueue(1, abi.encode(IVertexManager.DepositSpotResponse({amount1: amountUSDC})));
+        manager.unqueue(
+            1,
+            abi.encode(
+                IVertexManager.DepositSpotResponse({
+                    amount1: amountUSDC,
+                    token0Shares: amountBTC,
+                    token1Shares: amountUSDC
+                })
+            )
+        );
 
         userActiveAmountBTC = manager.getUserActiveAmount(1, address(BTC), address(this));
         userActiveAmountUSDC = manager.getUserActiveAmount(1, address(USDC), address(this));
@@ -949,7 +962,16 @@ contract TestVertexManager is Test {
 
         // Silently reverts and spot is skipped.
         vm.prank(externalAccount);
-        manager.unqueue(1, abi.encode(IVertexManager.DepositSpotResponse({amount1: amountUSDC})));
+        manager.unqueue(
+            1,
+            abi.encode(
+                IVertexManager.DepositSpotResponse({
+                    amount1: amountUSDC,
+                    token0Shares: amountBTC,
+                    token1Shares: amountUSDC
+                })
+            )
+        );
 
         userActiveAmountBTC = manager.getUserActiveAmount(1, address(BTC), address(this));
         userActiveAmountUSDC = manager.getUserActiveAmount(1, address(USDC), address(this));

@@ -65,8 +65,12 @@ interface IVertexManager {
 
     /// @notice The response structure for DepositSpot.
     struct DepositSpotResponse {
-        // The amount of token1 needed.
+        // The amount of token1 to take from user.
         uint256 amount1;
+        // The amount of token0 shares to add.
+        uint256 token0Shares;
+        // The amount of token1 shares to add.
+        uint256 token1Shares;
     }
 
     /// @notice The response structure for DepositPerp.

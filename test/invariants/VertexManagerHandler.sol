@@ -304,11 +304,15 @@ contract Handler is CommonBase, StdCheats, StdUtils {
             if (spot.spotType == IVertexManager.SpotType.DepositSpot) {
                 IVertexManager.DepositSpot memory spotTxn = abi.decode(spot.transaction, (IVertexManager.DepositSpot));
 
+                uint256 amount1 = manager.getBalancedAmount(spotTxn.token0, spotTxn.token1, spotTxn.amount0);
+
                 manager.unqueue(
                     i,
                     abi.encode(
                         IVertexManager.DepositSpotResponse({
-                            amount1: manager.getBalancedAmount(spotTxn.token0, spotTxn.token1, spotTxn.amount0)
+                            amount1: amount1,
+                            token0Shares: spotTxn.amount0,
+                            token1Shares: amount1
                         })
                     )
                 );

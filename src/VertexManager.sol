@@ -641,12 +641,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         return queue[queueUpTo];
     }
 
-    /// @notice Returns the type and payload of a Vertex slow-mode transaction.
-    /// @param transaction The transaction to decode.
-    function decodeTx(bytes calldata transaction) public pure returns (uint8, bytes memory) {
-        return (uint8(transaction[0]), transaction[1:]);
-    }
-
     /// @notice Processes a spot transaction given a response.
     /// @param spot The spot to process.
     /// @param response The response for the spot in queue.
@@ -794,10 +788,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Increase the queue up to.
         queueUpTo++;
     }
-
-    // TODO: Write spam on docs -- immunefi prevention.
-    // TODO: Write on pause checks docs.
-    // TODO: Update on fees and spamming queue prevention.
 
     /// @notice Manages the paused status of deposits, withdrawals, and claims
     /// @param _depositPaused True to pause deposits, false otherwise.

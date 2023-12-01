@@ -291,7 +291,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the receiver is not the zero address.
         if (receiver == address(0)) revert ZeroAddress();
 
-        // Take $1 for unqueue transaction.
+        // Take fee for unqueue transaction.
         IERC20Metadata(token).safeTransferFrom(msg.sender, owner(), getWithdrawFee(token));
 
         // Add to queue.
@@ -335,7 +335,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the receiver is not the zero address.
         if (receiver == address(0)) revert ZeroAddress();
 
-        // Take $1 for unqueue transaction.
+        // Take fee for unqueue transaction.
         IERC20Metadata(token0).safeTransferFrom(msg.sender, owner(), getWithdrawFee(token0));
 
         // Add to queue.
@@ -378,8 +378,11 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the token is supported by the pool.
         if (!tokenData.isActive) revert UnsupportedToken(token, id);
 
-        // Check that the amount is at least the fee to pay.
+        // Check that the amount is at least the Vertex fee to pay.
         if (amount < getWithdrawFee(token)) revert AmountTooLow(amount, getWithdrawFee(token));
+
+        // Take fee for unqueue transaction.
+        IERC20Metadata(token).safeTransferFrom(msg.sender, owner(), getWithdrawFee(token));
 
         // Add to queue.
         queue[queueCount++] = Spot(
@@ -412,7 +415,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the tokens are not duplicated.
         if (token0 == token1) revert DuplicatedToken(token0);
 
-        // Take $1 for unqueue transaction.
+        // Take fee for unqueue transaction.
         IERC20Metadata(token0).safeTransferFrom(msg.sender, owner(), getWithdrawFee(token0));
 
         // Add to queue.

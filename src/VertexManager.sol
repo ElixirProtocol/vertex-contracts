@@ -291,7 +291,8 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the receiver is not the zero address.
         if (receiver == address(0)) revert ZeroAddress();
 
-        // TODO: Take $1 fee for gas.
+        // Take $1 for unqueue transaction.
+        IERC20Metadata(token).safeTransferFrom(msg.sender, owner(), getWithdrawFee(token));
 
         // Add to queue.
         queue[queueCount++] = Spot(
@@ -303,8 +304,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
 
         emit Queued(queue[queueCount], queueCount, queueUpTo);
     }
-
-    // TODO: fees: depositspot: $1, withdrawspot/perp: $2 (1 vertex, 1 elixir)
 
     /// @notice Deposits tokens into a spot pool.
     /// @dev Requests are placed into a FIFO queue, which is processed by the Elixir market-making network and passed on to Vertex via the `unqueue` function.
@@ -336,7 +335,8 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the receiver is not the zero address.
         if (receiver == address(0)) revert ZeroAddress();
 
-        // TODO: Take $1 fee for gas.
+        // Take $1 for unqueue transaction.
+        IERC20Metadata(token0).safeTransferFrom(msg.sender, owner(), getWithdrawFee(token0));
 
         // Add to queue.
         queue[queueCount++] = Spot(
@@ -381,8 +381,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the amount is at least the fee to pay.
         if (amount < getWithdrawFee(token)) revert AmountTooLow(amount, getWithdrawFee(token));
 
-        // TODO: Add perp check for active amount. like spot.
-
         // Add to queue.
         queue[queueCount++] = Spot(
             msg.sender,
@@ -414,7 +412,8 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         // Check that the tokens are not duplicated.
         if (token0 == token1) revert DuplicatedToken(token0);
 
-        // TODO: Take $1 fee for gas.
+        // Take $1 for unqueue transaction.
+        IERC20Metadata(token0).safeTransferFrom(msg.sender, owner(), getWithdrawFee(token0));
 
         // Add to queue.
         queue[queueCount++] = Spot(
@@ -799,7 +798,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     // TODO: Write spam on docs -- immunefi prevention.
     // TODO: Write on pause checks docs.
     // TODO: Update on fees and spamming queue prevention.
-    // TODO: Maximimze checks on pre-queue functions to prevent spam + take gas fee to process queue.
 
     /// @notice Manages the paused status of deposits, withdrawals, and claims
     /// @param _depositPaused True to pause deposits, false otherwise.

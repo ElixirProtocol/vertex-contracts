@@ -295,9 +295,11 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         uint256 fee = manager.getWithdrawFee(token);
         deal(token, actor, fee);
 
-        ghost_fees[token] += manager.getWithdrawFee(token);
+        ghost_fees[token] += fee;
 
         vm.startPrank(actor);
+
+        IERC20Metadata(token).approve(address(manager), fee);
 
         manager.withdrawPerp(2, token, amount);
 

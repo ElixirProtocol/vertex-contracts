@@ -84,8 +84,10 @@ contract TestInvariantsVertexManager is Test {
         vertexManagerImplementation = new VertexManager();
 
         // Deploy and initialize the proxy contract.
-        proxy =
-        new ERC1967Proxy(address(vertexManagerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
+        proxy = new ERC1967Proxy(
+            address(vertexManagerImplementation),
+            abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000)
+        );
 
         // Wrap in ABI to support easier calls
         manager = VertexManager(address(proxy));
@@ -97,7 +99,7 @@ contract TestInvariantsVertexManager is Test {
         USDC.approve(address(manager), type(uint256).max);
 
         // Deal payment token to the owner, which pays for the slow mode transactions of the pools. No update to the totalSupply.
-        deal(address(USDC), address(this), type(uint256).max);
+        deal(address(USDC), address(this), type(uint128).max);
 
         // Add perp pool.
         manager.addPool(2, perpTokens, perpHardcaps, IVertexManager.PoolType.Perp, address(this));

@@ -106,8 +106,10 @@ contract TestVertexManager is Test {
         vertexManagerImplementation = new VertexManager();
 
         // Deploy and initialize the proxy contract.
-        proxy =
-        new ERC1967Proxy(address(vertexManagerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
+        proxy = new ERC1967Proxy(
+            address(vertexManagerImplementation),
+            abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000)
+        );
 
         // Wrap in ABI to support easier calls
         manager = VertexManager(address(proxy));
@@ -1477,7 +1479,10 @@ contract TestVertexManager is Test {
     /// @notice Unit test for initializing the proxy.
     function testInitialize() public {
         // Deploy and initialize the proxy contract.
-        new ERC1967Proxy(address(vertexManagerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
+        new ERC1967Proxy(
+            address(vertexManagerImplementation),
+            abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000)
+        );
     }
 
     /// @notice Unit test for failing to initialize the proxy twice.

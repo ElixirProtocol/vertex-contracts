@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 
 import {Utils} from "./utils/Utils.sol";
 import {MockTokenDecimals} from "./utils/MockTokenDecimals.sol";
-import {VertexManagerFee} from "./utils/VertexManagerFee.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";

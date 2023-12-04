@@ -4,7 +4,6 @@ pragma solidity 0.8.18;
 import "forge-std/Test.sol";
 
 import {MockToken} from "../utils/MockToken.sol";
-import {MockEndpoint} from "../utils/MockEndpoint.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";

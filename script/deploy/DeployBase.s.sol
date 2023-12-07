@@ -23,9 +23,6 @@ abstract contract DeployBase is Script {
     ERC1967Proxy internal proxy;
     VertexManager internal manager;
 
-    // Deployer key.
-    uint256 internal deployerKey;
-
     constructor(
         address _endpoint,
         address _externalAccount,

@@ -911,6 +911,13 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         emit TokenUpdated(token, productId);
     }
 
+    /// @notice Rescues any stuck tokens in the contract.
+    /// @param token The token to rescue.
+    /// @param amount The amount of token to rescue.
+    function rescue(address token, uint256 amount) external onlyOwner {
+        IERC20Metadata(token).safeTransfer(owner(), amount);
+    }
+
     /*//////////////////////////////////////////////////////////////
                            INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/

@@ -4,14 +4,13 @@ pragma solidity 0.8.18;
 import "forge-std/Test.sol";
 
 import {MockToken} from "../utils/MockToken.sol";
-import {MockEndpoint} from "../utils/MockEndpoint.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 import {Math} from "openzeppelin/utils/math/Math.sol";
 
 import {IEndpoint} from "../../src/interfaces/IEndpoint.sol";
-import {VertexManager} from "../../src/VertexManager.sol";
+import {VertexManager, IVertexManager} from "../../src/VertexManager.sol";
 import {Handler} from "./VertexManagerHandler.sol";
 
 contract TestInvariantsVertexManager is Test {
@@ -56,7 +55,7 @@ contract TestInvariantsVertexManager is Test {
     //////////////////////////////////////////////////////////////*/
 
     function setUp() public {
-        uint256 networkFork = vm.createFork(vm.envString("ARBITRUM_RPC_URL"), 135327062);
+        uint256 networkFork = vm.createFork(vm.envString("ARBITRUM_RPC_URL"), 156934647);
 
         vm.selectFork(networkFork);
 
@@ -84,8 +83,10 @@ contract TestInvariantsVertexManager is Test {
         vertexManagerImplementation = new VertexManager();
 
         // Deploy and initialize the proxy contract.
-        proxy =
-        new ERC1967Proxy(address(vertexManagerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
+        proxy = new ERC1967Proxy(
+            address(vertexManagerImplementation),
+            abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000)
+        );
 
         // Wrap in ABI to support easier calls
         manager = VertexManager(address(proxy));
@@ -97,13 +98,13 @@ contract TestInvariantsVertexManager is Test {
         USDC.approve(address(manager), type(uint256).max);
 
         // Deal payment token to the owner, which pays for the slow mode transactions of the pools. No update to the totalSupply.
-        deal(address(USDC), address(this), type(uint256).max);
+        deal(address(USDC), address(this), type(uint128).max);
 
         // Add perp pool.
-        manager.addPool(2, perpTokens, perpHardcaps, VertexManager.PoolType.Perp, address(this));
+        manager.addPool(2, perpTokens, perpHardcaps, IVertexManager.PoolType.Perp, address(this));
 
         // Add spot pool.
-        manager.addPool(1, spotTokens, spotHardcaps, VertexManager.PoolType.Spot, address(this));
+        manager.addPool(1, spotTokens, spotHardcaps, IVertexManager.PoolType.Spot, address(this));
 
         // Add token support.
         manager.updateToken(address(USDC), 0);

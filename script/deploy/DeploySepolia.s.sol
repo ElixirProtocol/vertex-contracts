@@ -6,17 +6,18 @@ import {DeployBase} from "./DeployBase.s.sol";
 import {VertexManager} from "../../src/VertexManager.sol";
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 
-contract DeployGoerli is DeployBase {
-    // Vertex Goerli Endpoint
+contract DeploySepolia is DeployBase {
+    // Vertex Sepolia Endpoint
     constructor()
         DeployBase(
-            0x5956D6f55011678b2CAB217cD21626F7668ba6c5,
+            0xaDeFDE1A14B6ba4DA3e82414209408a49930E8DC,
             0x28CcdB531854d09D48733261688dc1679fb9A242,
-            0x5Cc7c91690b2cbAEE19A513473D73403e13fb431,
-            0x179522635726710Dd7D2035a81d856de4Aa7836c,
-            0xCC59686e3a32Fb104C8ff84DD895676265eFb8a6,
-            0x34e9827219aA7B7962eF591714657817e79eBBbb,
-            0x067763aA51E4c7C30eA26DfE08cE2FeA5683cc85
+            0xA7Fcb606611358afa388b6bd23b3B2F2c6abEd82,
+            0xbC47901f4d2C5fc871ae0037Ea05c3F614690781,
+            0x94B3173E0a23C28b2BA9a52464AC24c2B032791c,
+            0x0881FAabdDdECf1B4c3D5331DF33C13A1b6589ea,
+            0xA1c062ddEf8f7B0a97e3Bb219108Ce73410772cE,
+            0x00aBCa5597d51e6C06eCfA655E73CE70A1e2cdCf
         )
     {}
 

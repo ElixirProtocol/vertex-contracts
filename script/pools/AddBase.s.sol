@@ -17,9 +17,6 @@ contract AddPool is Script {
     uint256[] public hardcaps;
     bool public spot;
 
-    // Deployer key.
-    uint256 internal deployerKey;
-
     // TODO: Replace productId with automatic fetch from Vertex contracts through manager.
     constructor(
         address _base,

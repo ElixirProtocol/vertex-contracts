@@ -23,7 +23,7 @@ contract DeployMainnet is DeployBase {
     function run() external {
         setup();
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast();
 
         // Transfer ownership to multisig
         manager.transferOwnership(0xdc91701CD5d5a3Adb34d9afD1756f63d3b2201Ac);

@@ -38,19 +38,17 @@ contract AddPool is Script {
     }
 
     function setup() internal {
-        deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-
         // Get the token decimals.
         uint256 decimals = IERC20Metadata(token).decimals();
 
-        // Deploy with key.
-        vm.startBroadcast(deployerKey);
+        // Start broadcast.
+        vm.startBroadcast();
 
         // Add token support.
         manager.updateToken(token, productId);
 
         // Check if allowance is needed.
-        if (base.allowance(vm.addr(deployerKey), address(manager)) < type(uint256).max) {
+        if (base.allowance(msg.sender, address(manager)) < type(uint256).max) {
             base.approve(address(manager), type(uint256).max);
         }
 

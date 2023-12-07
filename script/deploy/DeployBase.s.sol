@@ -47,8 +47,6 @@ abstract contract DeployBase is Script {
     }
 
     function setup() internal {
-        deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-
         // Get the token decimals.
         uint256 btcDecimals = IERC20Metadata(btc).decimals();
         uint256 usdcDecimals = IERC20Metadata(usdc).decimals();
@@ -57,8 +55,8 @@ abstract contract DeployBase is Script {
         uint256 usdtDecimals = IERC20Metadata(usdt).decimals();
         uint256 vrtxDecimals = IERC20Metadata(vrtx).decimals();
 
-        // Deploy with key.
-        vm.startBroadcast(deployerKey);
+        // Start broadcast.
+        vm.startBroadcast();
 
         // Deploy Factory implementation.
         managerImplementation = new VertexManager();

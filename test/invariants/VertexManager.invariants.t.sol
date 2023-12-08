@@ -84,8 +84,10 @@ contract TestInvariantsVertexManager is Test {
         vertexManagerImplementation = new VertexManager();
 
         // Deploy and initialize the proxy contract.
-        proxy =
-        new ERC1967Proxy(address(vertexManagerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
+        proxy = new ERC1967Proxy(
+            address(vertexManagerImplementation),
+            abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000)
+        );
 
         // Wrap in ABI to support easier calls
         manager = VertexManager(address(proxy));

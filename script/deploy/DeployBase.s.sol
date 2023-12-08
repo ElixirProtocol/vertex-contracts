@@ -60,8 +60,10 @@ abstract contract DeployBase is Script {
         managerImplementation = new VertexManager();
 
         // Deploy and initialize the proxy contract.
-        proxy =
-        new ERC1967Proxy(address(managerImplementation), abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000));
+        proxy = new ERC1967Proxy(
+            address(managerImplementation),
+            abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000)
+        );
 
         // Wrap in ABI to support easier calls.
         manager = VertexManager(address(proxy));

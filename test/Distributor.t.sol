@@ -104,7 +104,7 @@ contract TestDistributor is Test {
 
         assertEq(token.balanceOf(address(rewards)), amount);
 
-        rewards.claim(address(token), amount, nonce, generateSignature(claim));
+        rewards.claim(address(this), address(token), amount, nonce, generateSignature(claim));
 
         assertEq(token.balanceOf(address(rewards)), 0);
 
@@ -116,7 +116,7 @@ contract TestDistributor is Test {
 
         assertEq(token.balanceOf(address(rewards)), amount);
 
-        rewards.claim(address(token), amount, nonce + 1, generateSignature(claim2));
+        rewards.claim(address(this), address(token), amount, nonce + 1, generateSignature(claim2));
 
         assertEq(token.balanceOf(address(rewards)), 0);
     }
@@ -130,25 +130,25 @@ contract TestDistributor is Test {
 
         assertEq(token.balanceOf(address(rewards)), 100 ether);
 
-        rewards.claim(address(token), 100 ether, 1, signature);
+        rewards.claim(address(this), address(token), 100 ether, 1, signature);
 
         assertEq(token.balanceOf(address(rewards)), 0);
 
         vm.expectRevert(abi.encodeWithSelector(Distributor.AlreadyClaimed.selector));
-        rewards.claim(address(token), 100 ether, 1, signature);
+        rewards.claim(address(this), address(token), 100 ether, 1, signature);
 
         assertEq(token.balanceOf(address(rewards)), 0);
     }
 
     function testInvalid() public {
         vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidToken.selector));
-        rewards.claim(address(0), 0, 0, bytes(""));
+        rewards.claim(address(this), address(0), 0, 0, bytes(""));
 
         vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidAmount.selector));
-        rewards.claim(address(token), 0, 1, bytes(""));
+        rewards.claim(address(this), address(token), 0, 1, bytes(""));
 
         vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidNonce.selector));
-        rewards.claim(address(token), 1, 0, bytes(""));
+        rewards.claim(address(this), address(token), 1, 0, bytes(""));
 
         Claim memory claim = Claim({user: address(this), token: address(token), amount: 1 ether, nonce: 1});
 
@@ -157,7 +157,7 @@ contract TestDistributor is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(0x123, digest);
 
         vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidSignature.selector));
-        rewards.claim(address(token), 1 ether, 1, abi.encodePacked(r, s, v));
+        rewards.claim(address(this), address(token), 1 ether, 1, abi.encodePacked(r, s, v));
     }
 
     function testNotUser() public {
@@ -170,7 +170,7 @@ contract TestDistributor is Test {
         assertEq(token.balanceOf(address(rewards)), 100 ether);
 
         vm.expectRevert(abi.encodeWithSelector(Distributor.InvalidSignature.selector));
-        rewards.claim(address(token), 100 ether, 1, signature);
+        rewards.claim(address(this), address(token), 100 ether, 1, signature);
 
         assertEq(token.balanceOf(address(rewards)), 100 ether);
     }
@@ -181,7 +181,7 @@ contract TestDistributor is Test {
         bytes memory signature = generateSignature(claim);
 
         vm.expectRevert("ERC20: transfer amount exceeds balance");
-        rewards.claim(address(token), 100 ether, 1, signature);
+        rewards.claim(address(this), address(token), 100 ether, 1, signature);
     }
 
     function testWithdraw() public {

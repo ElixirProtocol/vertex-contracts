@@ -7,7 +7,7 @@ import {StdUtils} from "forge-std/StdUtils.sol";
 import {console} from "forge-std/console.sol";
 import {AddressSet, LibAddressSet} from "../utils/AddressSet.sol";
 import {MockToken} from "../utils/MockToken.sol";
-import {VertexManager} from "../../src/VertexManager.sol";
+import {VertexManager, IVertexManager} from "../../src/VertexManager.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
@@ -108,17 +108,23 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
         if (amountUSDC > USDC.balanceOf(address(this))) return;
 
+        uint256 fee = manager.getWithdrawFee(address(BTC));
+
+        deal(address(BTC), currentActor, fee);
+
         _pay(currentActor, BTC, amountBTC);
         _pay(currentActor, USDC, amountUSDC);
 
         vm.startPrank(currentActor);
 
-        BTC.approve(address(manager), amountBTC);
+        BTC.approve(address(manager), amountBTC + fee);
         USDC.approve(address(manager), amountUSDC);
 
         manager.depositSpot(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, currentActor);
 
         vm.stopPrank();
+
+        process();
 
         ghost_deposits[address(BTC)] += amountBTC;
         ghost_deposits[address(USDC)] += amountUSDC;
@@ -143,10 +149,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
             : _withdrawPerp(perpTokens[2], amountWETH, currentActor);
     }
 
-    function withdrawSpot(uint256 actorSeed, uint256 amountBTC, uint256 feeIndex) public useActor(actorSeed) {
-        feeIndex = bound(feeIndex, 0, 1);
-
-        uint256 fee;
+    function withdrawSpot(uint256 actorSeed, uint256 amountBTC) public useActor(actorSeed) {
         uint256 userActiveAmountBTC = manager.getUserActiveAmount(1, address(BTC), currentActor);
         uint256 userActiveAmountUSDC = manager.getUserActiveAmount(1, address(USDC), currentActor);
 
@@ -155,29 +158,29 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
         if (amountUSDC > userActiveAmountUSDC) return;
 
-        if (feeIndex == 0) {
-            fee = manager.getWithdrawFee(address(BTC));
-
-            if (amountBTC < fee) {
-                return;
-            }
-
-            ghost_fees[address(BTC)] += fee;
-        } else {
-            fee = manager.getWithdrawFee(address(USDC));
-
-            if (amountUSDC < fee) {
-                return;
-            }
-
-            ghost_fees[address(USDC)] += fee;
+        uint256 feeBTC = manager.getWithdrawFee(address(BTC));
+        if (amountBTC < feeBTC) {
+            return;
         }
+        ghost_fees[address(BTC)] += feeBTC;
+
+        uint256 feeUSDC = manager.getWithdrawFee(address(USDC));
+        if (amountUSDC < feeUSDC) {
+            return;
+        }
+        ghost_fees[address(USDC)] += feeUSDC;
+
+        deal(address(BTC), currentActor, feeBTC);
 
         vm.startPrank(currentActor);
 
-        manager.withdrawSpot(1, spotTokens, amountBTC, feeIndex);
+        BTC.approve(address(manager), feeBTC);
+
+        manager.withdrawSpot(1, spotTokens[0], spotTokens[1], amountBTC);
 
         vm.stopPrank();
+
+        process();
 
         ghost_withdraws[address(BTC)] += amountBTC;
         ghost_withdraws[address(USDC)] += amountUSDC;
@@ -270,23 +273,33 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     }
 
     function _depositPerp(address token, uint256 amount, address actor) private {
+        uint256 fee = manager.getWithdrawFee(token);
+        deal(token, actor, fee);
+
         _pay(actor, IERC20Metadata(token), amount);
 
         vm.startPrank(actor);
 
-        IERC20Metadata(token).approve(address(manager), amount);
+        IERC20Metadata(token).approve(address(manager), amount + fee);
 
         manager.depositPerp(2, token, amount, actor);
 
         vm.stopPrank();
 
+        process();
+
         ghost_deposits[token] += amount;
     }
 
     function _withdrawPerp(address token, uint256 amount, address actor) private {
-        ghost_fees[token] += manager.getWithdrawFee(token);
+        uint256 fee = manager.getWithdrawFee(token);
+        deal(token, actor, fee);
+
+        ghost_fees[token] += fee;
 
         vm.startPrank(actor);
+
+        IERC20Metadata(token).approve(address(manager), fee);
 
         manager.withdrawPerp(2, token, amount);
 
@@ -303,7 +316,46 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         // Loop through the queue and process each transaction using the idTo provided.
         for (uint128 i = manager.queueUpTo() + 1; i < manager.queueCount() + 1; i++) {
             VertexManager.Spot memory spot = manager.nextSpot();
-            manager.unqueue(i, spot.amount);
+
+            if (spot.spotType == IVertexManager.SpotType.DepositSpot) {
+                IVertexManager.DepositSpot memory spotTxn = abi.decode(spot.transaction, (IVertexManager.DepositSpot));
+
+                uint256 amount1 = manager.getBalancedAmount(spotTxn.token0, spotTxn.token1, spotTxn.amount0);
+
+                manager.unqueue(
+                    i,
+                    abi.encode(
+                        IVertexManager.DepositSpotResponse({
+                            amount1: amount1,
+                            token0Shares: spotTxn.amount0,
+                            token1Shares: amount1
+                        })
+                    )
+                );
+            } else if (spot.spotType == IVertexManager.SpotType.DepositPerp) {
+                IVertexManager.DepositPerp memory spotTxn = abi.decode(spot.transaction, (IVertexManager.DepositPerp));
+
+                manager.unqueue(i, abi.encode(IVertexManager.DepositPerpResponse({shares: spotTxn.amount})));
+            } else if (spot.spotType == IVertexManager.SpotType.WithdrawPerp) {
+                IVertexManager.WithdrawPerp memory spotTxn = abi.decode(spot.transaction, (IVertexManager.WithdrawPerp));
+
+                manager.unqueue(i, abi.encode(IVertexManager.WithdrawPerpResponse({amountToReceive: spotTxn.amount})));
+            } else if (spot.spotType == IVertexManager.SpotType.WithdrawSpot) {
+                IVertexManager.WithdrawSpot memory spotTxn = abi.decode(spot.transaction, (IVertexManager.WithdrawSpot));
+
+                uint256 amount1 = manager.getBalancedAmount(spotTxn.token0, spotTxn.token1, spotTxn.amount0);
+
+                manager.unqueue(
+                    i,
+                    abi.encode(
+                        IVertexManager.WithdrawSpotResponse({
+                            amount1: amount1,
+                            amount0ToReceive: spotTxn.amount0,
+                            amount1ToReceive: amount1
+                        })
+                    )
+                );
+            } else {}
         }
 
         vm.stopPrank();

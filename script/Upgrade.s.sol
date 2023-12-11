@@ -9,17 +9,12 @@ contract UpgradeContract is Script {
     VertexManager internal manager;
     VertexManager internal newManager;
 
-    // Deployer key.
-    uint256 internal deployerKey;
-
     function run() external {
-        deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-
-        // Deploy with key.
-        vm.startBroadcast(deployerKey);
+        // Start broadcast.
+        vm.startBroadcast();
 
         // Wrap in ABI to support easier calls.
-        manager = VertexManager(0x392dE333fbc1d200beb0E7a317fF50371Ce03A78);
+        manager = VertexManager(0x052Ab3fd33cADF9D9f227254252da3f996431f75);
 
         // Get the endpoint address before upgrading.
         address endpoint = address(manager.endpoint());

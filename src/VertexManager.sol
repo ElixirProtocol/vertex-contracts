@@ -660,13 +660,14 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param router The pool router.
     function takeElixirFee(address router) private {
         // Get the Elixir processing fee for unqueue transaction using WETH as token.
+        // Safely assumes that WETH ID on Vertex is 3.
         uint256 fee = getWithdrawFee(productToToken[3]);
 
         // Check that the msg.value is equal or more than the fee.
         if (msg.value < fee) revert FeeTooLow(msg.value, fee);
 
-        // Transfer fee to the external account.
-        payable(getExternalAccount(router)).transfer(fee);
+        // Transfer fee to the external account EOA.
+        payable(getExternalAccount(router)).call{value: fee};
     }
 
     /// @notice Returns the next spot in the queue to process.

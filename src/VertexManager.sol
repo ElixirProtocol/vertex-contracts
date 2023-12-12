@@ -308,7 +308,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
             abi.encode(DepositPerp({id: id, token: token, amount: amount, receiver: receiver}))
         );
 
-        emit Queued(queue[queueCount], queueCount, queueUpTo);
+        emit Queued(queue[queueCount - 1], queueCount, queueUpTo);
     }
 
     /// @notice Deposits tokens into a spot pool.
@@ -362,7 +362,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
             )
         );
 
-        emit Queued(queue[queueCount], queueCount, queueUpTo);
+        emit Queued(queue[queueCount - 1], queueCount, queueUpTo);
     }
 
     /// @notice Requests to withdraw a token from a perp pool.
@@ -403,7 +403,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
             abi.encode(WithdrawPerp({id: id, tokenId: tokenToProduct[token], amount: amount}))
         );
 
-        emit Queued(queue[queueCount], queueCount, queueUpTo);
+        emit Queued(queue[queueCount - 1], queueCount, queueUpTo);
     }
 
     /// @notice Withdraws tokens from a spot pool.
@@ -438,7 +438,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
             abi.encode(WithdrawSpot({id: id, token0: token0, token1: token1, amount0: amount0}))
         );
 
-        emit Queued(queue[queueCount], queueCount, queueUpTo);
+        emit Queued(queue[queueCount - 1], queueCount, queueUpTo);
     }
 
     /// @notice Claim received tokens from the pending balance and fees.

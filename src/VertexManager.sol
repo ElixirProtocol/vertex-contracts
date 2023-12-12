@@ -215,6 +215,11 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @notice Emitted when the caller is not the smart contract itself.
     error NotSelf();
 
+    /// @notice Emitted when the msg.value of the call is too low for the fee.
+    /// @param value The msg.value.
+    /// @param fee The fee to pay.
+    error FeeTooLow(uint256 value, uint256 fee);
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -279,6 +284,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param receiver The receiver of the virtual LP balance.
     function depositPerp(uint256 id, address token, uint256 amount, address receiver)
         external
+        payable
         whenDepositNotPaused
         nonReentrant
     {
@@ -292,7 +298,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         if (receiver == address(0)) revert ZeroAddress();
 
         // Take fee for unqueue transaction.
-        IERC20Metadata(token).safeTransferFrom(msg.sender, owner(), getWithdrawFee(token));
+        takeElixirFee(pool.router);
 
         // Add to queue.
         queue[queueCount++] = Spot(
@@ -322,7 +328,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         uint256 amount1Low,
         uint256 amount1High,
         address receiver
-    ) external whenDepositNotPaused nonReentrant {
+    ) external payable whenDepositNotPaused nonReentrant {
         // Fetch the pool storage.
         Pool storage pool = pools[id];
 
@@ -336,7 +342,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         if (receiver == address(0)) revert ZeroAddress();
 
         // Take fee for unqueue transaction.
-        IERC20Metadata(token0).safeTransferFrom(msg.sender, owner(), getWithdrawFee(token0));
+        takeElixirFee(pool.router);
 
         // Add to queue.
         queue[queueCount++] = Spot(
@@ -365,7 +371,12 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param id The ID of the pool to withdraw from.
     /// @param token The token to withdraw.
     /// @param amount The amount of token shares to withdraw.
-    function withdrawPerp(uint256 id, address token, uint256 amount) external whenWithdrawNotPaused nonReentrant {
+    function withdrawPerp(uint256 id, address token, uint256 amount)
+        external
+        payable
+        whenWithdrawNotPaused
+        nonReentrant
+    {
         // Fetch the pool storage.
         Pool storage pool = pools[id];
 
@@ -382,7 +393,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         if (amount < getWithdrawFee(token)) revert AmountTooLow(amount, getWithdrawFee(token));
 
         // Take fee for unqueue transaction.
-        IERC20Metadata(token).safeTransferFrom(msg.sender, owner(), getWithdrawFee(token));
+        takeElixirFee(pool.router);
 
         // Add to queue.
         queue[queueCount++] = Spot(
@@ -403,6 +414,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param amount0 The amount of base tokens.
     function withdrawSpot(uint256 id, address token0, address token1, uint256 amount0)
         external
+        payable
         whenWithdrawNotPaused
         nonReentrant
     {
@@ -416,7 +428,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         if (token0 == token1) revert DuplicatedToken(token0);
 
         // Take fee for unqueue transaction.
-        IERC20Metadata(token0).safeTransferFrom(msg.sender, owner(), getWithdrawFee(token0));
+        takeElixirFee(pool.router);
 
         // Add to queue.
         queue[queueCount++] = Spot(
@@ -584,7 +596,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         return (pool.router, tokenData.activeAmount, tokenData.hardcap, tokenData.isActive);
     }
 
-    /// @notice Returns the withdrawal fee for a given pool and token.
+    /// @notice Returns the slow-mode fee for a given pool and token.
     /// @param token The token to fetch the fee from.
     function getWithdrawFee(address token) public view returns (uint256) {
         return slowModeFee.mulDiv(
@@ -637,6 +649,24 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     function getWithdrawAmount(uint256 balance, uint256 amount, uint256 activeAmount) public pure returns (uint256) {
         // Calculate the amount to receive via percentage of ownership, accounting for any trading losses.
         return amount.mulDiv(balance, activeAmount, Math.Rounding.Down);
+    }
+
+    /// @notice Returns the external account of a pool router.
+    function getExternalAccount(address router) private view returns (address) {
+        return address(uint160(bytes20(VertexRouter(router).externalSubaccount())));
+    }
+
+    /// @notice Enforce the Elixir fee in native ETH.
+    /// @param router The pool router.
+    function takeElixirFee(address router) private {
+        // Get the Elixir processing fee for unqueue transaction using WETH as token.
+        uint256 fee = getWithdrawFee(productToToken[3]);
+
+        // Check that the msg.value is equal or more than the fee.
+        if (msg.value < fee) revert FeeTooLow(msg.value, fee);
+
+        // Transfer fee to the external account.
+        payable(getExternalAccount(router)).transfer(fee);
     }
 
     /// @notice Returns the next spot in the queue to process.
@@ -773,7 +803,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         Spot memory spot = queue[queueUpTo];
 
         // Get the external account of the router.
-        address externalAccount = address(uint160(bytes20(VertexRouter(spot.router).externalSubaccount())));
+        address externalAccount = getExternalAccount(spot.router);
 
         // Check that the sender is the external account of the router.
         if (msg.sender != externalAccount) revert NotExternalAccount(spot.router, externalAccount, msg.sender);

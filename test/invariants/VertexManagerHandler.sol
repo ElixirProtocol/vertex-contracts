@@ -47,6 +47,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     // Perp tokens
     address[] public perpTokens;
 
+    // Elixir fee
+    uint256 public fee;
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -80,6 +83,8 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         spotTokens = _spotTokens;
         perpTokens = _perpTokens;
         externalAccount = _externalAccount;
+
+        fee = manager.getWithdrawFee(address(WETH));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -111,12 +116,16 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         _pay(currentActor, BTC, amountBTC);
         _pay(currentActor, USDC, amountUSDC);
 
+        vm.deal(currentActor, fee);
+
         vm.startPrank(currentActor);
 
         BTC.approve(address(manager), amountBTC);
         USDC.approve(address(manager), amountUSDC);
 
-        manager.depositSpot(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, currentActor);
+        manager.depositSpot{value: fee}(
+            1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, currentActor
+        );
 
         vm.stopPrank();
 
@@ -166,9 +175,11 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         }
         ghost_fees[address(USDC)] += feeUSDC;
 
+        vm.deal(currentActor, fee);
+
         vm.startPrank(currentActor);
 
-        manager.withdrawSpot(1, spotTokens[0], spotTokens[1], amountBTC);
+        manager.withdrawSpot{value: fee}(1, spotTokens[0], spotTokens[1], amountBTC);
 
         vm.stopPrank();
 
@@ -267,11 +278,13 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     function _depositPerp(address token, uint256 amount, address actor) private {
         _pay(actor, IERC20Metadata(token), amount);
 
+        vm.deal(actor, fee);
+
         vm.startPrank(actor);
 
         IERC20Metadata(token).approve(address(manager), amount);
 
-        manager.depositPerp(2, token, amount, actor);
+        manager.depositPerp{value: fee}(2, token, amount, actor);
 
         vm.stopPrank();
 
@@ -283,9 +296,11 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     function _withdrawPerp(address token, uint256 amount, address actor) private {
         ghost_fees[token] += manager.getWithdrawFee(token);
 
+        vm.deal(actor, fee);
+
         vm.startPrank(actor);
 
-        manager.withdrawPerp(2, token, amount);
+        manager.withdrawPerp{value: fee}(2, token, amount);
 
         vm.stopPrank();
 

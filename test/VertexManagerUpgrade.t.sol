@@ -59,13 +59,13 @@ contract TestVertexManagerUpgrade is Test {
         uint256 amountBTC = 10 * 10 ** 8;
         uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
-        deal(address(BTC), address(this), amountBTC + manager.getWithdrawFee(address(BTC)));
+        deal(address(BTC), address(this), amountBTC + manager.getTransactionFee(address(BTC)));
         deal(address(USDC), address(this), amountUSDC);
 
-        BTC.approve(address(manager), amountBTC + manager.getWithdrawFee(address(BTC)));
+        BTC.approve(address(manager), amountBTC + manager.getTransactionFee(address(BTC)));
         USDC.approve(address(manager), amountUSDC);
 
-        uint256 fee = manager.getWithdrawFee(address(WETH));
+        uint256 fee = manager.getTransactionFee(address(WETH));
 
         manager.depositSpot{value: fee}(
             1, address(BTC), address(USDC), amountBTC, amountUSDC, amountUSDC, address(this)

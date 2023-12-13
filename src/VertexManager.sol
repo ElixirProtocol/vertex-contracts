@@ -390,7 +390,9 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         if (!tokenData.isActive) revert UnsupportedToken(token, id);
 
         // Check that the amount is at least the Vertex fee to pay.
-        if (amount < getWithdrawFee(token)) revert AmountTooLow(amount, getWithdrawFee(token));
+        uint256 fee = getTransactionFee(token);
+
+        if (amount < fee) revert AmountTooLow(amount, fee);
 
         // Take fee for unqueue transaction.
         takeElixirFee(pool.router);
@@ -598,7 +600,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
 
     /// @notice Returns the slow-mode fee for a given pool and token.
     /// @param token The token to fetch the fee from.
-    function getWithdrawFee(address token) public view returns (uint256) {
+    function getTransactionFee(address token) public view returns (uint256) {
         return slowModeFee.mulDiv(
             10 ** (18 + IERC20Metadata(token).decimals() - paymentToken.decimals()),
             getPrice(tokenToProduct[token]),
@@ -661,7 +663,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     function takeElixirFee(address router) private {
         // Get the Elixir processing fee for unqueue transaction using WETH as token.
         // Safely assumes that WETH ID on Vertex is 3.
-        uint256 fee = getWithdrawFee(productToToken[3]);
+        uint256 fee = getTransactionFee(productToToken[3]);
 
         // Check that the msg.value is equal or more than the fee.
         if (msg.value < fee) revert FeeTooLow(msg.value, fee);
@@ -742,7 +744,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
                 tokenData,
                 spot.sender,
                 spotTxn.amount,
-                getWithdrawFee(token),
+                getTransactionFee(token),
                 spotTxn.tokenId,
                 responseTxn.amountToReceive,
                 VertexRouter(spot.router)
@@ -757,7 +759,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
                 pools[spotTxn.id].tokens[spotTxn.token0],
                 spot.sender,
                 spotTxn.amount0,
-                getWithdrawFee(spotTxn.token0),
+                getTransactionFee(spotTxn.token0),
                 tokenToProduct[spotTxn.token0],
                 responseTxn.amount0ToReceive,
                 VertexRouter(spot.router)
@@ -767,7 +769,7 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
                 pools[spotTxn.id].tokens[spotTxn.token1],
                 spot.sender,
                 responseTxn.amount1,
-                getWithdrawFee(spotTxn.token1),
+                getTransactionFee(spotTxn.token1),
                 tokenToProduct[spotTxn.token1],
                 responseTxn.amount1ToReceive,
                 VertexRouter(spot.router)

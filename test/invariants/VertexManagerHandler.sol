@@ -84,7 +84,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         perpTokens = _perpTokens;
         externalAccount = _externalAccount;
 
-        fee = manager.getWithdrawFee(address(WETH));
+        fee = manager.getTransactionFee(address(WETH));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -96,13 +96,13 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         amountUSDC = bound(amountUSDC, 0, USDC.balanceOf(address(this)));
         amountWETH = bound(amountWETH, 0, WETH.balanceOf(address(this)));
 
-        manager.getWithdrawFee(address(BTC)) > amountBTC
+        manager.getTransactionFee(address(BTC)) > amountBTC
             ? console.log("pass")
             : _depositPerp(perpTokens[0], amountBTC, currentActor);
-        manager.getWithdrawFee(address(USDC)) > amountUSDC
+        manager.getTransactionFee(address(USDC)) > amountUSDC
             ? console.log("pass")
             : _depositPerp(perpTokens[1], amountUSDC, currentActor);
-        manager.getWithdrawFee(address(WETH)) > amountWETH
+        manager.getTransactionFee(address(WETH)) > amountWETH
             ? console.log("pass")
             : _depositPerp(perpTokens[2], amountWETH, currentActor);
     }
@@ -143,13 +143,13 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         amountUSDC = bound(amountUSDC, 0, manager.getUserActiveAmount(2, address(USDC), currentActor));
         amountWETH = bound(amountWETH, 0, manager.getUserActiveAmount(2, address(WETH), currentActor));
 
-        manager.getWithdrawFee(address(BTC)) > amountBTC
+        manager.getTransactionFee(address(BTC)) > amountBTC
             ? console.log("pass")
             : _withdrawPerp(perpTokens[0], amountBTC, currentActor);
-        manager.getWithdrawFee(address(USDC)) > amountUSDC
+        manager.getTransactionFee(address(USDC)) > amountUSDC
             ? console.log("pass")
             : _withdrawPerp(perpTokens[1], amountUSDC, currentActor);
-        manager.getWithdrawFee(address(WETH)) > amountWETH
+        manager.getTransactionFee(address(WETH)) > amountWETH
             ? console.log("pass")
             : _withdrawPerp(perpTokens[2], amountWETH, currentActor);
     }
@@ -163,13 +163,13 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
         if (amountUSDC > userActiveAmountUSDC) return;
 
-        uint256 feeBTC = manager.getWithdrawFee(address(BTC));
+        uint256 feeBTC = manager.getTransactionFee(address(BTC));
         if (amountBTC < feeBTC) {
             return;
         }
         ghost_fees[address(BTC)] += feeBTC;
 
-        uint256 feeUSDC = manager.getWithdrawFee(address(USDC));
+        uint256 feeUSDC = manager.getTransactionFee(address(USDC));
         if (amountUSDC < feeUSDC) {
             return;
         }
@@ -294,7 +294,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     }
 
     function _withdrawPerp(address token, uint256 amount, address actor) private {
-        ghost_fees[token] += manager.getWithdrawFee(token);
+        ghost_fees[token] += manager.getTransactionFee(token);
 
         vm.deal(actor, fee);
 

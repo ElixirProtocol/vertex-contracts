@@ -986,6 +986,9 @@ contract TestVertexManager is Test {
         vm.expectRevert(abi.encodeWithSelector(VertexManager.ZeroAddress.selector));
         manager.depositPerp{value: fee}(2, address(0), 0, address(0));
 
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.FeeTooLow.selector, fee - 1, fee));
+        manager.depositPerp{value: fee - 1}(2, address(0x69), 100000, address(0x69));
+
         // Withdraw checks
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
         manager.withdrawPerp{value: fee}(69, address(0), 0);
@@ -997,6 +1000,9 @@ contract TestVertexManager is Test {
             abi.encodeWithSelector(VertexManager.AmountTooLow.selector, 0, manager.getWithdrawFee(perpTokens[0]))
         );
         manager.withdrawPerp{value: fee}(2, perpTokens[0], 0);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.FeeTooLow.selector, fee - 1, fee));
+        manager.withdrawPerp{value: fee - 1}(2, perpTokens[0], 10000);
     }
 
     /// @notice Unit test for all checks in deposit and withdraw functions for a spot pool.
@@ -1023,8 +1029,10 @@ contract TestVertexManager is Test {
         vm.expectRevert(abi.encodeWithSelector(VertexManager.ZeroAddress.selector));
         manager.depositSpot{value: fee}(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, address(0));
 
-        // vm.expectRevert(abi.encodeWithSelector(VertexManager.UnsupportedToken.selector, address(0x69), 1));
-        // manager.depositSpot{value: fee}(1, address(0x69), spotTokens[1], amountBTC, amountUSDC * 2, amountUSDC * 4, address(this));
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.FeeTooLow.selector, fee - 1, fee));
+        manager.depositSpot{value: fee - 1}(
+            1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, address(this)
+        );
 
         // Withdraw checks
         manager.depositSpot{value: fee}(
@@ -1036,6 +1044,9 @@ contract TestVertexManager is Test {
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.DuplicatedToken.selector, address(BTC)));
         manager.withdrawSpot{value: fee}(1, address(BTC), address(BTC), amountBTC);
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.FeeTooLow.selector, fee - 1, fee));
+        manager.withdrawSpot{value: fee - 1}(1, spotTokens[0], spotTokens[1], amountBTC);
     }
 
     /// @notice Unit test for all checks in the claim function

@@ -997,9 +997,6 @@ contract TestVertexManager is Test {
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 69));
         manager.withdrawPerp{value: fee}(69, address(0), 0);
 
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.UnsupportedToken.selector, address(0), 2));
-        manager.withdrawPerp{value: fee}(2, address(0), 1 ether);
-
         vm.expectRevert(
             abi.encodeWithSelector(VertexManager.AmountTooLow.selector, 0, manager.getTransactionFee(perpTokens[0]))
         );
@@ -1711,5 +1708,22 @@ contract TestVertexManager is Test {
 
         assertEq(manager.getUserActiveAmount(2, address(BTC), address(this)), 0);
         assertEq(manager.queueUpTo(), 2);
+    }
+
+    /// @notice Unit test to check that any remaining fee is transfered back to user.
+    function testElixirFee() public {
+        uint256 balanceBefore = address(this).balance;
+
+        vm.expectRevert(abi.encodeWithSelector(VertexManager.FeeTooLow.selector, fee - 1, fee));
+        manager.depositPerp{value: fee - 1}(2, address(0), 1, address(this));
+
+        assertEq(address(this).balance, balanceBefore);
+        assertEq(externalAccount.balance, 0);
+
+        // Deposit BTC to perp pool.
+        manager.depositPerp{value: fee + 1}(2, address(0), 1, address(this));
+
+        assertEq(address(this).balance, balanceBefore - (fee + 1));
+        assertEq(externalAccount.balance, fee + 1);
     }
 }

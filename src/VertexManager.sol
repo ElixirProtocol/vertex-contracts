@@ -220,6 +220,9 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
     /// @param fee The fee to pay.
     error FeeTooLow(uint256 value, uint256 fee);
 
+    /// @notice Emitted when the fee transfer fails.
+    error FeeTransferFailed();
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -382,12 +385,6 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
 
         // Check that the pool is perp.
         if (pool.poolType != PoolType.Perp) revert InvalidPool(id);
-
-        // Get the token storage.
-        Token storage tokenData = pool.tokens[token];
-
-        // Check that the token is supported by the pool.
-        if (!tokenData.isActive) revert UnsupportedToken(token, id);
 
         // Check that the amount is at least the Vertex fee to pay.
         uint256 fee = getTransactionFee(token);
@@ -669,7 +666,8 @@ contract VertexManager is IVertexManager, Initializable, UUPSUpgradeable, Ownabl
         if (msg.value < fee) revert FeeTooLow(msg.value, fee);
 
         // Transfer fee to the external account EOA.
-        payable(getExternalAccount(router)).call{value: fee};
+        (bool sent,) = payable(getExternalAccount(router)).call{value: msg.value}("");
+        if (!sent) revert FeeTransferFailed();
     }
 
     /// @notice Returns the next spot in the queue to process.

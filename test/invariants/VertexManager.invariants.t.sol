@@ -314,6 +314,8 @@ contract TestInvariantsVertexManager is Test {
         return manager.getUserActiveAmount(1, token, user) + manager.getUserActiveAmount(2, token, user);
     }
 
+    receive() external payable {}
+
     // Exclude from coverage report
     function test() public {}
 }

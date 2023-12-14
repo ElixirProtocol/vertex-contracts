@@ -13,6 +13,7 @@ contract TestVertexManagerUpgrade is Test {
 
     IERC20 BTC = IERC20(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
     IERC20 USDC = IERC20(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
+    IERC20 WETH = IERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     uint256 public networkFork;
 
@@ -58,13 +59,17 @@ contract TestVertexManagerUpgrade is Test {
         uint256 amountBTC = 10 * 10 ** 8;
         uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
 
-        deal(address(BTC), address(this), amountBTC + manager.getWithdrawFee(address(BTC)));
+        deal(address(BTC), address(this), amountBTC + manager.getTransactionFee(address(BTC)));
         deal(address(USDC), address(this), amountUSDC);
 
-        BTC.approve(address(manager), amountBTC + manager.getWithdrawFee(address(BTC)));
+        BTC.approve(address(manager), amountBTC + manager.getTransactionFee(address(BTC)));
         USDC.approve(address(manager), amountUSDC);
 
-        manager.depositSpot(1, address(BTC), address(USDC), amountBTC, amountUSDC, amountUSDC, address(this));
+        uint256 fee = manager.getTransactionFee(address(WETH));
+
+        manager.depositSpot{value: fee}(
+            1, address(BTC), address(USDC), amountBTC, amountUSDC, amountUSDC, address(this)
+        );
 
         // Get the router address
         (address router,,,) = manager.getPoolToken(1, address(BTC));

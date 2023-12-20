@@ -39,6 +39,11 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <th>Router DYDX-PERP (ID 38)</th>
 <th>Router CRV-PERP (ID 40)</th>
 <th>Router VRTX (ID 41)</th>
+<th>Router TIA-PERP (ID 44)</th>
+<th>Router PYTH-PERP (ID 46)</th>
+<th>Router MBONK-PERP (ID 48)</th>
+<th>Router JTO-PERP (ID 50)</th>
+<th>Router AVAX-PERP (ID 52)</th>
 </tr>
 <tr>
 <td>Arbitrum Mainnet</td>
@@ -67,6 +72,11 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <td><code>0xf06d2fd349Fc5B4BEA2F4Ac2997A8F21C1b5d025</code></td>
 <td><code>0xaA19B0EC4a0E97d202B04713Ac76853Abd3dd2dA</code></td>
 <td><code>0x978e93303f34B06e6D23C69919eD78Bb58C5A5C1</code></td>
+<td><code>0x8a55474125ffF3b0EcF22cCCBf6a3D136472B15c</code></td>
+<td><code>0xfF5055A951c45F699c869E415378CF7d8d2fd81A</code></td>
+<td><code>0x4ee684B4a9b6F5db3f68Cbf0490B5Dd7A9C575A9</code></td>
+<td><code>0x4F2442e93F6759d6F0F267c00E442eb2Da0Ac609</code></td>
+<td><code>0x4f4C0Cb268b22E033361F76D63b031f0Bc4489d7</code></td>
 </tr>
 <tr>
 <td>Arbitrum Sepolia</td>
@@ -95,6 +105,11 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <td><code>0xf06d2fd349Fc5B4BEA2F4Ac2997A8F21C1b5d025</code></td>
 <td><code>0xaA19B0EC4a0E97d202B04713Ac76853Abd3dd2dA</code></td>
 <td><code>0x978e93303f34B06e6D23C69919eD78Bb58C5A5C1</code></td>
+<td><code>0x8a55474125ffF3b0EcF22cCCBf6a3D136472B15c</code></td>
+<td><code>0xfF5055A951c45F699c869E415378CF7d8d2fd81A</code></td>
+<td><code>0x4ee684B4a9b6F5db3f68Cbf0490B5Dd7A9C575A9</code></td>
+<td><code>0x4F2442e93F6759d6F0F267c00E442eb2Da0Ac609</code></td>
+<td><code>0x4f4C0Cb268b22E033361F76D63b031f0Bc4489d7</code></td>
 </tr>
 </table>
 

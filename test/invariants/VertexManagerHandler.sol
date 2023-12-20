@@ -47,6 +47,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     // Perp tokens
     address[] public perpTokens;
 
+    // Elixir fee
+    uint256 public fee;
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -80,6 +83,8 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         spotTokens = _spotTokens;
         perpTokens = _perpTokens;
         externalAccount = _externalAccount;
+
+        fee = manager.getTransactionFee(address(WETH));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -91,13 +96,13 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         amountUSDC = bound(amountUSDC, 0, USDC.balanceOf(address(this)));
         amountWETH = bound(amountWETH, 0, WETH.balanceOf(address(this)));
 
-        manager.getWithdrawFee(address(BTC)) > amountBTC
+        manager.getTransactionFee(address(BTC)) > amountBTC
             ? console.log("pass")
             : _depositPerp(perpTokens[0], amountBTC, currentActor);
-        manager.getWithdrawFee(address(USDC)) > amountUSDC
+        manager.getTransactionFee(address(USDC)) > amountUSDC
             ? console.log("pass")
             : _depositPerp(perpTokens[1], amountUSDC, currentActor);
-        manager.getWithdrawFee(address(WETH)) > amountWETH
+        manager.getTransactionFee(address(WETH)) > amountWETH
             ? console.log("pass")
             : _depositPerp(perpTokens[2], amountWETH, currentActor);
     }
@@ -108,19 +113,19 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
         if (amountUSDC > USDC.balanceOf(address(this))) return;
 
-        uint256 fee = manager.getWithdrawFee(address(BTC));
-
-        deal(address(BTC), currentActor, fee);
-
         _pay(currentActor, BTC, amountBTC);
         _pay(currentActor, USDC, amountUSDC);
 
+        vm.deal(currentActor, fee);
+
         vm.startPrank(currentActor);
 
-        BTC.approve(address(manager), amountBTC + fee);
+        BTC.approve(address(manager), amountBTC);
         USDC.approve(address(manager), amountUSDC);
 
-        manager.depositSpot(1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, currentActor);
+        manager.depositSpot{value: fee}(
+            1, spotTokens[0], spotTokens[1], amountBTC, amountUSDC, amountUSDC, currentActor
+        );
 
         vm.stopPrank();
 
@@ -138,13 +143,13 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         amountUSDC = bound(amountUSDC, 0, manager.getUserActiveAmount(2, address(USDC), currentActor));
         amountWETH = bound(amountWETH, 0, manager.getUserActiveAmount(2, address(WETH), currentActor));
 
-        manager.getWithdrawFee(address(BTC)) > amountBTC
+        manager.getTransactionFee(address(BTC)) > amountBTC
             ? console.log("pass")
             : _withdrawPerp(perpTokens[0], amountBTC, currentActor);
-        manager.getWithdrawFee(address(USDC)) > amountUSDC
+        manager.getTransactionFee(address(USDC)) > amountUSDC
             ? console.log("pass")
             : _withdrawPerp(perpTokens[1], amountUSDC, currentActor);
-        manager.getWithdrawFee(address(WETH)) > amountWETH
+        manager.getTransactionFee(address(WETH)) > amountWETH
             ? console.log("pass")
             : _withdrawPerp(perpTokens[2], amountWETH, currentActor);
     }
@@ -158,25 +163,23 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
         if (amountUSDC > userActiveAmountUSDC) return;
 
-        uint256 feeBTC = manager.getWithdrawFee(address(BTC));
+        uint256 feeBTC = manager.getTransactionFee(address(BTC));
         if (amountBTC < feeBTC) {
             return;
         }
         ghost_fees[address(BTC)] += feeBTC;
 
-        uint256 feeUSDC = manager.getWithdrawFee(address(USDC));
+        uint256 feeUSDC = manager.getTransactionFee(address(USDC));
         if (amountUSDC < feeUSDC) {
             return;
         }
         ghost_fees[address(USDC)] += feeUSDC;
 
-        deal(address(BTC), currentActor, feeBTC);
+        vm.deal(currentActor, fee);
 
         vm.startPrank(currentActor);
 
-        BTC.approve(address(manager), feeBTC);
-
-        manager.withdrawSpot(1, spotTokens[0], spotTokens[1], amountBTC);
+        manager.withdrawSpot{value: fee}(1, spotTokens[0], spotTokens[1], amountBTC);
 
         vm.stopPrank();
 
@@ -273,16 +276,15 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     }
 
     function _depositPerp(address token, uint256 amount, address actor) private {
-        uint256 fee = manager.getWithdrawFee(token);
-        deal(token, actor, fee);
-
         _pay(actor, IERC20Metadata(token), amount);
+
+        vm.deal(actor, fee);
 
         vm.startPrank(actor);
 
-        IERC20Metadata(token).approve(address(manager), amount + fee);
+        IERC20Metadata(token).approve(address(manager), amount);
 
-        manager.depositPerp(2, token, amount, actor);
+        manager.depositPerp{value: fee}(2, token, amount, actor);
 
         vm.stopPrank();
 
@@ -292,16 +294,13 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     }
 
     function _withdrawPerp(address token, uint256 amount, address actor) private {
-        uint256 fee = manager.getWithdrawFee(token);
-        deal(token, actor, fee);
+        ghost_fees[token] += manager.getTransactionFee(token);
 
-        ghost_fees[token] += fee;
+        vm.deal(actor, fee);
 
         vm.startPrank(actor);
 
-        IERC20Metadata(token).approve(address(manager), fee);
-
-        manager.withdrawPerp(2, token, amount);
+        manager.withdrawPerp{value: fee}(2, token, amount);
 
         vm.stopPrank();
 

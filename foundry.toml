@@ -33,4 +33,4 @@ depth          = 16         # The number of times to run the invariant tests
 
 [rpc_endpoints]
 arbitrum = "${ARBITRUM_RPC_URL}"
-goerli = "${GOERLI_RPC_URL}"
+sepolia = "${SEPOLIA_RPC_URL}"

@@ -1167,6 +1167,8 @@ contract TestVertexManager is Test {
 
         vm.prank(externalAccount);
         manager.unqueue(1, abi.encode(IVertexManager.WithdrawPerpResponse({amountToReceive: amountBTC})));
+
+        assertEq(manager.getUserActiveAmount(2, address(BTC), address(this)), amountBTC);
     }
 
     // TODO: Test to skip spot in queue.

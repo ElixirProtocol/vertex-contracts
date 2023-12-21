@@ -15,6 +15,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <tr>
 <th>Network</th>
 <th>VertexManager</th>
+<th>Distributor</th>
 <th>Router WBTC (ID 1)</th>
 <th>Router BTC-PERP (ID 2)</th>
 <th>Router WETH (ID 3)</th>
@@ -48,6 +49,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <tr>
 <td>Arbitrum Mainnet</td>
 <td><code>0x052Ab3fd33cADF9D9f227254252da3f996431f75</code></td>
+<td><code>0xe3e3A6cF662a6d7b2B8A60E8aE44636C7E014476</code></td>
 <td><code>0x5E5E03AaE77C667664bA47556528a947af0A4716</code></td>
 <td><code>0xA760E3dF6026a462A81EEe0227921D156d94C888</code></td>
 <td><code>0x86612c5C2bdAe1e8534778B6C9C5535f635Fd04e</code></td>
@@ -81,6 +83,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <tr>
 <td>Arbitrum Sepolia</td>
 <td><code>0x052Ab3fd33cADF9D9f227254252da3f996431f75</code></td>
+<td><code>0xe3e3A6cF662a6d7b2B8A60E8aE44636C7E014476</code></td>
 <td><code>0x5E5E03AaE77C667664bA47556528a947af0A4716</code></td>
 <td><code>0xA760E3dF6026a462A81EEe0227921D156d94C888</code></td>
 <td><code>0x86612c5C2bdAe1e8534778B6C9C5535f635Fd04e</code></td>
@@ -173,5 +176,5 @@ forge snapshot
 In order to deploy the contracts, set the relevant constants in the respective chain script, and run the following command(s):
 
 ```sh
-forge script script/deploy/DeployGoerli.s.sol:DeployGoerli -vvvv --fork-url RPC --broadcast --slow
+forge script script/deploy/DeploySepolia.s.sol:DeploySepolia -vvvv --fork-url RPC --broadcast --slow
 ```

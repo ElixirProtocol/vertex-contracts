@@ -10,6 +10,7 @@ import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata
 contract TestVertexManagerUSDC is Test {
     VertexManager internal manager;
 
+    IERC20Metadata WETH = IERC20Metadata(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
     IERC20Metadata USDC = IERC20Metadata(0xaf88d065e77c8cC2239327C5EDb3A432268e5831);
     IERC20Metadata USDCE = IERC20Metadata(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
 
@@ -41,7 +42,7 @@ contract TestVertexManagerUSDC is Test {
         hardcap[0] = 0;
 
         manager.addPoolTokens(2, token, hardcap);
-        
+
         // 2. Set the hardcap of USDC.e and USDC to previous USDC.e one.
         address[] memory tokens = new address[](2);
         tokens[0] = address(USDCE);

@@ -44,6 +44,11 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <th>Router MBONK-PERP (ID 48)</th>
 <th>Router JTO-PERP (ID 50)</th>
 <th>Router AVAX-PERP (ID 52)</th>
+<th>Router INJ (ID 54)</th>
+<th>Router SNX-PERP (ID 56)</th>
+<th>Router ADA-PERP (ID 58)</th>
+<th>Router IMX-PERP (ID 60)</th>
+<th>Router MEME-PERP (ID 62)</th>
 </tr>
 <tr>
 <td>Arbitrum Mainnet</td>
@@ -77,6 +82,11 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <td><code>0x4ee684B4a9b6F5db3f68Cbf0490B5Dd7A9C575A9</code></td>
 <td><code>0x4F2442e93F6759d6F0F267c00E442eb2Da0Ac609</code></td>
 <td><code>0x4f4C0Cb268b22E033361F76D63b031f0Bc4489d7</code></td>
+<td><code>0x86A3DE1b2CfB34cCb604dB1ca4217255E699E8d3</code></td>
+<td><code>0x33FC7F79cdE6620C64354ff63cd0B7C11C421f01</code></td>
+<td><code>0x1EaCB7801517f45Ab7A8714eD91B6B28CfFe842A</code></td>
+<td><code>0x7625866Ab6f11809b2fdE3bF79f81780D6323E3b</code></td>
+<td><code>0xE034469069eba2Fa87514616640c3934B8975c2B</code></td>
 </tr>
 <tr>
 <td>Arbitrum Sepolia</td>
@@ -110,6 +120,11 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <td><code>0x4ee684B4a9b6F5db3f68Cbf0490B5Dd7A9C575A9</code></td>
 <td><code>0x4F2442e93F6759d6F0F267c00E442eb2Da0Ac609</code></td>
 <td><code>0x4f4C0Cb268b22E033361F76D63b031f0Bc4489d7</code></td>
+<td><code>0x86A3DE1b2CfB34cCb604dB1ca4217255E699E8d3</code></td>
+<td><code>0x33FC7F79cdE6620C64354ff63cd0B7C11C421f01</code></td>
+<td><code>0x1EaCB7801517f45Ab7A8714eD91B6B28CfFe842A</code></td>
+<td><code>0x7625866Ab6f11809b2fdE3bF79f81780D6323E3b</code></td>
+<td><code>0xE034469069eba2Fa87514616640c3934B8975c2B</code></td>
 </tr>
 </table>
 

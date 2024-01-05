@@ -45,7 +45,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <th>Router MBONK-PERP (ID 48)</th>
 <th>Router JTO-PERP (ID 50)</th>
 <th>Router AVAX-PERP (ID 52)</th>
-<th>Router INJ (ID 54)</th>
+<th>Router INJ-PERP (ID 54)</th>
 <th>Router SNX-PERP (ID 56)</th>
 <th>Router ADA-PERP (ID 58)</th>
 <th>Router IMX-PERP (ID 60)</th>

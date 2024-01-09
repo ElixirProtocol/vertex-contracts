@@ -22,7 +22,7 @@ import {VertexRouter} from "src/VertexRouter.sol";
 /// @author The Elixir Team
 /// @custom:security-contact security@elixir.finance
 /// @notice Pool manager contract to provide liquidity for spot and perp market making on Vertex Protocol.
-contract VertexManager is VertexStorage, Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard {
+contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard, VertexStorage {
     using Math for uint256;
     using SafeERC20 for IERC20Metadata;
 
@@ -691,19 +691,25 @@ contract VertexManager is VertexStorage, Initializable, UUPSUpgradeable, Ownable
         emit TokenUpdated(token, productId);
     }
 
-    // /// @notice Rescues any stuck tokens in the contract.
-    // /// @param token The token to rescue.
-    // /// @param amount The amount of token to rescue.
-    // function rescue(address token, uint256 amount) external onlyOwner {
-    //     IERC20Metadata(token).safeTransfer(owner(), amount);
-    // }
-
-    /// @notice Temporary function to update quoteToken.
-    /// @param _quoteToken The new quote token.
-    function updateQuoteToken(address _quoteToken) external onlyOwner {
-        oldQuoteToken = address(quoteToken);
-        quoteToken = IERC20Metadata(_quoteToken);
+    /// @notice Rescues any stuck tokens in the contract.
+    /// @param token The token to rescue.
+    /// @param amount The amount of token to rescue.
+    function rescue(address token, uint256 amount) external onlyOwner {
+        IERC20Metadata(token).safeTransfer(owner(), amount);
     }
+
+    /// @notice Updates the Processor implementation address.
+    /// @param _processor The new Processor implementation address.
+    function updateProcessor(address _processor) external onlyOwner {
+        processor = _processor;
+    }
+
+    // /// @notice Temporary function to update quoteToken.
+    // /// @param _quoteToken The new quote token.
+    // function updateQuoteToken(address _quoteToken) external onlyOwner {
+    //     oldQuoteToken = address(quoteToken);
+    //     quoteToken = IERC20Metadata(_quoteToken);
+    // }
 
     /*//////////////////////////////////////////////////////////////
                            INTERNAL FUNCTIONS

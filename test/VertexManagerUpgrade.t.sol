@@ -6,12 +6,12 @@ import "forge-std/Test.sol";
 import {ProcessQueue} from "test/utils/ProcessQueue.sol";
 
 import {VertexManager, IVertexManager} from "src/VertexManager.sol";
+import {VertexProcessor} from "src/VertexProcessor.sol";
 import {VertexRouter} from "src/VertexRouter.sol";
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 
 contract TestVertexManagerUpgrade is Test {
     VertexManager internal manager;
-    VertexManager internal newManager;
 
     IERC20 BTC = IERC20(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
     IERC20 USDC = IERC20(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
@@ -36,11 +36,14 @@ contract TestVertexManagerUpgrade is Test {
         // Get the endpoint address before upgrading.
         address endpoint = address(manager.endpoint());
 
-        // Deploy new implementation.
-        newManager = new VertexManager();
+        // Deploy new Processor implementation.
+        VertexProcessor newProcessor = new VertexProcessor();
+
+        // Deploy new Manager implementation.
+        VertexManager newManager = new VertexManager();
 
         // Upgrade proxy to new implementation.
-        manager.upgradeTo(address(newManager));
+        manager.upgradeToAndCall(address(newManager), abi.encodeWithSelector(VertexManager.updateProcessor.selector, address(newProcessor)));
 
         // Check upgrade by ensuring storage is not changed.
         require(address(manager.endpoint()) == endpoint, "Invalid upgrade");

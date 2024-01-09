@@ -17,7 +17,7 @@ import {VertexStorage} from "src/VertexStorage.sol";
 import {VertexManager} from "src/VertexManager.sol";
 import {VertexRouter} from "src/VertexRouter.sol";
 
-contract VertexProcessor is VertexStorage, Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard {
+contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard, VertexStorage {
     using SafeERC20 for IERC20Metadata;
 
     /*//////////////////////////////////////////////////////////////

@@ -24,7 +24,7 @@ contract TestVertexManagerUSDC is Test, ProcessQueue {
     string public networkRpcUrl = vm.envString("SEPOLIA_RPC_URL");
 
     function setUp() public {
-        vm.createSelectFork(networkRpcUrl, 5966663);
+        vm.createSelectFork(networkRpcUrl, 5974654);
 
         // Wrap in ABI to support easier calls.
         manager = VertexManager(0x052Ab3fd33cADF9D9f227254252da3f996431f75);
@@ -251,7 +251,6 @@ contract TestVertexManagerUSDC is Test, ProcessQueue {
             manager.getUserActiveAmount(2, address(USDC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
         uint256 initialPendingAmount =
             manager.getUserPendingAmount(2, address(USDC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
-        uint256 initialBalance = USDC.balanceOf(0x28CcdB531854d09D48733261688dc1679fb9A242);
 
         // Deposit to pool.
         uint256 amountUSDC = 100 * 10 ** USDC.decimals();
@@ -316,7 +315,7 @@ contract TestVertexManagerUSDC is Test, ProcessQueue {
 
         assertEq(
             USDC.balanceOf(0x28CcdB531854d09D48733261688dc1679fb9A242),
-            initialBalance + amountUSDC - manager.getTransactionFee(address(USDC))
+            amountUSDC - manager.getTransactionFee(address(USDC))
         );
 
         userPendingAmountUSDC =
@@ -415,13 +414,11 @@ contract TestVertexManagerUSDC is Test, ProcessQueue {
             manager.getUserActiveAmount(1, address(BTC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
         uint256 initialPendingAmountBTC =
             manager.getUserPendingAmount(1, address(BTC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
-        uint256 initialBalanceBTC = BTC.balanceOf(0x28CcdB531854d09D48733261688dc1679fb9A242);
 
         uint256 initialActiveAmountUSDC =
             manager.getUserActiveAmount(1, address(USDC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
         uint256 initialPendingAmountUSDC =
             manager.getUserPendingAmount(1, address(USDC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
-        uint256 initialBalanceUSDC = USDC.balanceOf(0x28CcdB531854d09D48733261688dc1679fb9A242);
 
         // Deposit to pool.
         uint256 amountBTC = 1 * 10 ** BTC.decimals();
@@ -448,11 +445,15 @@ contract TestVertexManagerUSDC is Test, ProcessQueue {
         // Get the router address
         (address router,,,) = manager.getPoolToken(1, address(USDC));
 
+        vm.stopPrank();
+
         vm.startPrank(address(uint160(bytes20(VertexRouter(router).externalSubaccount()))));
         processQueue(manager);
         vm.stopPrank();
 
         {
+            vm.startPrank(0x28CcdB531854d09D48733261688dc1679fb9A242);
+
             uint256 activeAmountBTC =
                 manager.getUserActiveAmount(1, address(BTC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
             uint256 activeAmountUSDC =
@@ -463,6 +464,8 @@ contract TestVertexManagerUSDC is Test, ProcessQueue {
 
             // Withdraw from pool.
             manager.withdrawSpot{value: fee}(1, address(BTC), address(USDC), amountBTC);
+
+            vm.stopPrank();
 
             vm.startPrank(address(uint160(bytes20(VertexRouter(router).externalSubaccount()))));
             processQueue(manager);
@@ -476,42 +479,35 @@ contract TestVertexManagerUSDC is Test, ProcessQueue {
             assertEq(activeAmountUSDC, initialActiveAmountUSDC);
         }
 
-        {
-            uint256 userPendingAmountBTC =
-                manager.getUserPendingAmount(1, address(BTC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
-            uint256 userPendingAmountUSDC =
-                manager.getUserPendingAmount(1, address(USDC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
+        vm.startPrank(0x28CcdB531854d09D48733261688dc1679fb9A242);
 
-            assertEq(
-                userPendingAmountBTC, initialPendingAmountBTC + amountBTC - manager.getTransactionFee(address(BTC))
-            );
-            assertEq(
-                userPendingAmountUSDC, initialPendingAmountUSDC + amountUSDC - manager.getTransactionFee(address(USDC))
-            );
+        uint256 userPendingAmountBTC =
+            manager.getUserPendingAmount(1, address(BTC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
+        uint256 userPendingAmountUSDC =
+            manager.getUserPendingAmount(1, address(USDC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
 
-            processSlowModeTxs(endpoint);
+        assertEq(userPendingAmountBTC, initialPendingAmountBTC + amountBTC - manager.getTransactionFee(address(BTC)));
+        assertEq(
+            userPendingAmountUSDC, initialPendingAmountUSDC + amountUSDC - manager.getTransactionFee(address(USDC))
+        );
 
-            // Claim amounts.
-            manager.claim(0x28CcdB531854d09D48733261688dc1679fb9A242, address(BTC), 1);
-            manager.claim(0x28CcdB531854d09D48733261688dc1679fb9A242, address(USDC), 1);
+        processSlowModeTxs(endpoint);
 
-            assertEq(
-                BTC.balanceOf(0x28CcdB531854d09D48733261688dc1679fb9A242),
-                initialBalanceBTC + amountBTC - manager.getTransactionFee(address(BTC))
-            );
-            assertEq(
-                USDC.balanceOf(0x28CcdB531854d09D48733261688dc1679fb9A242),
-                initialBalanceUSDC + amountUSDC - manager.getTransactionFee(address(USDC))
-            );
+        // Claim amounts.
+        manager.claim(0x28CcdB531854d09D48733261688dc1679fb9A242, address(BTC), 1);
+        manager.claim(0x28CcdB531854d09D48733261688dc1679fb9A242, address(USDC), 1);
 
-            userPendingAmountBTC =
-                manager.getUserPendingAmount(1, address(BTC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
-            userPendingAmountUSDC =
-                manager.getUserPendingAmount(1, address(USDC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
+        assertEq(
+            USDC.balanceOf(0x28CcdB531854d09D48733261688dc1679fb9A242),
+            amountUSDC - manager.getTransactionFee(address(USDC))
+        );
 
-            assertEq(userPendingAmountBTC, initialPendingAmountBTC);
-            assertEq(userPendingAmountUSDC, initialPendingAmountUSDC);
-        }
+        userPendingAmountBTC = manager.getUserPendingAmount(1, address(BTC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
+        userPendingAmountUSDC =
+            manager.getUserPendingAmount(1, address(USDC), 0x28CcdB531854d09D48733261688dc1679fb9A242);
+
+        assertEq(userPendingAmountBTC, initialPendingAmountBTC);
+        assertEq(userPendingAmountUSDC, initialPendingAmountUSDC);
     }
 
     // Exclude from coverage report

@@ -59,8 +59,11 @@ interface IEndpoint {
     /// @notice Returns the slow-mode configuration.
     function slowModeConfig() external view returns (SlowModeConfig memory);
 
-    /// @notice Executes a submitted slow-mode transaction.
+    // TODO: Temporary, remove after Vertex mainnet upgrade and update test util.
     function executeSlowModeTransactions(uint32 count) external;
+
+    /// @notice Executes a submitted slow-mode transaction.
+    function executeSlowModeTransaction() external;
 
     /// @notice Submits a slow-mode transaction to Vertex.
     function submitSlowModeTransaction(bytes calldata transaction) external;

@@ -376,8 +376,15 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Fetch the pool router.
         VertexRouter router = VertexRouter(pool.router);
 
-        // Get the token data.
-        Token storage tokenData = pool.tokens[token];
+        // Establish empty token data.
+        Token storage tokenData;
+
+        // If token is the Clearinghouse quote token, point to the old quote token data.
+        if (oldQuoteToken != address(0) && token == IClearinghouse(endpoint.clearinghouse()).getQuote()) {
+            tokenData = pool.tokens[oldQuoteToken];
+        } else {
+            tokenData = pool.tokens[token];
+        }
 
         // Fetch the user's pending balance. No danger if amount is 0.
         uint256 amount = tokenData.userPendingAmount[user];
@@ -704,12 +711,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         processor = _processor;
     }
 
-    // /// @notice Temporary function to update quoteToken.
-    // /// @param _quoteToken The new quote token.
-    // function updateQuoteToken(address _quoteToken) external onlyOwner {
-    //     oldQuoteToken = address(quoteToken);
-    //     quoteToken = IERC20Metadata(_quoteToken);
-    // }
+    /// @notice Update the quote token.
+    /// @param _quoteToken The new quote token.
+    function updateQuoteToken(address _quoteToken) external onlyOwner {
+        oldQuoteToken = address(quoteToken);
+        quoteToken = IERC20Metadata(_quoteToken);
+    }
 
     /*//////////////////////////////////////////////////////////////
                            INTERNAL FUNCTIONS

@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.18;
 
+import "forge-std/Test.sol";
+
+import {IEndpoint} from "src/interfaces/IEndpoint.sol";
 import {VertexManager, IVertexManager} from "src/VertexManager.sol";
 
-library ProcessQueue {
+contract ProcessQueue is Test {
     /// @notice Processes any transactions in the Elixir queue.
     function processQueue(VertexManager manager) internal {
         // Loop through the queue and process each transaction using the idTo provided.
@@ -49,6 +52,26 @@ library ProcessQueue {
                     )
                 );
             } else {}
+        }
+    }
+
+    // TODO: Temporary until Vertex mainnet migration. Switch to function below after.
+    function processSlowModeTxsOld(IEndpoint endpoint) internal {
+        // Clear any external slow-mode txs from the Vertex queue.
+        vm.warp(block.timestamp + 259200);
+        IEndpoint.SlowModeConfig memory queue = endpoint.slowModeConfig();
+        endpoint.executeSlowModeTransactions(uint32(queue.txCount - queue.txUpTo));
+    }
+
+    /// @notice Processes any transactions in the Vertex queue.
+    function processSlowModeTxs(IEndpoint endpoint) internal {
+        // Clear any external slow-mode txs from the Vertex queue.
+        vm.warp(block.timestamp + 259200);
+        IEndpoint.SlowModeConfig memory queue = endpoint.slowModeConfig();
+
+        // Loop over remaining queue.
+        for (uint256 i = queue.txUpTo; i < queue.txCount; i++) {
+            endpoint.executeSlowModeTransaction();
         }
     }
 }

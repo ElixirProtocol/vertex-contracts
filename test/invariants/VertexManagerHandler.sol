@@ -14,7 +14,7 @@ import {VertexManager, IVertexManager} from "src/VertexManager.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
-contract Handler is CommonBase, StdCheats, StdUtils {
+contract Handler is ProcessQueue {
     using LibAddressSet for AddressSet;
 
     /*//////////////////////////////////////////////////////////////
@@ -133,7 +133,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         vm.stopPrank();
 
         vm.startPrank(externalAccount);
-        ProcessQueue.processQueue(manager);
+        processQueue(manager);
         vm.stopPrank();
 
         ghost_deposits[address(BTC)] += amountBTC;
@@ -189,7 +189,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         vm.stopPrank();
 
         vm.startPrank(externalAccount);
-        ProcessQueue.processQueue(manager);
+        processQueue(manager);
         vm.stopPrank();
 
         ghost_withdraws[address(BTC)] += amountBTC;
@@ -296,7 +296,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         vm.stopPrank();
 
         vm.startPrank(externalAccount);
-        ProcessQueue.processQueue(manager);
+        processQueue(manager);
         vm.stopPrank();
 
         ghost_deposits[token] += amount;
@@ -314,7 +314,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         vm.stopPrank();
 
         vm.startPrank(externalAccount);
-        ProcessQueue.processQueue(manager);
+        processQueue(manager);
         vm.stopPrank();
 
         ghost_withdraws[token] += amount;

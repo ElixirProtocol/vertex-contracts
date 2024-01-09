@@ -10,7 +10,7 @@ import {VertexProcessor} from "src/VertexProcessor.sol";
 import {VertexRouter} from "src/VertexRouter.sol";
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 
-contract TestVertexManagerUpgrade is Test {
+contract TestVertexManagerUpgrade is Test, ProcessQueue {
     VertexManager internal manager;
 
     IERC20 BTC = IERC20(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
@@ -43,7 +43,9 @@ contract TestVertexManagerUpgrade is Test {
         VertexManager newManager = new VertexManager();
 
         // Upgrade proxy to new implementation.
-        manager.upgradeToAndCall(address(newManager), abi.encodeWithSelector(VertexManager.updateProcessor.selector, address(newProcessor)));
+        manager.upgradeToAndCall(
+            address(newManager), abi.encodeWithSelector(VertexManager.updateProcessor.selector, address(newProcessor))
+        );
 
         // Check upgrade by ensuring storage is not changed.
         require(address(manager.endpoint()) == endpoint, "Invalid upgrade");
@@ -80,7 +82,7 @@ contract TestVertexManagerUpgrade is Test {
         (address router,,,) = manager.getPoolToken(1, address(BTC));
 
         vm.startPrank(address(uint160(bytes20(VertexRouter(router).externalSubaccount()))));
-        ProcessQueue.processQueue(manager);
+        processQueue(manager);
         vm.stopPrank();
 
         uint256 userActiveAmountBTC = manager.getUserActiveAmount(1, address(BTC), address(this));

@@ -3,7 +3,7 @@ pragma solidity 0.8.18;
 
 import "forge-std/Script.sol";
 
-import {VertexManager, IVertexManager} from "../../src/VertexManager.sol";
+import {VertexManager, IVertexManager} from "src/VertexManager.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract AddPool is Script {

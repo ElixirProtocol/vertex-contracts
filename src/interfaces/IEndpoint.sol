@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.18;
 
-import {IClearinghouse} from "./IClearinghouse.sol";
+import {IClearinghouse} from "src/interfaces/IClearinghouse.sol";
 
 interface IEndpoint {
     enum TransactionType {

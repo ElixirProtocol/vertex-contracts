@@ -3,18 +3,19 @@ pragma solidity 0.8.18;
 
 import "forge-std/Test.sol";
 
-import {Utils} from "./utils/Utils.sol";
-import {MockTokenDecimals} from "./utils/MockTokenDecimals.sol";
+import {Utils} from "test/utils/Utils.sol";
+import {MockTokenDecimals} from "test/utils/MockTokenDecimals.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 import {Math} from "openzeppelin/utils/math/Math.sol";
 
-import {IClearinghouse} from "../src/interfaces/IClearinghouse.sol";
-import {IEndpoint} from "../src/interfaces/IEndpoint.sol";
+import {IClearinghouse} from "src/interfaces/IClearinghouse.sol";
+import {IEndpoint} from "src/interfaces/IEndpoint.sol";
 
-import {VertexManager, IVertexManager} from "../src/VertexManager.sol";
-import {VertexRouter} from "../src/VertexRouter.sol";
+import {VertexManager, IVertexManager} from "src/VertexManager.sol";
+import {VertexProcessor} from "src/VertexProcessor.sol";
+import {VertexRouter} from "src/VertexRouter.sol";
 
 contract TestVertexManager is Test {
     using Math for uint256;
@@ -29,8 +30,6 @@ contract TestVertexManager is Test {
     IClearinghouse public clearingHouse;
 
     // Elixir contracts
-    VertexManager public vertexManagerImplementation;
-    ERC1967Proxy public proxy;
     VertexManager public manager;
 
     // Tokens
@@ -104,13 +103,18 @@ contract TestVertexManager is Test {
 
         vm.startPrank(owner);
 
+        // Deploy Processor implementation
+        VertexProcessor processorImplementation = new VertexProcessor();
+
         // Deploy Manager implementation
-        vertexManagerImplementation = new VertexManager();
+        VertexManager managerImplementation = new VertexManager();
 
         // Deploy and initialize the proxy contract.
-        proxy = new ERC1967Proxy(
-            address(vertexManagerImplementation),
-            abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000)
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(managerImplementation),
+            abi.encodeWithSignature(
+                "initialize(address,address,uint256)", address(endpoint), address(processorImplementation), 1000000
+            )
         );
 
         // Wrap in ABI to support easier calls
@@ -1438,16 +1442,24 @@ contract TestVertexManager is Test {
 
     /// @notice Unit test for initializing the proxy.
     function testInitialize() public {
+        // Deploy Processor implementation
+        VertexProcessor processorImplementation = new VertexProcessor();
+
+        // Deploy Manager implementation
+        VertexManager managerImplementation = new VertexManager();
+
         // Deploy and initialize the proxy contract.
         new ERC1967Proxy(
-            address(vertexManagerImplementation),
-            abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000)
+            address(managerImplementation),
+            abi.encodeWithSignature(
+                "initialize(address,address,uint256)", address(endpoint), address(processorImplementation), 1000000
+            )
         );
     }
 
     /// @notice Unit test for failing to initialize the proxy twice.
     function testFailDoubleInitiliaze() public {
-        manager.initialize(address(0), 0);
+        manager.initialize(address(0), address(0), 0);
     }
 
     /// @notice Unit test for upgrading the proxy and running a spot single unit test.
@@ -1513,7 +1525,7 @@ contract TestVertexManager is Test {
 
         assertEq(spot.sender, address(this));
         assertEq(spotTxn.id, 2);
-        assertEq(spotTxn.tokenId, 1);
+        assertEq(spotTxn.token, address(BTC));
         assertEq(spotTxn.amount, amountBTC);
 
         // Withdraw 100 USDC paying fee in USDC.
@@ -1524,7 +1536,7 @@ contract TestVertexManager is Test {
 
         assertEq(spot.sender, address(this));
         assertEq(spotTxn.id, 2);
-        assertEq(spotTxn.tokenId, 1);
+        assertEq(spotTxn.token, address(BTC));
         assertEq(spotTxn.amount, amountBTC);
 
         vm.startPrank(externalAccount);
@@ -1537,7 +1549,7 @@ contract TestVertexManager is Test {
 
         assertEq(spot.sender, address(this));
         assertEq(spotTxn.id, 2);
-        assertEq(spotTxn.tokenId, 0);
+        assertEq(spotTxn.token, address(USDC));
         assertEq(spotTxn.amount, amountUSDC);
 
         manager.unqueue(

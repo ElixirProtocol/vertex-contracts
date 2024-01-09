@@ -45,8 +45,8 @@ interface IVertexManager {
     struct WithdrawPerp {
         // The ID of the pool.
         uint256 id;
-        // The Vertex product ID of the token.
-        uint32 tokenId;
+        // The token address.
+        address token;
         // The amount of token shares to withdraw.
         uint256 amount;
     }

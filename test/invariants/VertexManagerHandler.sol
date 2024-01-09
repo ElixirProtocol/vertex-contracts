@@ -5,9 +5,9 @@ import {CommonBase} from "forge-std/Base.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
 import {console} from "forge-std/console.sol";
-import {AddressSet, LibAddressSet} from "../utils/AddressSet.sol";
-import {MockToken} from "../utils/MockToken.sol";
-import {VertexManager, IVertexManager} from "../../src/VertexManager.sol";
+import {AddressSet, LibAddressSet} from "test/utils/AddressSet.sol";
+import {MockToken} from "test/utils/MockToken.sol";
+import {VertexManager, IVertexManager} from "src/VertexManager.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 

@@ -2,8 +2,8 @@
 pragma solidity 0.8.18;
 
 import "forge-std/Script.sol";
-import {DeployBase} from "./DeployBase.s.sol";
-import {VertexManager} from "../../src/VertexManager.sol";
+import {DeployBase} from "script/deploy/DeployBase.s.sol";
+import {VertexManager} from "src/VertexManager.sol";
 
 contract DeployMainnet is DeployBase {
     // Vertex Mainnet Endpoint

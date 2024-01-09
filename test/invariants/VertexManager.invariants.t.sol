@@ -10,7 +10,9 @@ import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 import {Math} from "openzeppelin/utils/math/Math.sol";
 
 import {IEndpoint} from "src/interfaces/IEndpoint.sol";
+
 import {VertexManager, IVertexManager} from "src/VertexManager.sol";
+import {VertexProcessor} from "src/VertexProcessor.sol";
 import {Handler} from "test/invariants/VertexManagerHandler.sol";
 
 contract TestInvariantsVertexManager is Test {
@@ -24,8 +26,6 @@ contract TestInvariantsVertexManager is Test {
     IEndpoint public endpoint = IEndpoint(0xbbEE07B3e8121227AfCFe1E2B82772246226128e);
 
     // Elixir contracts
-    VertexManager public vertexManagerImplementation;
-    ERC1967Proxy public proxy;
     VertexManager public manager;
 
     // Tokens
@@ -79,13 +79,18 @@ contract TestInvariantsVertexManager is Test {
         perpHardcaps[1] = type(uint256).max;
         perpHardcaps[2] = type(uint256).max;
 
+        // Deploy Processor implementation
+        VertexProcessor processorImplementation = new VertexProcessor();
+
         // Deploy Manager implementation
-        vertexManagerImplementation = new VertexManager();
+        VertexManager managerImplementation = new VertexManager();
 
         // Deploy and initialize the proxy contract.
-        proxy = new ERC1967Proxy(
-            address(vertexManagerImplementation),
-            abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000)
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(managerImplementation),
+            abi.encodeWithSignature(
+                "initialize(address,address,uint256)", address(endpoint), address(processorImplementation), 1000000
+            )
         );
 
         // Wrap in ABI to support easier calls

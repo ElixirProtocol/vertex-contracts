@@ -132,7 +132,6 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
 
     /// @notice Internal withdraw logic for both spot and perp pools.
     /// @param caller The user who is withdrawing.
-    /// @param id The id of the pool.
     /// @param pool The data of the pool to withdraw from.
     /// @param token The token to withdraw.
     /// @param amount The amount of token to substract from active balances.
@@ -140,7 +139,6 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     /// @param amountToReceive The amount of tokens the user receives.
     function _withdraw(
         address caller,
-        uint256 id,
         Pool storage pool,
         address token,
         uint256 amount,
@@ -244,7 +242,6 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
             // Execute the withdraw logic.
             _withdraw(
                 spot.sender,
-                spotTxn.id,
                 pools[spotTxn.id],
                 spotTxn.token,
                 spotTxn.amount,
@@ -259,7 +256,6 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
             // Execute the withdraw logic for token0.
             _withdraw(
                 spot.sender,
-                spotTxn.id,
                 pools[spotTxn.id],
                 spotTxn.token0,
                 spotTxn.amount0,
@@ -269,7 +265,6 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
             // Execute the withdraw logic for token1.
             _withdraw(
                 spot.sender,
-                spotTxn.id,
                 pools[spotTxn.id],
                 spotTxn.token1,
                 responseTxn.amount1,

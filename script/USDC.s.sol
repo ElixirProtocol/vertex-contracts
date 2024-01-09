@@ -15,7 +15,7 @@ contract USDC is Script {
 
     function run() external {
         // Start broadcast.
-        vm.startBroadcast();
+        vm.startBroadcast(vm.envUint("KEY"));
 
         // Wrap in ABI to support easier calls.
         manager = VertexManager(0x052Ab3fd33cADF9D9f227254252da3f996431f75);
@@ -54,16 +54,50 @@ contract USDC is Script {
                                     STEP 3
         //////////////////////////////////////////////////////////////*/
 
-        // Add USDC token for pool. Using BTC-PERP and BTC-SPOT as examples here.
-        // This is needed so that all of the routers approve this new token to transfer in and out.
+        // Add USDC token to all pools. This is needed so that all of the routers approve this new token to transfer in and out.
         address[] memory token = new address[](1);
         token[0] = address(USDC);
 
         uint256[] memory hardcap = new uint256[](1);
         hardcap[0] = 0;
 
-        manager.addPoolTokens(1, token, hardcap);
-        manager.addPoolTokens(2, token, hardcap);
+        // Count to check all pools.
+        uint256 count;
+
+        // 1-6
+        for (uint256 i = 1; i <= 6; i++) {
+            manager.addPoolTokens(i, token, hardcap);
+            count++;
+        }
+
+        // 8-30, 2 steps
+        for (uint256 i = 8; i <= 30; i += 2) {
+            manager.addPoolTokens(i, token, hardcap);
+            count++;
+        }
+
+        manager.addPoolTokens(31, token, hardcap);
+        count++;
+
+        // 34-40, 2 steps
+        for (uint256 i = 34; i <= 40; i += 2) {
+            manager.addPoolTokens(i, token, hardcap);
+            count++;
+        }
+
+        manager.addPoolTokens(44, token, hardcap);
+        count++;
+
+        manager.addPoolTokens(46, token, hardcap);
+        count++;
+
+        // 50-62, 2 steps
+        for (uint256 i = 50; i <= 62; i += 2) {
+            manager.addPoolTokens(i, token, hardcap);
+            count++;
+        }
+
+        require(count == 32, "Missing pools");
 
         /*//////////////////////////////////////////////////////////////
                                     STEP 4

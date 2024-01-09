@@ -641,7 +641,14 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             if (IERC20Metadata(token).decimals() > 18) revert InvalidToken(token);
 
             // Fetch the token data storage within the pool.
-            Token storage tokenData = pools[id].tokens[token];
+            Token storage tokenData;
+
+            // If token is the Clearinghouse quote token, point to the old quote token data.
+            if (oldQuoteToken != address(0) && token == IClearinghouse(endpoint.clearinghouse()).getQuote()) {
+                tokenData = pools[id].tokens[oldQuoteToken];
+            } else {
+                tokenData = pools[id].tokens[token];
+            }
 
             // Check if the token is already supported, and enable if not.
             if (!tokenData.isActive) {

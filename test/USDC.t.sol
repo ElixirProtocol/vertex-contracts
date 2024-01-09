@@ -510,6 +510,91 @@ contract TestVertexManagerUSDC is Test, ProcessQueue {
         assertEq(userPendingAmountUSDC, initialPendingAmountUSDC);
     }
 
+    // Check that pools can be added and used.
+    function testAddandUsePool() external {
+        vm.startPrank(manager.owner());
+
+        address[] memory token = new address[](1);
+        token[0] = address(USDC);
+
+        uint256[] memory hardcap = new uint256[](1);
+        hardcap[0] = type(uint256).max;
+
+        manager.addPool(999, token, hardcap, IVertexManager.PoolType.Perp, address(0xbeef));
+
+        vm.stopPrank();
+
+        // Get the USDC data.
+        (address routerUSDC, uint256 activeAmountUSDC, uint256 hardcapUSDC, bool activeUSDC) =
+            manager.getPoolToken(999, address(USDC));
+
+        // Get the USDC.e data.
+        (address routerUSDCE, uint256 activeAmountUSDCE, uint256 hardcapUSDCE, bool activeUSDCE) =
+            manager.getPoolToken(999, address(USDCE));
+
+        assertEq(routerUSDC, routerUSDCE);
+        assertEq(activeAmountUSDC, activeAmountUSDCE);
+        assertEq(hardcapUSDC, hardcapUSDCE);
+        assertEq(activeUSDC, activeUSDCE);
+
+        // Deposit to pool.
+        uint256 amountUSDC = 100 * 10 ** USDC.decimals();
+
+        deal(address(USDC), address(this), amountUSDC);
+
+        USDC.approve(address(manager), amountUSDC);
+
+        uint256 fee = manager.getTransactionFee(address(WETH));
+
+        manager.depositPerp{value: fee}(999, address(USDC), amountUSDC, address(this));
+
+        // Get the router address
+        (address router,,,) = manager.getPoolToken(999, address(USDC));
+
+        vm.startPrank(address(uint160(bytes20(VertexRouter(router).externalSubaccount()))));
+        processQueue(manager);
+        vm.stopPrank();
+
+        activeAmountUSDC = manager.getUserActiveAmount(999, address(USDC), address(this));
+        activeAmountUSDCE = manager.getUserActiveAmount(999, address(USDCE), address(this));
+
+        assertEq(activeAmountUSDC, amountUSDC);
+        assertEq(activeAmountUSDC, activeAmountUSDCE);
+
+        // Withdraw from pool.
+        manager.withdrawPerp{value: fee}(999, address(USDC), amountUSDC);
+
+        vm.startPrank(address(uint160(bytes20(VertexRouter(router).externalSubaccount()))));
+        processQueue(manager);
+        vm.stopPrank();
+
+        // USDC shares now should be 0 and the USDC pending amount should be the previous shares amount.
+        activeAmountUSDC = manager.getUserActiveAmount(999, address(USDC), address(this));
+        activeAmountUSDCE = manager.getUserActiveAmount(999, address(USDCE), address(this));
+
+        assertEq(activeAmountUSDC, 0);
+        assertEq(activeAmountUSDC, activeAmountUSDCE);
+
+        uint256 userPendingAmountUSDC = manager.getUserPendingAmount(999, address(USDC), address(this));
+        uint256 userPendingAmountUSDCE = manager.getUserPendingAmount(999, address(USDCE), address(this));
+
+        assertEq(userPendingAmountUSDC, amountUSDC - manager.getTransactionFee(address(USDC)));
+        assertEq(userPendingAmountUSDC, userPendingAmountUSDCE);
+
+        processSlowModeTxs(endpoint);
+
+        // Claim amounts.
+        manager.claim(address(this), address(USDC), 999);
+
+        assertEq(USDC.balanceOf(address(this)), amountUSDC - manager.getTransactionFee(address(USDC)));
+
+        userPendingAmountUSDC = manager.getUserPendingAmount(999, address(USDC), address(this));
+        userPendingAmountUSDCE = manager.getUserPendingAmount(999, address(USDCE), address(this));
+
+        assertEq(userPendingAmountUSDC, 0);
+        assertEq(userPendingAmountUSDC, userPendingAmountUSDCE);
+    }
+
     // Exclude from coverage report
     function test() public {}
 }

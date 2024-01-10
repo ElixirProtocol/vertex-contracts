@@ -386,26 +386,26 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             tokenData = pool.tokens[token];
         }
 
-        // Fetch the user's pending balance. No danger if amount is 0.
-        uint256 amount = tokenData.userPendingAmount[user];
-
-        // Fetch Elixir's pending fee balance.
+        // Get Elixir's pending fee balance.
         uint256 fee = tokenData.fees[user];
 
+        // Calculate the user's claim amount.
+        uint256 claim = Math.min(tokenData.userPendingAmount[user], IERC20Metadata(token).balanceOf(address(router)));
+
         // Resets the pending balance of the user.
-        tokenData.userPendingAmount[user] = 0;
+        tokenData.userPendingAmount[user] -= claim;
 
         // Resets the Elixir pending fee balance.
-        tokenData.fees[user] = 0;
+        tokenData.fees[user] -= fee;
 
         // Fetch the tokens from the router.
-        router.claimToken(token, amount + fee);
+        router.claimToken(token, claim);
 
         // Transfers the tokens after to prevent reentrancy.
         IERC20Metadata(token).safeTransfer(owner(), fee);
-        IERC20Metadata(token).safeTransfer(user, amount);
+        IERC20Metadata(token).safeTransfer(user, claim - fee);
 
-        emit Claim(user, token, amount);
+        emit Claim(user, token, claim - fee);
     }
 
     /*//////////////////////////////////////////////////////////////

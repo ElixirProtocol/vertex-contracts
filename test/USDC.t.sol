@@ -595,6 +595,52 @@ contract TestVertexManagerUSDC is Test, ProcessQueue {
         assertEq(userPendingAmountUSDC, userPendingAmountUSDCE);
     }
 
+    // Check that the user can claim when the amounts are partitioned.
+    function testClaimDivided() external {
+        // Deposit to pool.
+        uint256 amountUSDC = 10000 * 10 ** USDC.decimals();
+
+        deal(address(USDC), address(this), amountUSDC);
+
+        USDC.approve(address(manager), amountUSDC);
+
+        uint256 fee = manager.getTransactionFee(address(WETH));
+
+        manager.depositPerp{value: fee}(2, address(USDC), amountUSDC, address(this));
+
+        // Get the router address
+        (address router,,,) = manager.getPoolToken(2, address(USDC));
+
+        vm.startPrank(address(uint160(bytes20(VertexRouter(router).externalSubaccount()))));
+        processQueue(manager);
+        vm.stopPrank();
+
+        // Withdraw from pool.
+        manager.withdrawPerp{value: fee}(2, address(USDC), amountUSDC);
+
+        vm.startPrank(address(uint160(bytes20(VertexRouter(router).externalSubaccount()))));
+        processQueue(manager);
+        vm.stopPrank();
+
+        processSlowModeTxs(endpoint);
+
+        // Simulate partitional scenario.
+        vm.startPrank(router);
+        USDC.transfer(address(0xbeef), 5000 * 10 ** USDC.decimals());
+        vm.stopPrank();
+
+        deal(address(USDCE), router, 5000 * 10 ** USDCE.decimals());
+
+        // Claim in separate.
+        manager.claim(address(this), address(USDC), 2);
+        manager.claim(address(this), address(USDCE), 2);
+
+        assertEq(
+            USDC.balanceOf(address(this)) + USDCE.balanceOf(address(this)),
+            amountUSDC - manager.getTransactionFee(address(USDC))
+        );
+    }
+
     // Exclude from coverage report
     function test() public {}
 }

@@ -17,6 +17,10 @@ import {VertexStorage} from "src/VertexStorage.sol";
 import {VertexManager} from "src/VertexManager.sol";
 import {VertexRouter} from "src/VertexRouter.sol";
 
+/// @title Elixir pool processor for Vertex
+/// @author The Elixir Team
+/// @custom:security-contact security@elixir.finance
+/// @notice Back-end contract to process queue deposits and withdrawals. This contract is delegatecalled from VertexManager.
 contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard, VertexStorage {
     using SafeERC20 for IERC20Metadata;
 

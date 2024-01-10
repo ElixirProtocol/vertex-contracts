@@ -6,6 +6,10 @@ import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata
 import {IEndpoint} from "src/interfaces/IEndpoint.sol";
 import {IVertexManager} from "src/interfaces/IVertexManager.sol";
 
+/// @title Elixir storage for Vertex
+/// @author The Elixir Team
+/// @custom:security-contact security@elixir.finance
+/// @notice Back-end contract with storage variables.
 abstract contract VertexStorage is IVertexManager {
     /// @notice The pools managed given an ID.
     mapping(uint256 id => Pool pool) public pools;

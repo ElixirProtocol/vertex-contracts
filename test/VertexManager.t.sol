@@ -1162,8 +1162,6 @@ contract TestVertexManager is Test, ProcessQueue {
         manager.unqueue(1, abi.encode(IVertexManager.WithdrawPerpResponse({amountToReceive: amountBTC})));
     }
 
-    // TODO: Test to skip spot in queue.
-
     /*//////////////////////////////////////////////////////////////
                             POOL MANAGE TESTS
     //////////////////////////////////////////////////////////////*/
@@ -1606,13 +1604,16 @@ contract TestVertexManager is Test, ProcessQueue {
         vm.startPrank(externalAccount);
         processQueue(manager);
         vm.stopPrank();
-        manager.withdrawSpot{value: fee}(1, spotTokens[0], spotTokens[1], amountBTC);
 
+        manager.withdrawSpot{value: fee}(1, spotTokens[0], spotTokens[1], amountBTC);
         manager.depositPerp{value: fee}(2, address(USDC), amountUSDC, address(this));
+
         vm.startPrank(externalAccount);
         processQueue(manager);
         vm.stopPrank();
+
         manager.withdrawPerp{value: fee}(2, address(USDC), amountUSDC);
+
         vm.startPrank(externalAccount);
         processQueue(manager);
         vm.stopPrank();
@@ -1634,7 +1635,6 @@ contract TestVertexManager is Test, ProcessQueue {
         assertEq(BTC.balanceOf(router1) + BTC.balanceOf(router2), amountBTC);
         assertEq(USDC.balanceOf(router1) + USDC.balanceOf(router2), amountUSDC * 2);
 
-        // used to fail because the pending balance is greater than than the USDC balance of the router1 as the pending balances are grouped by token, not by router or product.
         manager.claim(address(this), spotTokens[0], 1);
         manager.claim(address(this), spotTokens[1], 1);
 

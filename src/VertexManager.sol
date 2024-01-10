@@ -112,10 +112,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param token The address of the token.
     error InvalidToken(address token);
 
-    /// @notice Emitted when the new fee is above 100 USDC.
-    /// @param newFee The new fee.
-    error FeeTooHigh(uint256 newFee);
-
     /// @notice Emitted when the amount given to withdraw is less than the fee to pay.
     /// @param amount The amount given to withdraw.
     /// @param fee The fee to pay.
@@ -126,9 +122,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Emitted when the caller is not the external account of the pool's router.
     error NotExternalAccount(address router, address externalAccount, address caller);
-
-    /// @notice Emitted when the caller is not the smart contract itself.
-    error NotSelf();
 
     /// @notice Emitted when the msg.value of the call is too low for the fee.
     /// @param value The msg.value.
@@ -390,10 +383,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         uint256 fee = tokenData.fees[user];
 
         // Calculate the user's claim amount.
-        uint256 claim = Math.min(tokenData.userPendingAmount[user], IERC20Metadata(token).balanceOf(address(router)));
+        uint256 claim =
+            Math.min(tokenData.userPendingAmount[user] + fee, IERC20Metadata(token).balanceOf(address(router)));
 
         // Resets the pending balance of the user.
-        tokenData.userPendingAmount[user] -= claim;
+        tokenData.userPendingAmount[user] -= claim - fee;
 
         // Resets the Elixir pending fee balance.
         tokenData.fees[user] -= fee;

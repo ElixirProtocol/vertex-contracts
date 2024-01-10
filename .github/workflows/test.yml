@@ -3,6 +3,7 @@ on: push
 env:
   FOUNDRY_PROFILE: ci
   ARBITRUM_RPC_URL: ${{ secrets.RPC }}
+  SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
 
 jobs:
   tests:

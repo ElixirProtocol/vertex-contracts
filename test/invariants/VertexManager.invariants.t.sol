@@ -30,7 +30,7 @@ contract TestInvariantsVertexManager is Test {
 
     // Tokens
     IERC20Metadata public BTC = IERC20Metadata(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
-    IERC20Metadata public USDC = IERC20Metadata(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
+    IERC20Metadata public USDC = IERC20Metadata(0xaf88d065e77c8cC2239327C5EDb3A432268e5831);
     IERC20Metadata public WETH = IERC20Metadata(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     uint256 public BTC_TOTAL;
@@ -55,7 +55,7 @@ contract TestInvariantsVertexManager is Test {
     //////////////////////////////////////////////////////////////*/
 
     function setUp() public {
-        uint256 networkFork = vm.createFork(vm.envString("ARBITRUM_RPC_URL"), 156934647);
+        uint256 networkFork = vm.createFork(vm.envString("ARBITRUM_RPC_URL"), 169452334);
 
         vm.selectFork(networkFork);
 

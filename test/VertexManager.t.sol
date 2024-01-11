@@ -35,7 +35,7 @@ contract TestVertexManager is Test, ProcessQueue {
 
     // Tokens
     IERC20Metadata public BTC = IERC20Metadata(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
-    IERC20Metadata public USDC = IERC20Metadata(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
+    IERC20Metadata public USDC = IERC20Metadata(0xaf88d065e77c8cC2239327C5EDb3A432268e5831);
     IERC20Metadata public WETH = IERC20Metadata(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     /*//////////////////////////////////////////////////////////////
@@ -94,7 +94,7 @@ contract TestVertexManager is Test, ProcessQueue {
         externalAccount = users[3];
         vm.label(externalAccount, "External Account");
 
-        networkFork = vm.createFork(networkRpcUrl, 156934647);
+        networkFork = vm.createFork(networkRpcUrl, 169452334);
 
         vm.selectFork(networkFork);
 

@@ -373,7 +373,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         Token storage tokenData;
 
         // If token is the Clearinghouse quote token, point to the old quote token data.
-        if (oldQuoteToken != address(0) && token == IClearinghouse(endpoint.clearinghouse()).getQuote()) {
+        if (oldQuoteToken != address(0) && token == address(quoteToken)) {
             tokenData = pool.tokens[oldQuoteToken];
         } else {
             tokenData = pool.tokens[token];
@@ -423,7 +423,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         Token storage tokenData;
 
         // If token is the Clearinghouse quote token, point to the old quote token data.
-        if (oldQuoteToken != address(0) && token == IClearinghouse(endpoint.clearinghouse()).getQuote()) {
+        if (oldQuoteToken != address(0) && token == address(quoteToken)) {
             tokenData = pool.tokens[oldQuoteToken];
         } else {
             tokenData = pool.tokens[token];
@@ -448,7 +448,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param user The user to fetch the active amounts of.
     function getUserActiveAmount(uint256 id, address token, address user) external view returns (uint256) {
         // If token is the Clearinghouse quote token, point to the old quote token.
-        if (oldQuoteToken != address(0) && token == IClearinghouse(endpoint.clearinghouse()).getQuote()) {
+        if (oldQuoteToken != address(0) && token == address(quoteToken)) {
             token = oldQuoteToken;
         }
 
@@ -461,7 +461,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param user The user to fetch the pending amount of.
     function getUserPendingAmount(uint256 id, address token, address user) external view returns (uint256) {
         // If token is the Clearinghouse quote token, point to the old quote token.
-        if (oldQuoteToken != address(0) && token == IClearinghouse(endpoint.clearinghouse()).getQuote()) {
+        if (oldQuoteToken != address(0) && token == address(quoteToken)) {
             token = oldQuoteToken;
         }
 
@@ -474,7 +474,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param user The user to fetch the fee for.
     function getUserFee(uint256 id, address token, address user) external view returns (uint256) {
         // If token is the Clearinghouse quote token, point to the old quote token.
-        if (oldQuoteToken != address(0) && token == IClearinghouse(endpoint.clearinghouse()).getQuote()) {
+        if (oldQuoteToken != address(0) && token == address(quoteToken)) {
             token = oldQuoteToken;
         }
 
@@ -638,7 +638,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             Token storage tokenData;
 
             // If token is the Clearinghouse quote token, point to the old quote token data.
-            if (oldQuoteToken != address(0) && token == IClearinghouse(endpoint.clearinghouse()).getQuote()) {
+            if (oldQuoteToken != address(0) && token == address(quoteToken)) {
                 tokenData = pools[id].tokens[oldQuoteToken];
             } else {
                 tokenData = pools[id].tokens[token];
@@ -678,7 +678,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             address token = tokens[i];
 
             // If token is the Clearinghouse quote token, point to the old quote token.
-            if (oldQuoteToken != address(0) && token == IClearinghouse(endpoint.clearinghouse()).getQuote()) {
+            if (oldQuoteToken != address(0) && token == address(quoteToken)) {
                 token = oldQuoteToken;
             }
 

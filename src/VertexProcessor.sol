@@ -102,7 +102,7 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         Token storage tokenData;
 
         // If token is the Clearinghouse quote token, point to the old quote token data.
-        if (oldQuoteToken != address(0) && token == IClearinghouse(endpoint.clearinghouse()).getQuote()) {
+        if (oldQuoteToken != address(0) && token == address(quoteToken)) {
             tokenData = pool.tokens[oldQuoteToken];
         } else {
             tokenData = pool.tokens[token];
@@ -153,7 +153,7 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         Token storage tokenData;
 
         // If token is the Clearinghouse quote token, point to the old quote token data.
-        if (oldQuoteToken != address(0) && token == IClearinghouse(endpoint.clearinghouse()).getQuote()) {
+        if (oldQuoteToken != address(0) && token == address(quoteToken)) {
             tokenData = pool.tokens[oldQuoteToken];
         } else {
             tokenData = pool.tokens[token];

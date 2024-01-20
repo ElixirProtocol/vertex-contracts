@@ -3,7 +3,7 @@ pragma solidity 0.8.18;
 
 import "forge-std/Script.sol";
 
-import {IEndpoint, VertexManager, IVertexManager} from "../../src/VertexManager.sol";
+import {IEndpoint, VertexManager, IVertexManager} from "src/VertexManager.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 

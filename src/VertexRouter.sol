@@ -4,7 +4,7 @@ pragma solidity 0.8.18;
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "openzeppelin/token/ERC20/utils/SafeERC20.sol";
 
-import {IEndpoint} from "./interfaces/IEndpoint.sol";
+import {IEndpoint} from "src/interfaces/IEndpoint.sol";
 
 /// @title Elixir pool router for Vertex
 /// @author The Elixir Team

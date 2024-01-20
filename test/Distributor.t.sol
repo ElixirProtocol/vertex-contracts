@@ -5,9 +5,9 @@ import "forge-std/Test.sol";
 
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 
-import {Distributor} from "../src/Distributor.sol";
+import {Distributor} from "src/Distributor.sol";
 
-import {MockToken} from "./utils/MockToken.sol";
+import {MockToken} from "test/utils/MockToken.sol";
 
 contract TestDistributor is Test {
     /*//////////////////////////////////////////////////////////////

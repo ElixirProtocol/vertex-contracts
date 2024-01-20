@@ -11,7 +11,7 @@ contract UpgradeContract is Script {
 
     function run() external {
         // Start broadcast.
-        vm.startBroadcast();
+        vm.startBroadcast(vm.envUint("KEY"));
 
         // Wrap in ABI to support easier calls.
         manager = VertexManager(0x052Ab3fd33cADF9D9f227254252da3f996431f75);

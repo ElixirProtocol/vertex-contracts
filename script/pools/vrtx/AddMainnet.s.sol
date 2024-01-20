@@ -2,7 +2,7 @@
 pragma solidity 0.8.18;
 
 import "forge-std/Script.sol";
-import {AddPool} from "../AddBase.s.sol";
+import {AddPool} from "script/pools/AddBase.s.sol";
 
 contract AddVertex is AddPool {
     constructor()

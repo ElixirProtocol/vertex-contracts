@@ -3,15 +3,17 @@ pragma solidity 0.8.18;
 
 import "forge-std/Test.sol";
 
-import {MockToken} from "../utils/MockToken.sol";
+import {MockToken} from "test/utils/MockToken.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 import {Math} from "openzeppelin/utils/math/Math.sol";
 
-import {IEndpoint} from "../../src/interfaces/IEndpoint.sol";
-import {VertexManager, IVertexManager} from "../../src/VertexManager.sol";
-import {Handler} from "./VertexManagerHandler.sol";
+import {IEndpoint} from "src/interfaces/IEndpoint.sol";
+
+import {VertexManager, IVertexManager} from "src/VertexManager.sol";
+import {VertexProcessor} from "src/VertexProcessor.sol";
+import {Handler} from "test/invariants/VertexManagerHandler.sol";
 
 contract TestInvariantsVertexManager is Test {
     using Math for uint256;
@@ -24,13 +26,11 @@ contract TestInvariantsVertexManager is Test {
     IEndpoint public endpoint = IEndpoint(0xbbEE07B3e8121227AfCFe1E2B82772246226128e);
 
     // Elixir contracts
-    VertexManager public vertexManagerImplementation;
-    ERC1967Proxy public proxy;
     VertexManager public manager;
 
     // Tokens
     IERC20Metadata public BTC = IERC20Metadata(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
-    IERC20Metadata public USDC = IERC20Metadata(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
+    IERC20Metadata public USDC = IERC20Metadata(0xaf88d065e77c8cC2239327C5EDb3A432268e5831);
     IERC20Metadata public WETH = IERC20Metadata(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     uint256 public BTC_TOTAL;
@@ -55,7 +55,7 @@ contract TestInvariantsVertexManager is Test {
     //////////////////////////////////////////////////////////////*/
 
     function setUp() public {
-        uint256 networkFork = vm.createFork(vm.envString("ARBITRUM_RPC_URL"), 156934647);
+        uint256 networkFork = vm.createFork(vm.envString("ARBITRUM_RPC_URL"), 169452334);
 
         vm.selectFork(networkFork);
 
@@ -79,13 +79,18 @@ contract TestInvariantsVertexManager is Test {
         perpHardcaps[1] = type(uint256).max;
         perpHardcaps[2] = type(uint256).max;
 
+        // Deploy Processor implementation
+        VertexProcessor processorImplementation = new VertexProcessor();
+
         // Deploy Manager implementation
-        vertexManagerImplementation = new VertexManager();
+        VertexManager managerImplementation = new VertexManager();
 
         // Deploy and initialize the proxy contract.
-        proxy = new ERC1967Proxy(
-            address(vertexManagerImplementation),
-            abi.encodeWithSignature("initialize(address,uint256)", address(endpoint), 1000000)
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(managerImplementation),
+            abi.encodeWithSignature(
+                "initialize(address,address,uint256)", address(endpoint), address(processorImplementation), 1000000
+            )
         );
 
         // Wrap in ABI to support easier calls

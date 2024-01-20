@@ -5,13 +5,16 @@ import {CommonBase} from "forge-std/Base.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
 import {console} from "forge-std/console.sol";
-import {AddressSet, LibAddressSet} from "../utils/AddressSet.sol";
-import {MockToken} from "../utils/MockToken.sol";
-import {VertexManager, IVertexManager} from "../../src/VertexManager.sol";
+
+import {ProcessQueue} from "test/utils/ProcessQueue.sol";
+import {AddressSet, LibAddressSet} from "test/utils/AddressSet.sol";
+import {MockToken} from "test/utils/MockToken.sol";
+
+import {VertexManager, IVertexManager} from "src/VertexManager.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
-contract Handler is CommonBase, StdCheats, StdUtils {
+contract Handler is ProcessQueue {
     using LibAddressSet for AddressSet;
 
     /*//////////////////////////////////////////////////////////////
@@ -129,7 +132,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         vm.stopPrank();
 
-        process();
+        vm.startPrank(externalAccount);
+        processQueue(manager);
+        vm.stopPrank();
 
         ghost_deposits[address(BTC)] += amountBTC;
         ghost_deposits[address(USDC)] += amountUSDC;
@@ -183,7 +188,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         vm.stopPrank();
 
-        process();
+        vm.startPrank(externalAccount);
+        processQueue(manager);
+        vm.stopPrank();
 
         ghost_withdraws[address(BTC)] += amountBTC;
         ghost_withdraws[address(USDC)] += amountUSDC;
@@ -288,7 +295,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         vm.stopPrank();
 
-        process();
+        vm.startPrank(externalAccount);
+        processQueue(manager);
+        vm.stopPrank();
 
         ghost_deposits[token] += amount;
     }
@@ -304,60 +313,11 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         vm.stopPrank();
 
-        process();
+        vm.startPrank(externalAccount);
+        processQueue(manager);
+        vm.stopPrank();
 
         ghost_withdraws[token] += amount;
-    }
-
-    function process() public {
-        vm.startPrank(externalAccount);
-
-        // Loop through the queue and process each transaction using the idTo provided.
-        for (uint128 i = manager.queueUpTo() + 1; i < manager.queueCount() + 1; i++) {
-            VertexManager.Spot memory spot = manager.nextSpot();
-
-            if (spot.spotType == IVertexManager.SpotType.DepositSpot) {
-                IVertexManager.DepositSpot memory spotTxn = abi.decode(spot.transaction, (IVertexManager.DepositSpot));
-
-                uint256 amount1 = manager.getBalancedAmount(spotTxn.token0, spotTxn.token1, spotTxn.amount0);
-
-                manager.unqueue(
-                    i,
-                    abi.encode(
-                        IVertexManager.DepositSpotResponse({
-                            amount1: amount1,
-                            token0Shares: spotTxn.amount0,
-                            token1Shares: amount1
-                        })
-                    )
-                );
-            } else if (spot.spotType == IVertexManager.SpotType.DepositPerp) {
-                IVertexManager.DepositPerp memory spotTxn = abi.decode(spot.transaction, (IVertexManager.DepositPerp));
-
-                manager.unqueue(i, abi.encode(IVertexManager.DepositPerpResponse({shares: spotTxn.amount})));
-            } else if (spot.spotType == IVertexManager.SpotType.WithdrawPerp) {
-                IVertexManager.WithdrawPerp memory spotTxn = abi.decode(spot.transaction, (IVertexManager.WithdrawPerp));
-
-                manager.unqueue(i, abi.encode(IVertexManager.WithdrawPerpResponse({amountToReceive: spotTxn.amount})));
-            } else if (spot.spotType == IVertexManager.SpotType.WithdrawSpot) {
-                IVertexManager.WithdrawSpot memory spotTxn = abi.decode(spot.transaction, (IVertexManager.WithdrawSpot));
-
-                uint256 amount1 = manager.getBalancedAmount(spotTxn.token0, spotTxn.token1, spotTxn.amount0);
-
-                manager.unqueue(
-                    i,
-                    abi.encode(
-                        IVertexManager.WithdrawSpotResponse({
-                            amount1: amount1,
-                            amount0ToReceive: spotTxn.amount0,
-                            amount1ToReceive: amount1
-                        })
-                    )
-                );
-            } else {}
-        }
-
-        vm.stopPrank();
     }
 
     // Exclude from coverage report

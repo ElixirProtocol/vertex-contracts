@@ -55,14 +55,6 @@ contract ProcessQueue is Test {
         }
     }
 
-    // TODO: Temporary until Vertex mainnet migration. Switch to function below after.
-    function processSlowModeTxsOld(IEndpoint endpoint) internal {
-        // Clear any external slow-mode txs from the Vertex queue.
-        vm.warp(block.timestamp + 259200);
-        IEndpoint.SlowModeConfig memory queue = endpoint.slowModeConfig();
-        endpoint.executeSlowModeTransactions(uint32(queue.txCount - queue.txUpTo));
-    }
-
     /// @notice Processes any transactions in the Vertex queue.
     function processSlowModeTxs(IEndpoint endpoint) internal {
         // Clear any external slow-mode txs from the Vertex queue.

@@ -94,7 +94,7 @@ contract TestVertexManager is Test, ProcessQueue {
         externalAccount = users[3];
         vm.label(externalAccount, "External Account");
 
-        networkFork = vm.createFork(networkRpcUrl, 169452334);
+        networkFork = vm.createFork(networkRpcUrl, 176065658);
 
         vm.selectFork(networkFork);
 
@@ -125,7 +125,7 @@ contract TestVertexManager is Test, ProcessQueue {
         paymentToken.approve(address(manager), type(uint256).max);
 
         // Deal payment token to the owner, which pays for the slow mode transactions of the pools.
-        deal(address(paymentToken), owner, type(uint256).max);
+        deal(address(paymentToken), owner, type(uint256).max / 2);
 
         // Create spot pool with BTC and USDC as tokens.
         spotTokens = new address[](2);
@@ -161,7 +161,7 @@ contract TestVertexManager is Test, ProcessQueue {
         vm.stopPrank();
 
         // Clear any external slow-mode txs from the Vertex queue.
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         // Store the Elixir fee for later use.
         fee = manager.slowModeFee().mulDiv(
@@ -214,7 +214,7 @@ contract TestVertexManager is Test, ProcessQueue {
         assertEq(sumPendingBalance(address(USDC), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         manager.withdrawSpot{value: fee}(1, spotTokens[0], spotTokens[1], amountBTC);
         vm.startPrank(externalAccount);
@@ -237,7 +237,7 @@ contract TestVertexManager is Test, ProcessQueue {
         assertEq(sumPendingBalance(address(USDC), address(this)), amountUSDC - manager.getTransactionFee(address(USDC)));
 
         // Advance time for withdraw slow-mode tx.
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
         deal(address(USDC), address(router), amountUSDC);
 
         // Claim tokens for user and owner.
@@ -272,7 +272,7 @@ contract TestVertexManager is Test, ProcessQueue {
         processQueue(manager);
         vm.stopPrank();
 
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         (address router, uint256 activeAmountBTC,,) = manager.getPoolToken(1, address(BTC));
         (, uint256 activeAmountUSDC,,) = manager.getPoolToken(1, address(USDC));
@@ -296,7 +296,7 @@ contract TestVertexManager is Test, ProcessQueue {
         processQueue(manager);
         vm.stopPrank();
 
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         (, activeAmountBTC,,) = manager.getPoolToken(1, address(BTC));
         (, activeAmountUSDC,,) = manager.getPoolToken(1, address(USDC));
@@ -318,7 +318,7 @@ contract TestVertexManager is Test, ProcessQueue {
         processQueue(manager);
         vm.stopPrank();
 
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         (, activeAmountBTC,,) = manager.getPoolToken(1, address(BTC));
         (, activeAmountUSDC,,) = manager.getPoolToken(1, address(USDC));
@@ -340,7 +340,7 @@ contract TestVertexManager is Test, ProcessQueue {
         processQueue(manager);
         vm.stopPrank();
 
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         (, activeAmountBTC,,) = manager.getPoolToken(1, address(BTC));
         (, activeAmountUSDC,,) = manager.getPoolToken(1, address(USDC));
@@ -362,7 +362,7 @@ contract TestVertexManager is Test, ProcessQueue {
         );
 
         // Advance time for withdraw slow-mode tx.
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
         deal(address(USDC), address(router), amountUSDC * 2);
 
         // Claim tokens for user and owner.
@@ -396,7 +396,7 @@ contract TestVertexManager is Test, ProcessQueue {
         processQueue(manager);
         vm.stopPrank();
 
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         (address router, uint256 activeAmountBTC,,) = manager.getPoolToken(1, address(BTC));
         (, uint256 activeAmountUSDC,,) = manager.getPoolToken(1, address(USDC));
@@ -432,7 +432,7 @@ contract TestVertexManager is Test, ProcessQueue {
         processQueue(manager);
         vm.stopPrank();
 
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         (, activeAmountBTC,,) = manager.getPoolToken(1, address(BTC));
         (, activeAmountUSDC,,) = manager.getPoolToken(1, address(USDC));
@@ -461,7 +461,7 @@ contract TestVertexManager is Test, ProcessQueue {
         assertEq(sumPendingBalance(address(USDC), address(this)), 0);
 
         // Advance time for withdraw slow-mode tx.
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
         deal(address(USDC), address(router), amountUSDC);
 
         // Claim tokens for user and owner.
@@ -521,7 +521,7 @@ contract TestVertexManager is Test, ProcessQueue {
         assertEq(sumPendingBalance(address(WETH), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         manager.withdrawPerp{value: fee}(2, perpTokens[0], amountBTC);
         manager.withdrawPerp{value: fee}(2, perpTokens[1], amountUSDC);
@@ -555,7 +555,7 @@ contract TestVertexManager is Test, ProcessQueue {
         assertLe(sumPendingBalance(address(WETH), address(this)), amountWETH - manager.getTransactionFee(address(WETH)));
 
         // Advance time for withdraw slow-mode tx.
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
         deal(address(BTC), router, amountBTC);
         deal(address(USDC), router, amountUSDC);
         deal(address(WETH), router, amountWETH);
@@ -618,7 +618,7 @@ contract TestVertexManager is Test, ProcessQueue {
         assertEq(sumPendingBalance(address(WETH), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         manager.depositPerp{value: fee}(2, perpTokens[0], amountBTC, address(this));
         manager.depositPerp{value: fee}(2, perpTokens[1], amountUSDC, address(this));
@@ -649,7 +649,7 @@ contract TestVertexManager is Test, ProcessQueue {
         assertEq(sumPendingBalance(address(WETH), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         manager.withdrawPerp{value: fee}(2, perpTokens[0], amountBTC);
         manager.withdrawPerp{value: fee}(2, perpTokens[1], amountUSDC);
@@ -714,7 +714,7 @@ contract TestVertexManager is Test, ProcessQueue {
         );
 
         // Advance time for withdraw slow-mode tx.
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
         deal(address(BTC), router, 2 * amountBTC);
         deal(address(USDC), router, 2 * amountUSDC);
         deal(address(WETH), router, 2 * amountWETH);
@@ -797,7 +797,7 @@ contract TestVertexManager is Test, ProcessQueue {
         assertEq(sumPendingBalance(address(WETH), address(this)), 0);
 
         // Advance time for deposit slow-mode tx.
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         vm.deal(address(0x69), fee * 3);
 
@@ -849,7 +849,7 @@ contract TestVertexManager is Test, ProcessQueue {
         assertEq(sumPendingBalance(address(WETH), address(this)), 0);
 
         // Advance time for withdraw slow-mode tx.
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
         deal(address(BTC), router, amounts[0]);
         deal(address(USDC), router, amounts[1]);
         deal(address(WETH), router, amounts[2]);
@@ -1114,7 +1114,7 @@ contract TestVertexManager is Test, ProcessQueue {
         processQueue(manager);
         vm.stopPrank();
 
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         manager.withdrawSpot{value: fee}(1, spotTokens[0], spotTokens[1], amounts[0]);
 
@@ -1122,7 +1122,7 @@ contract TestVertexManager is Test, ProcessQueue {
         processQueue(manager);
         vm.stopPrank();
 
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         // Claim tokens for user and owner.
         manager.claim(address(this), spotTokens[0], 1);
@@ -1618,7 +1618,7 @@ contract TestVertexManager is Test, ProcessQueue {
         processQueue(manager);
         vm.stopPrank();
 
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         assertEq(
             sumPendingBalance(address(USDC), address(this)),
@@ -1676,7 +1676,7 @@ contract TestVertexManager is Test, ProcessQueue {
         assertGe(manager.getUserFee(2, address(BTC), address(this)), 0);
         assertGe(manager.getUserFee(2, address(USDC), address(this)), 0);
 
-        processSlowModeTxsOld(endpoint);
+        processSlowModeTxs(endpoint);
 
         uint256 beforeClaimUSDC = USDC.balanceOf(owner);
         uint256 beforeClaimBTC = BTC.balanceOf(owner);

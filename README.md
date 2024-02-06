@@ -50,6 +50,20 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <th>Router ADA-PERP (ID 58)</th>
 <th>Router IMX-PERP (ID 60)</th>
 <th>Router MEME-PERP (ID 62)</th>
+<th>Router SEI-PERP (ID 64)</th>
+<th>Router BLUR-PERP (ID 66)</th>
+<th>Router STX-PERP (ID 68)</th>
+<th>Router NEAR-PERP (ID 70)</th>
+<th>Router LDO-PERP (ID 72)</th>
+<th>Router FIL-PERP (ID 74)</th>
+<th>Router WLD-PERP (ID 76)</th>
+<th>Router ICP-PERP (ID 78)</th>
+<th>Router DOT-PERP (ID 80)</th>
+<th>Router TRX-PERP (ID 82)</th>
+<th>Router GALA-PERP (ID 84)</th>
+<th>Router ATOM-PERP (ID 86)</th>
+<th>Router APE-PERP (ID 88)</th>
+<th>Router JUP-PERP (ID 90)</th>
 </tr>
 <tr>
 <td>Arbitrum Mainnet</td>
@@ -89,6 +103,20 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <td><code>0x1EaCB7801517f45Ab7A8714eD91B6B28CfFe842A</code></td>
 <td><code>0x7625866Ab6f11809b2fdE3bF79f81780D6323E3b</code></td>
 <td><code>0xE034469069eba2Fa87514616640c3934B8975c2B</code></td>
+<td><code>0x98c6ACea7F1A7e5FB77Bfb4F8311A664dafB1f80</code></td>
+<td><code>0x24BDF814507b61a4Fca29140086a0a635cab0F4a</code></td>
+<td><code>0x3af53747D12f41a32517b79616630123e3173781</code></td>
+<td><code>0x433A5A720FC6Dd4Ef24fD3119BFb383326BFe01a</code></td>
+<td><code>0x2C3549FCB61653faac7A3CefE66E1bc0Ce459e91</code></td>
+<td><code>0x484286c1f0eFb89652CAFFEDFeE6a32Fb08eC844</code></td>
+<td><code>0x8E55232c8b6F3B004aaC7073085790BAa0e23D01</code></td>
+<td><code>0xF0433afEC98bE1668E8143158c3882EA535b5478</code></td>
+<td><code>0x81523ae0504B368017BcFbD65985ff24594C9F30</code></td>
+<td><code>0xB23990fB43a4dFCAaB9C6839550BB0AD3E159408</code></td>
+<td><code>0x94EfB993CF23e6434d9b62ceCE4789C1c0DBBcCe</code></td>
+<td><code>0x755923Ec261a9Ef03d2cBD27f22aEf08B66a1660</code></td>
+<td><code>0xd73Cc077d449b07E0791185606C03FdF7817e3ee</code></td>
+<td><code>0x0c9cf81D92b01D65548E806396af40f6f8e9151e</code></td>
 </tr>
 <tr>
 <td>Arbitrum Sepolia</td>
@@ -128,6 +156,22 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 <td><code>0x1EaCB7801517f45Ab7A8714eD91B6B28CfFe842A</code></td>
 <td><code>0x7625866Ab6f11809b2fdE3bF79f81780D6323E3b</code></td>
 <td><code>0xE034469069eba2Fa87514616640c3934B8975c2B</code></td>
+<td><code>0xB23990fB43a4dFCAaB9C6839550BB0AD3E159408</code></td>
+<td><code>0x94EfB993CF23e6434d9b62ceCE4789C1c0DBBcCe</code></td>
+<td><code>0x98c6ACea7F1A7e5FB77Bfb4F8311A664dafB1f80</code></td>
+<td><code>0x24BDF814507b61a4Fca29140086a0a635cab0F4a</code></td>
+<td><code>0x3af53747D12f41a32517b79616630123e3173781</code></td>
+<td><code>0x433A5A720FC6Dd4Ef24fD3119BFb383326BFe01a</code></td>
+<td><code>0x2C3549FCB61653faac7A3CefE66E1bc0Ce459e91</code></td>
+<td><code>0x484286c1f0eFb89652CAFFEDFeE6a32Fb08eC844</code></td>
+<td><code>0x8E55232c8b6F3B004aaC7073085790BAa0e23D01</code></td>
+<td><code>0xF0433afEC98bE1668E8143158c3882EA535b5478</code></td>
+<td><code>0x81523ae0504B368017BcFbD65985ff24594C9F30</code></td>
+<td><code>0xB23990fB43a4dFCAaB9C6839550BB0AD3E159408</code></td>
+<td><code>0x94EfB993CF23e6434d9b62ceCE4789C1c0DBBcCe</code></td>
+<td><code>0x755923Ec261a9Ef03d2cBD27f22aEf08B66a1660</code></td>
+<td><code>0xd73Cc077d449b07E0791185606C03FdF7817e3ee</code></td>
+<td><code>0x0c9cf81D92b01D65548E806396af40f6f8e9151e</code></td>
 </tr>
 </table>
 

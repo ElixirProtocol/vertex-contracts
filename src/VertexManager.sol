@@ -409,7 +409,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Returns the price on Vertex of a given by product.
     /// @param id The ID of the product to get the price of.
     function getPrice(uint32 id) public view returns (uint256) {
-        return IClearinghouse(endpoint.clearinghouse()).getOraclePriceX18(id);
+        return endpoint.getPriceX18(id);
     }
 
     /// @notice Returns the data a pool and a token within it.

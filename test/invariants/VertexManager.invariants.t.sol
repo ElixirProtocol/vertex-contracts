@@ -55,7 +55,7 @@ contract TestInvariantsVertexManager is Test {
     //////////////////////////////////////////////////////////////*/
 
     function setUp() public {
-        uint256 networkFork = vm.createFork(vm.envString("ARBITRUM_RPC_URL"), 176065658);
+        uint256 networkFork = vm.createFork(vm.envString("ARBITRUM_RPC_URL"), 185039415);
 
         vm.selectFork(networkFork);
 

@@ -409,6 +409,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Returns the price on Vertex of a given by product.
     /// @param id The ID of the product to get the price of.
     function getPrice(uint32 id) public view returns (uint256) {
+        // If id is 0 (quote), return default price.
+        if (id == 0) return 1e18;
         return endpoint.getPriceX18(id);
     }
 

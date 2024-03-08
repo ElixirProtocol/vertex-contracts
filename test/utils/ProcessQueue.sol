@@ -59,10 +59,10 @@ contract ProcessQueue is Test {
     function processSlowModeTxs(IEndpoint endpoint) internal {
         // Clear any external slow-mode txs from the Vertex queue.
         vm.warp(block.timestamp + 259200);
-        IEndpoint.SlowModeConfig memory queue = endpoint.slowModeConfig();
+        (, uint64 txUpTo, uint64 txCount) = endpoint.getSlowModeTx(0);
 
         // Loop over remaining queue.
-        for (uint256 i = queue.txUpTo; i < queue.txCount; i++) {
+        for (uint256 i = txUpTo; i < txCount; i++) {
             endpoint.executeSlowModeTransaction();
         }
     }

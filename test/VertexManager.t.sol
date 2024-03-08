@@ -94,7 +94,7 @@ contract TestVertexManager is Test, ProcessQueue {
         externalAccount = users[3];
         vm.label(externalAccount, "External Account");
 
-        networkFork = vm.createFork(networkRpcUrl, 176065658);
+        networkFork = vm.createFork(networkRpcUrl, 188383571);
 
         vm.selectFork(networkFork);
 
@@ -1477,11 +1477,11 @@ contract TestVertexManager is Test, ProcessQueue {
 
     /// @notice Unit test for getting the token price.
     function testPrice() public {
-        // Revert for non existant Vertex product.
-        vm.expectRevert();
-        manager.getPrice(69);
+        uint256 price = manager.getPrice(9999999);
+        assertEq(price, 0);
 
-        manager.getPrice(1);
+        price = manager.getPrice(1);
+        assertGe(price, 0);
     }
 
     /// @notice Unit test for getting a withdraw amount.

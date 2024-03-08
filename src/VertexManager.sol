@@ -131,6 +131,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Emitted when the fee transfer fails.
     error FeeTransferFailed();
 
+    /// @notice Emitted when the price returned is zero.
+    error ZeroPrice();
+
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
     //////////////////////////////////////////////////////////////*/
@@ -408,10 +411,11 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Returns the price on Vertex of a given by product.
     /// @param id The ID of the product to get the price of.
-    function getPrice(uint32 id) public view returns (uint256) {
+    function getPrice(uint32 id) public view returns (uint256 price) {
         // If id is 0 (quote), return default price.
-        if (id == 0) return 1e18;
-        return endpoint.getPriceX18(id);
+        price = (id == 0) ? 1e18 : endpoint.getPriceX18(id);
+
+        if (price == 0) revert ZeroPrice();
     }
 
     /// @notice Returns the data a pool and a token within it.

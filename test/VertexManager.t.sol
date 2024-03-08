@@ -1477,10 +1477,11 @@ contract TestVertexManager is Test, ProcessQueue {
 
     /// @notice Unit test for getting the token price.
     function testPrice() public {
-        uint256 price = manager.getPrice(9999999);
-        assertEq(price, 0);
+        // Revert for non existant Vertex product.
+        vm.expectRevert(VertexManager.ZeroPrice.selector);
+        manager.getPrice(69);
 
-        price = manager.getPrice(1);
+        uint256 price = manager.getPrice(1);
         assertGe(price, 0);
     }
 

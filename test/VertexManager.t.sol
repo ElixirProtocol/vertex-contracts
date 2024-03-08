@@ -94,7 +94,7 @@ contract TestVertexManager is Test, ProcessQueue {
         externalAccount = users[3];
         vm.label(externalAccount, "External Account");
 
-        networkFork = vm.createFork(networkRpcUrl, 185039415);
+        networkFork = vm.createFork(networkRpcUrl, 188383571);
 
         vm.selectFork(networkFork);
 

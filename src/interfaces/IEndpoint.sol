@@ -47,17 +47,17 @@ interface IEndpoint {
         uint64 nonce;
     }
 
-    struct SlowModeConfig {
-        uint64 timeout;
-        uint64 txCount;
-        uint64 txUpTo;
+    struct SlowModeTx {
+        uint64 executableAt;
+        address sender;
+        bytes tx;
     }
 
     /// @notice Returns the Clearinghouse contract.
     function clearinghouse() external view returns (IClearinghouse);
 
-    /// @notice Returns the slow-mode configuration.
-    function slowModeConfig() external view returns (SlowModeConfig memory);
+    /// @notice Returns the slow-mode queue state.
+    function getSlowModeTx(uint64 idx) external view returns (SlowModeTx memory, uint64, uint64);
 
     /// @notice Executes a submitted slow-mode transaction.
     function executeSlowModeTransaction() external;

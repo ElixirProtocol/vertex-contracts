@@ -85,11 +85,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param token The duplicated token.
     error DuplicatedToken(address token);
 
-    /// @notice Emitted when a token is already supported.
-    /// @param token The token address.
-    /// @param id The ID of the pool.
-    error AlreadySupported(address token, uint256 id);
-
     /// @notice Emitted when deposits are paused.
     error DepositsPaused();
 

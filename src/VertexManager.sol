@@ -650,12 +650,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                 tokenData = pools[id].tokens[token];
             }
 
-            // Check if the token is already supported, and enable if not.
-            if (!tokenData.isActive) {
-                tokenData.isActive = true;
-            } else {
-                revert AlreadySupported(token, id);
-            }
+            // Enable if the token is not already supported,.
+            if (!tokenData.isActive) tokenData.isActive = true;
 
             // Add the hardcap to the token data.
             tokenData.hardcap = hardcaps[i];

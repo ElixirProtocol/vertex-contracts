@@ -85,11 +85,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param token The duplicated token.
     error DuplicatedToken(address token);
 
-    /// @notice Emitted when a token is already supported.
-    /// @param token The token address.
-    /// @param id The ID of the pool.
-    error AlreadySupported(address token, uint256 id);
-
     /// @notice Emitted when deposits are paused.
     error DepositsPaused();
 
@@ -650,12 +645,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                 tokenData = pools[id].tokens[token];
             }
 
-            // Check if the token is already supported, and enable if not.
-            if (!tokenData.isActive) {
-                tokenData.isActive = true;
-            } else {
-                revert AlreadySupported(token, id);
-            }
+            // Enable if the token is not already supported,.
+            if (!tokenData.isActive) tokenData.isActive = true;
 
             // Add the hardcap to the token data.
             tokenData.hardcap = hardcaps[i];

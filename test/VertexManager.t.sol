@@ -1310,12 +1310,6 @@ contract TestVertexManager is Test, ProcessQueue {
 
         vm.expectRevert(abi.encodeWithSelector(VertexManager.InvalidPool.selector, 1));
         manager.addPool(1, tokens, hardcaps, IVertexManager.PoolType.Spot, externalAccount);
-
-        tokens[0] = address(WETH);
-        tokens[1] = address(WETH);
-
-        vm.expectRevert(abi.encodeWithSelector(VertexManager.AlreadySupported.selector, address(WETH), 999));
-        manager.addPool(999, tokens, hardcaps, IVertexManager.PoolType.Spot, externalAccount);
     }
 
     /// @notice Unit test for failing to add a pool token with more than 18 decimals.

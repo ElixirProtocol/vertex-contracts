@@ -74,6 +74,12 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param productId The new Vertex product ID of the token.
     event TokenUpdated(address indexed token, uint256 indexed productId);
 
+    /// @notice Emitted when the queue gets updated (when a spot is queued or unqueued).
+    /// @param queueCount The new queue count.
+    /// @param queueUpTo The new queue up to.
+    /// @param nextSpot The next spot in the queue.
+    event QueueUpdated(uint128 queueCount, uint128 queueUpTo, Spot nextSpot);
+
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -222,6 +228,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         );
 
         emit Queued(queue[queueCount - 1], queueCount, queueUpTo);
+        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo]);
     }
 
     /// @notice Deposits tokens into a spot pool.
@@ -276,6 +283,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         );
 
         emit Queued(queue[queueCount - 1], queueCount, queueUpTo);
+        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo]);
     }
 
     /// @notice Requests to withdraw a token from a perp pool.
@@ -313,6 +321,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         );
 
         emit Queued(queue[queueCount - 1], queueCount, queueUpTo);
+        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo]);
     }
 
     /// @notice Withdraws tokens from a spot pool.
@@ -348,6 +357,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         );
 
         emit Queued(queue[queueCount - 1], queueCount, queueUpTo);
+        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo]);
     }
 
     /// @notice Claim received tokens from the pending balance and fees.
@@ -559,6 +569,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
         // Increase the queue up to.
         queueUpTo++;
+
+        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo]);
     }
 
     /// @notice Manages the paused status of deposits, withdrawals, and claims

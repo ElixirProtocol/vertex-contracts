@@ -11,6 +11,13 @@ interface IVertexManager {
         DepositPerp
     }
 
+    /// @notice The types of queue-related events.
+    enum QueueEvent {
+        Deposit,
+        Withdraw,
+        Unqueue
+    }
+
     /// @notice The structure for perp deposits to be processed by Elixir.
     struct DepositPerp {
         // The ID of the pool.

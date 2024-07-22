@@ -78,7 +78,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param queueCount The new queue count.
     /// @param queueUpTo The new queue up to.
     /// @param nextSpot The next spot in the queue.
-    event QueueUpdated(uint128 queueCount, uint128 queueUpTo, Spot nextSpot);
+    /// @param eventType The type of queue update.
+    event QueueUpdated(uint128 queueCount, uint128 queueUpTo, Spot nextSpot, QueueEvent eventType);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -228,7 +229,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         );
 
         emit Queued(queue[queueCount - 1], queueCount, queueUpTo);
-        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo]);
+        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo], QueueEvent.Deposit);
     }
 
     /// @notice Deposits tokens into a spot pool.
@@ -283,7 +284,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         );
 
         emit Queued(queue[queueCount - 1], queueCount, queueUpTo);
-        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo]);
+        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo], QueueEvent.Deposit);
     }
 
     /// @notice Requests to withdraw a token from a perp pool.
@@ -321,7 +322,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         );
 
         emit Queued(queue[queueCount - 1], queueCount, queueUpTo);
-        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo]);
+        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo], QueueEvent.Withdraw);
     }
 
     /// @notice Withdraws tokens from a spot pool.
@@ -357,7 +358,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         );
 
         emit Queued(queue[queueCount - 1], queueCount, queueUpTo);
-        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo]);
+        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo], QueueEvent.Withdraw);
     }
 
     /// @notice Claim received tokens from the pending balance and fees.
@@ -570,7 +571,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         // Increase the queue up to.
         queueUpTo++;
 
-        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo]);
+        emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo], QueueEvent.Unqueue);
     }
 
     /// @notice Manages the paused status of deposits, withdrawals, and claims

@@ -58,6 +58,7 @@ contract Handler is ProcessQueue {
     //////////////////////////////////////////////////////////////*/
 
     modifier createActor() {
+        if (msg.sender == address(USDC)) return;
         currentActor = msg.sender;
         _actors.add(msg.sender);
         _;

@@ -135,6 +135,11 @@ contract TestInvariantsVertexManager is Test {
         selectors[4] = Handler.claimPerp.selector;
         selectors[5] = Handler.claimSpot.selector;
 
+        // Exclude invalid senders.
+        excludeSender(address(handler));
+        excludeSender(address(USDC));
+        excludeSender(address(this));
+
         // Set the target selector.
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
 

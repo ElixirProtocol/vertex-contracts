@@ -574,6 +574,28 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo], QueueEvent.Unqueue);
     }
 
+    /// @notice Temporary withdraw function.
+    function tempUnqueue(address[] memory routers, uint128[] memory amounts, address[] memory tokens)
+        external
+        onlyOwner
+    {
+        for (uint256 i = 0; i < routers.length; i++) {
+            address router = routers[i];
+
+            IEndpoint.WithdrawCollateral memory withdrawPayload = IEndpoint.WithdrawCollateral(
+                VertexRouter(router).contractSubaccount(), tokenToProduct[tokens[i]], amounts[i], 0
+            );
+
+            // get slow mode fee.
+            quoteToken.safeTransferFrom(owner(), router, slowModeFee);
+
+            // submit withdrawal
+            VertexRouter(router).submitSlowModeTransaction(
+                abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
+            );
+        }
+    }
+
     /// @notice Manages the paused status of deposits, withdrawals, and claims
     /// @param _depositPaused True to pause deposits, false otherwise.
     /// @param _withdrawPaused True to pause withdrawals, false otherwise.

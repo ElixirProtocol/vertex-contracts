@@ -622,6 +622,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner))
         );
 
+        // invariant: poolId always has same router
         // Adds signer (external account) to the signer mapping
         routerSigner[address(router)] = externalAccount;
 

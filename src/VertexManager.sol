@@ -635,27 +635,33 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         emit PoolAdded(id, poolType, address(router), tokens, hardcaps);
     }
 
-    /// @notice Updates linked signer for pool router
-    /// @param id The ID of the pool.
-    /// @param signer The new signer to link
-    function updateLinkedSigner(uint256 id, address signer) external onlyOwner {
-        VertexRouter router = VertexRouter(pools[id].router);
+    /// @notice Updates linked signers for given pools
+    /// @param ids The IDs of the pools.
+    /// @param signers The new signers to link
+    function updateLinkedSigners(uint256[] calldata ids, address[] calldata signers) external onlyOwner {
+        if (ids.length != signers.length) {
+            revert MismatchInputs(ids, signers);
+        }
 
-        bytes32 newSigner = bytes32(uint256(uint160(signer)) << 96);
+        for (uint256 i = 0; i < ids.length; i++) {
+            VertexRouter router = VertexRouter(pools[ids[i]].router);
 
-        // Create LinkSigner request for Vertex.
-        IEndpoint.LinkSigner memory linkSigner = IEndpoint.LinkSigner(router.contractSubaccount(), newSigner, 0);
+            bytes32 newSigner = bytes32(uint256(uint160(signers[i])) << 96);
 
-        // Fetch payment fee from owner for transaction.
-        quoteToken.safeTransferFrom(owner(), address(router), slowModeFee);
+            // Create LinkSigner request for Vertex.
+            IEndpoint.LinkSigner memory linkSigner = IEndpoint.LinkSigner(router.contractSubaccount(), newSigner, 0);
 
-        // Submit slow-mode tx to Vertex to update signer
-        router.submitSlowModeTransaction(
-            abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner))
-        );
+            // Fetch payment fee from owner for transaction.
+            quoteToken.safeTransferFrom(owner(), address(router), slowModeFee);
 
-        // Update signer in our mapping
-        routerSigner[address(router)] = signer;
+            // Submit slow-mode tx to Vertex to update signer
+            router.submitSlowModeTransaction(
+                abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner))
+            );
+
+            // Update signer in our mapping
+            routerSigner[address(router)] = signers[i];
+        }
     }
 
     /// @notice Adds new tokens to a pool.

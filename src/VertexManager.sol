@@ -516,7 +516,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Returns the external account of a pool router.
     function getExternalAccount(address router) private view returns (address) {
-        return address(uint160(bytes20(VertexRouter(router).externalSubaccount())));
+        return routerSigner[router];
     }
 
     /// @notice Enforce the Elixir fee in native ETH.
@@ -620,6 +620,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner))
         );
 
+        // Adds signer (external account) to the signer mapping
+        routerSigner[address(router)] = externalAccount;
+
         // Set the router address of the pool.
         pools[id].router = address(router);
 
@@ -630,6 +633,29 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         addPoolTokens(id, tokens, hardcaps);
 
         emit PoolAdded(id, poolType, address(router), tokens, hardcaps);
+    }
+
+    /// @notice Updates linked signer for pool router
+    /// @param id The ID of the pool.
+    /// @param signer The new signer to link
+    function updateLinkedSigner(uint256 id, address signer) {
+        VertexRouter router = VertexRouter(pools[id].router);
+
+        bytes32 newSigner = bytes32(uint256(uint160(signer)) << 96);
+
+        // Create LinkSigner request for Vertex.
+        IEndpoint.LinkSigner memory linkSigner = IEndpoint.LinkSigner(router.contractSubaccount(), newSigner, 0);
+
+        // Fetch payment fee from owner for transaction.
+        quoteToken.safeTransferFrom(owner(), address(router), slowModeFee);
+
+        // Submit slow-mode tx to Vertex to update signer
+        router.submitSlowModeTransaction(
+            abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner))
+        );
+
+        // Update signer in our mapping
+        routerSigner[address(router)] = signer;
     }
 
     /// @notice Adds new tokens to a pool.

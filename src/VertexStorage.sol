@@ -23,6 +23,9 @@ abstract contract VertexStorage is IVertexManager {
     /// @notice The queue for Elixir to process.
     mapping(uint128 => Spot) public queue;
 
+    /// @notice Signer for a given router
+    mapping(address router => address signer) public routerSigner;
+
     /// @notice The queue count.
     uint128 public queueCount;
 

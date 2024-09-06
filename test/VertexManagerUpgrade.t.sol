@@ -61,6 +61,13 @@ contract TestVertexManagerUpgrade is Test, ProcessQueue {
 
         manager.updatePoolHardcaps(1, spotTokens, hardcaps);
 
+        uint256[] memory ids = new uint256[](1);
+        address[] memory signers = new address[](1);
+
+        ids[0] = 1;
+        signers[0] = 0xD7cb7F791bb97A1a8B5aFc3aec5fBD0BEC4536A5;
+
+        manager.updateLinkedSigners(ids, signers);
         vm.stopPrank();
 
         uint256 amountBTC = 10 * 10 ** 8;

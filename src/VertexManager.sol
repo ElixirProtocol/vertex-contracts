@@ -554,7 +554,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         address externalAccount = getExternalAccount(spot.router);
 
         // Check that the sender is the external account of the router.
-        if (msg.sender != externalAccount) revert NotExternalAccount(spot.router, externalAccount, msg.sender);
+        if (msg.sender != externalAccount) {
+            revert NotExternalAccount(spot.router, externalAccount, msg.sender);
+        }
 
         if (response.length != 0) {
             // Check that next spot in queue matches the given spot ID.
@@ -678,7 +680,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             address token = tokens[i];
 
             // Check that the token decimals are below or equal to 18 decimals (Vertex maximum).
-            if (IERC20Metadata(token).decimals() > 18) revert InvalidToken(token);
+            if (IERC20Metadata(token).decimals() > 18) {
+                revert InvalidToken(token);
+            }
 
             // Fetch the token data storage within the pool.
             Token storage tokenData;
@@ -712,7 +716,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         onlyOwner
     {
         // Check that the length of the hardcaps array matches the pool tokens length.
-        if (hardcaps.length != tokens.length) revert MismatchInputs(hardcaps, tokens);
+        if (hardcaps.length != tokens.length) {
+            revert MismatchInputs(hardcaps, tokens);
+        }
 
         // Loop over hardcaps to update.
         for (uint256 i = 0; i < hardcaps.length; i++) {

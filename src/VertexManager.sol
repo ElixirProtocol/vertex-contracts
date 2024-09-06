@@ -638,7 +638,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @notice Updates linked signer for pool router
     /// @param id The ID of the pool.
     /// @param signer The new signer to link
-    function updateLinkedSigner(uint256 id, address signer) {
+    function updateLinkedSigner(uint256 id, address signer) onlyOwner {
         VertexRouter router = VertexRouter(pools[id].router);
 
         bytes32 newSigner = bytes32(uint256(uint160(signer)) << 96);

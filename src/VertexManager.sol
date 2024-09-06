@@ -516,7 +516,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Returns the external account of a pool router.
     function getExternalAccount(address router) private view returns (address) {
-        return address(uint160(bytes20(VertexRouter(router).externalSubaccount())));
+        return routerSigner[router];
     }
 
     /// @notice Enforce the Elixir fee in native ETH.

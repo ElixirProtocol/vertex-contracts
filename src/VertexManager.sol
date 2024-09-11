@@ -574,6 +574,31 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo], QueueEvent.Unqueue);
     }
 
+    /// @notice Updates the shares of a user for a token within a pool.
+    /// @param ids The IDs of the pools.
+    /// @param tokens The tokens to update the shares of.
+    /// @param shares The shares to update.
+    /// @param users The users to update the shares of.
+    function updateShares(
+        uint256[] memory ids,
+        address[] memory tokens,
+        uint256[] memory shares,
+        address[] memory users
+    ) external onlyOwner {
+        // iterate over shares and users.
+        for (uint256 i = 0; i < shares.length; i++) {
+            // get pool
+            Pool storage pool = pools[ids[i]];
+
+            // get token storage
+            Token storage token = pool.tokens[tokens[i]];
+
+            // update shares
+            token.userActiveAmount[users[i]] += shares[i];
+            token.activeAmount += shares[i];
+        }
+    }
+
     /// @notice Manages the paused status of deposits, withdrawals, and claims
     /// @param _depositPaused True to pause deposits, false otherwise.
     /// @param _withdrawPaused True to pause withdrawals, false otherwise.

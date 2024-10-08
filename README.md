@@ -10,7 +10,6 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 
 ## Deployments
 
-
 <table>
 <tr>
 <th>Network</th>
@@ -133,7 +132,7 @@ See the [documentation](docs/docs.md), the [Elixir Protocol documentation](https
 
 ## Documentation
 
-You can find the technical documentation and references of the smart contracts [here](docs/docs.md). 
+You can find the technical documentation and references of the smart contracts [here](docs/docs.md).
 
 ## Usage
 

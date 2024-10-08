@@ -516,7 +516,7 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Returns the external account of a pool router.
     function getExternalAccount(address router) private view returns (address) {
-        return address(uint160(bytes20(VertexRouter(router).externalSubaccount())));
+        return routerSigner[router];
     }
 
     /// @notice Enforce the Elixir fee in native ETH.
@@ -554,7 +554,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         address externalAccount = getExternalAccount(spot.router);
 
         // Check that the sender is the external account of the router.
-        if (msg.sender != externalAccount) revert NotExternalAccount(spot.router, externalAccount, msg.sender);
+        if (msg.sender != externalAccount) {
+            revert NotExternalAccount(spot.router, externalAccount, msg.sender);
+        }
 
         if (response.length != 0) {
             // Check that next spot in queue matches the given spot ID.
@@ -620,6 +622,10 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner))
         );
 
+        // invariant: poolId always has same router
+        // Adds signer (external account) to the signer mapping
+        routerSigner[address(router)] = externalAccount;
+
         // Set the router address of the pool.
         pools[id].router = address(router);
 
@@ -630,6 +636,35 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         addPoolTokens(id, tokens, hardcaps);
 
         emit PoolAdded(id, poolType, address(router), tokens, hardcaps);
+    }
+
+    /// @notice Updates linked signers for given pools
+    /// @param ids The IDs of the pools.
+    /// @param signers The new signers to link
+    function updateLinkedSigners(uint256[] calldata ids, address[] calldata signers) external onlyOwner {
+        if (ids.length != signers.length) {
+            revert MismatchInputs(ids, signers);
+        }
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            VertexRouter router = VertexRouter(pools[ids[i]].router);
+
+            bytes32 newSigner = bytes32(uint256(uint160(signers[i])) << 96);
+
+            // Create LinkSigner request for Vertex.
+            IEndpoint.LinkSigner memory linkSigner = IEndpoint.LinkSigner(router.contractSubaccount(), newSigner, 0);
+
+            // Fetch payment fee from owner for transaction.
+            quoteToken.safeTransferFrom(owner(), address(router), slowModeFee);
+
+            // Submit slow-mode tx to Vertex to update signer
+            router.submitSlowModeTransaction(
+                abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner))
+            );
+
+            // Update signer in our mapping
+            routerSigner[address(router)] = signers[i];
+        }
     }
 
     /// @notice Adds new tokens to a pool.
@@ -646,7 +681,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             address token = tokens[i];
 
             // Check that the token decimals are below or equal to 18 decimals (Vertex maximum).
-            if (IERC20Metadata(token).decimals() > 18) revert InvalidToken(token);
+            if (IERC20Metadata(token).decimals() > 18) {
+                revert InvalidToken(token);
+            }
 
             // Fetch the token data storage within the pool.
             Token storage tokenData;
@@ -680,7 +717,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         onlyOwner
     {
         // Check that the length of the hardcaps array matches the pool tokens length.
-        if (hardcaps.length != tokens.length) revert MismatchInputs(hardcaps, tokens);
+        if (hardcaps.length != tokens.length) {
+            revert MismatchInputs(hardcaps, tokens);
+        }
 
         // Loop over hardcaps to update.
         for (uint256 i = 0; i < hardcaps.length; i++) {

@@ -52,4 +52,8 @@ abstract contract VertexStorage is IVertexManager {
 
     /// @notice The smart contract to off-load processing logic.
     address internal processor;
+
+    /// invariant: poolId always has same router
+    /// @notice Signer for a given router
+    mapping(address router => address signer) public routerSigner;
 }

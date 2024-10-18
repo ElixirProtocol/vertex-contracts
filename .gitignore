@@ -16,3 +16,5 @@ out/
 .AppleDouble
 .LSOverride
 lcov.info
+
+script/inputs.json

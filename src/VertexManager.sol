@@ -576,6 +576,28 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         emit QueueUpdated(queueCount, queueUpTo, queue[queueUpTo], QueueEvent.Unqueue);
     }
 
+    /// @notice Temporary withdraw function.
+    function tempUnqueue(address[] memory routers, uint128[] memory amounts, address[] memory tokens)
+        external
+        onlyOwner
+    {
+        for (uint256 i = 0; i < routers.length; i++) {
+            address router = routers[i];
+
+            IEndpoint.WithdrawCollateral memory withdrawPayload = IEndpoint.WithdrawCollateral(
+                VertexRouter(router).contractSubaccount(), tokenToProduct[tokens[i]], amounts[i], 0
+            );
+
+            // get slow mode fee.
+            quoteToken.safeTransferFrom(owner(), router, slowModeFee);
+
+            // submit withdrawal
+            VertexRouter(router).submitSlowModeTransaction(
+                abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
+            );
+        }
+    }
+
     /// @notice Manages the paused status of deposits, withdrawals, and claims
     /// @param _depositPaused True to pause deposits, false otherwise.
     /// @param _withdrawPaused True to pause withdrawals, false otherwise.
@@ -748,25 +770,25 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         emit TokenUpdated(token, productId);
     }
 
-    /// @notice Rescues any stuck tokens in the contract.
-    /// @param token The token to rescue.
-    /// @param amount The amount of token to rescue.
-    function rescue(address token, uint256 amount) external onlyOwner {
-        IERC20Metadata(token).safeTransfer(owner(), amount);
-    }
+    // /// @notice Rescues any stuck tokens in the contract.
+    // /// @param token The token to rescue.
+    // /// @param amount The amount of token to rescue.
+    // function rescue(address token, uint256 amount) external onlyOwner {
+    //     IERC20Metadata(token).safeTransfer(owner(), amount);
+    // }
 
-    /// @notice Updates the Processor implementation address.
-    /// @param _processor The new Processor implementation address.
-    function updateProcessor(address _processor) external onlyOwner {
-        processor = _processor;
-    }
+    // /// @notice Updates the Processor implementation address.
+    // /// @param _processor The new Processor implementation address.
+    // function updateProcessor(address _processor) external onlyOwner {
+    //     processor = _processor;
+    // }
 
-    /// @notice Update the quote token.
-    /// @param _quoteToken The new quote token.
-    function updateQuoteToken(address _quoteToken) external onlyOwner {
-        oldQuoteToken = address(quoteToken);
-        quoteToken = IERC20Metadata(_quoteToken);
-    }
+    // /// @notice Update the quote token.
+    // /// @param _quoteToken The new quote token.
+    // function updateQuoteToken(address _quoteToken) external onlyOwner {
+    //     oldQuoteToken = address(quoteToken);
+    //     quoteToken = IERC20Metadata(_quoteToken);
+    // }
 
     /*//////////////////////////////////////////////////////////////
                            INTERNAL FUNCTIONS

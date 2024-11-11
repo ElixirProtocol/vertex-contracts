@@ -42,10 +42,10 @@ contract USDC is Script {
         // Deploy new Manager implementation.
         VertexManager newManager = new VertexManager();
 
-        // Upgrade proxy to new implementation.
-        manager.upgradeToAndCall(
-            address(newManager), abi.encodeWithSelector(VertexManager.updateProcessor.selector, address(newProcessor))
-        );
+        // // Upgrade proxy to new implementation.
+        // manager.upgradeToAndCall(
+        //     address(newManager), abi.encodeWithSelector(VertexManager.updateProcessor.selector, address(newProcessor))
+        // );
 
         // Check upgrade by ensuring storage is not changed.
         require(address(manager.endpoint()) == address(endpoint), "Invalid upgrade");
@@ -104,7 +104,7 @@ contract USDC is Script {
         //////////////////////////////////////////////////////////////*/
 
         // Update the quote token to use the new USDC token and store the previous one (USDC.e)
-        manager.updateQuoteToken(address(USDC));
+        // manager.updateQuoteToken(address(USDC));
 
         /*//////////////////////////////////////////////////////////////
                                     STEP 5

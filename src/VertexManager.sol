@@ -770,25 +770,25 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         emit TokenUpdated(token, productId);
     }
 
-    /// @notice Rescues any stuck tokens in the contract.
-    /// @param token The token to rescue.
-    /// @param amount The amount of token to rescue.
-    function rescue(address token, uint256 amount) external onlyOwner {
-        IERC20Metadata(token).safeTransfer(owner(), amount);
-    }
+    // /// @notice Rescues any stuck tokens in the contract.
+    // /// @param token The token to rescue.
+    // /// @param amount The amount of token to rescue.
+    // function rescue(address token, uint256 amount) external onlyOwner {
+    //     IERC20Metadata(token).safeTransfer(owner(), amount);
+    // }
 
-    /// @notice Updates the Processor implementation address.
-    /// @param _processor The new Processor implementation address.
-    function updateProcessor(address _processor) external onlyOwner {
-        processor = _processor;
-    }
+    // /// @notice Updates the Processor implementation address.
+    // /// @param _processor The new Processor implementation address.
+    // function updateProcessor(address _processor) external onlyOwner {
+    //     processor = _processor;
+    // }
 
-    /// @notice Update the quote token.
-    /// @param _quoteToken The new quote token.
-    function updateQuoteToken(address _quoteToken) external onlyOwner {
-        oldQuoteToken = address(quoteToken);
-        quoteToken = IERC20Metadata(_quoteToken);
-    }
+    // /// @notice Update the quote token.
+    // /// @param _quoteToken The new quote token.
+    // function updateQuoteToken(address _quoteToken) external onlyOwner {
+    //     oldQuoteToken = address(quoteToken);
+    //     quoteToken = IERC20Metadata(_quoteToken);
+    // }
 
     /*//////////////////////////////////////////////////////////////
                            INTERNAL FUNCTIONS

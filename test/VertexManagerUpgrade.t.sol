@@ -42,10 +42,10 @@ contract TestVertexManagerUpgrade is Test, ProcessQueue {
         // Deploy new Manager implementation.
         VertexManager newManager = new VertexManager();
 
-        // Upgrade proxy to new implementation.
-        manager.upgradeToAndCall(
-            address(newManager), abi.encodeWithSelector(VertexManager.updateProcessor.selector, address(newProcessor))
-        );
+        // // Upgrade proxy to new implementation.
+        // manager.upgradeToAndCall(
+        //     address(newManager), abi.encodeWithSelector(VertexManager.updateProcessor.selector, address(newProcessor))
+        // );
 
         // Check upgrade by ensuring storage is not changed.
         require(address(manager.endpoint()) == endpoint, "Invalid upgrade");

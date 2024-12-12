@@ -4,7 +4,8 @@ pragma solidity 0.8.18;
 import "forge-std/Test.sol";
 
 import {IEndpoint} from "src/interfaces/IEndpoint.sol";
-import {VertexManager, IVertexManager} from "src/VertexManager.sol";
+import {VertexManager} from "src/VertexManager.sol";
+import {IVertexManager} from "src/interfaces/IVertexManager.sol";
 
 contract ProcessQueue is Test {
     /// @notice Processes any transactions in the Elixir queue.

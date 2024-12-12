@@ -10,7 +10,6 @@ import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.
 import {UUPSUpgradeable} from "openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
 
-import {IVertexManager} from "src/interfaces/IVertexManager.sol";
 import {IEndpoint} from "src/interfaces/IEndpoint.sol";
 import {IClearinghouse} from "src/interfaces/IClearinghouse.sol";
 
@@ -392,23 +391,23 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         uint256 fee = tokenData.fees[user];
 
         // Calculate the user's claim amount.
-        uint256 claim =
+        uint256 claimAmt =
             Math.min(tokenData.userPendingAmount[user] + fee, IERC20Metadata(token).balanceOf(address(router)));
 
         // Resets the pending balance of the user.
-        tokenData.userPendingAmount[user] -= claim - fee;
+        tokenData.userPendingAmount[user] -= claimAmt - fee;
 
         // Resets the Elixir pending fee balance.
         tokenData.fees[user] -= fee;
 
         // Fetch the tokens from the router.
-        router.claimToken(token, claim);
+        router.claimToken(token, claimAmt);
 
         // Transfers the tokens after to prevent reentrancy.
         IERC20Metadata(token).safeTransfer(owner(), fee);
-        IERC20Metadata(token).safeTransfer(user, claim - fee);
+        IERC20Metadata(token).safeTransfer(user, claimAmt - fee);
 
-        emit Claim(user, token, claim - fee);
+        emit Claim(user, token, claimAmt - fee);
     }
 
     /*//////////////////////////////////////////////////////////////

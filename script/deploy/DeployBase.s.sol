@@ -3,7 +3,8 @@ pragma solidity 0.8.18;
 
 import "forge-std/Script.sol";
 
-import {IEndpoint, VertexManager, IVertexManager} from "src/VertexManager.sol";
+import {IEndpoint, VertexManager} from "src/VertexManager.sol";
+import {IVertexManager} from "src/interfaces/IVertexManager.sol";
 import {ERC1967Proxy} from "openzeppelin/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
@@ -50,7 +51,6 @@ abstract contract DeployBase is Script {
         uint256 ethDecimals = IERC20Metadata(eth).decimals();
         uint256 arbDecimals = IERC20Metadata(arb).decimals();
         uint256 usdtDecimals = IERC20Metadata(usdt).decimals();
-        uint256 vrtxDecimals = IERC20Metadata(vrtx).decimals();
 
         // Start broadcast.
         vm.startBroadcast();

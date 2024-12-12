@@ -3,7 +3,8 @@ pragma solidity 0.8.18;
 
 import "forge-std/Script.sol";
 
-import {VertexManager, IVertexManager} from "src/VertexManager.sol";
+import {VertexManager} from "src/VertexManager.sol";
+import {IVertexManager} from "src/interfaces/IVertexManager.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract AddPool is Script {
@@ -35,9 +36,6 @@ contract AddPool is Script {
     }
 
     function setup() internal {
-        // Get the token decimals.
-        uint256 decimals = IERC20Metadata(token).decimals();
-
         // Start broadcast.
         vm.startBroadcast();
 

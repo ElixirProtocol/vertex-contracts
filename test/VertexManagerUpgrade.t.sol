@@ -5,7 +5,8 @@ import "forge-std/Test.sol";
 
 import {ProcessQueue} from "test/utils/ProcessQueue.sol";
 
-import {VertexManager, IVertexManager} from "src/VertexManager.sol";
+import {IVertexManager} from "src/interfaces/IVertexManager.sol";
+import {VertexManager} from "src/VertexManager.sol";
 import {VertexProcessor} from "src/VertexProcessor.sol";
 import {VertexRouter} from "src/VertexRouter.sol";
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";

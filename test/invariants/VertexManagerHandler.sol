@@ -10,7 +10,8 @@ import {ProcessQueue} from "test/utils/ProcessQueue.sol";
 import {AddressSet, LibAddressSet} from "test/utils/AddressSet.sol";
 import {MockToken} from "test/utils/MockToken.sol";
 
-import {VertexManager, IVertexManager} from "src/VertexManager.sol";
+import {VertexManager} from "src/VertexManager.sol";
+import {IVertexManager} from "src/interfaces/IVertexManager.sol";
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 

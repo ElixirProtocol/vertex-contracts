@@ -11,7 +11,7 @@ import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata
 contract USDC is Script {
     VertexManager internal manager;
 
-    IERC20Metadata USDC = IERC20Metadata(0xD32ea1C76ef1c296F131DD4C5B2A0aac3b22485a);
+    IERC20Metadata USDCToken = IERC20Metadata(0xD32ea1C76ef1c296F131DD4C5B2A0aac3b22485a);
 
     function run() external {
         // Start broadcast.
@@ -56,7 +56,7 @@ contract USDC is Script {
 
         // Add USDC token to all pools. This is needed so that all of the routers approve this new token to transfer in and out.
         address[] memory token = new address[](1);
-        token[0] = address(USDC);
+        token[0] = address(USDCToken);
 
         uint256[] memory hardcap = new uint256[](1);
         hardcap[0] = 0;
@@ -104,15 +104,15 @@ contract USDC is Script {
         //////////////////////////////////////////////////////////////*/
 
         // Update the quote token to use the new USDC token and store the previous one (USDC.e)
-        manager.updateQuoteToken(address(USDC));
+        manager.updateQuoteToken(address(USDCToken));
 
         /*//////////////////////////////////////////////////////////////
                                     STEP 5
         //////////////////////////////////////////////////////////////*/
 
         // Owner (multisig in mainnet, EOA in testnet) should approve USDC for slow-mode fee and make sure to have enough (for exmaple, swapping USDC.e to USDC)
-        USDC.approve(address(manager), type(uint256).max);
-        // deal(address(USDC), address(manager.owner()), 10000000 * 10 ** USDC.decimals());
+        USDCToken.approve(address(manager), type(uint256).max);
+        // deal(address(USDCToken), address(manager.owner()), 10000000 * 10 ** USDCToken.decimals());
 
         /*//////////////////////////////////////////////////////////////
                                     STEP 6

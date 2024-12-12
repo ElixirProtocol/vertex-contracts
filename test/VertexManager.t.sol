@@ -14,7 +14,8 @@ import {Math} from "openzeppelin/utils/math/Math.sol";
 import {IClearinghouse} from "src/interfaces/IClearinghouse.sol";
 import {IEndpoint} from "src/interfaces/IEndpoint.sol";
 
-import {VertexManager, IVertexManager} from "src/VertexManager.sol";
+import {IVertexManager} from "src/interfaces/IVertexManager.sol";
+import {VertexManager} from "src/VertexManager.sol";
 import {VertexProcessor} from "src/VertexProcessor.sol";
 import {VertexRouter} from "src/VertexRouter.sol";
 

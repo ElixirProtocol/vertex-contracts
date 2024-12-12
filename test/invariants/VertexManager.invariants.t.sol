@@ -11,7 +11,8 @@ import {Math} from "openzeppelin/utils/math/Math.sol";
 
 import {IEndpoint} from "src/interfaces/IEndpoint.sol";
 
-import {VertexManager, IVertexManager} from "src/VertexManager.sol";
+import {VertexManager} from "src/VertexManager.sol";
+import {IVertexManager} from "src/interfaces/IVertexManager.sol";
 import {VertexProcessor} from "src/VertexProcessor.sol";
 import {Handler} from "test/invariants/VertexManagerHandler.sol";
 

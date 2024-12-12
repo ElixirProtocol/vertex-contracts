@@ -3,7 +3,6 @@ pragma solidity 0.8.18;
 
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "openzeppelin/token/ERC20/utils/SafeERC20.sol";
-import {Math} from "openzeppelin/utils/math/Math.sol";
 import {ReentrancyGuard} from "openzeppelin/security/ReentrancyGuard.sol";
 
 import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
@@ -11,7 +10,6 @@ import {UUPSUpgradeable} from "openzeppelin-upgradeable/proxy/utils/UUPSUpgradea
 import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
 
 import {IEndpoint} from "src/interfaces/IEndpoint.sol";
-import {IClearinghouse} from "src/interfaces/IClearinghouse.sol";
 
 import {VertexStorage} from "src/VertexStorage.sol";
 import {VertexManager} from "src/VertexManager.sol";

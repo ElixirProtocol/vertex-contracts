@@ -28,7 +28,7 @@ contract UpgradeContract is Script {
         uint256[] memory pools = new uint256[](2);
         address[] memory signers = new address[](2);
 
-        pools[0] = 38; 
+        pools[0] = 38;
         pools[1] = 40;
 
         signers[0] = 0x28CcdB531854d09D48733261688dc1679fb9A242;

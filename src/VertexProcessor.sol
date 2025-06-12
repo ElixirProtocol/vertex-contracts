@@ -190,18 +190,19 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     }
 
     /// @notice Force withdraw for a token in a pool
-    /// @param pool The data of the pool to withdraw from.
+    /// @param poolId ID of the pool
     /// @param token The token to withdraw.
     /// @param users Users to force withdraw
     /// @param amounts Amounts for each user
     /// @param totalToReceive Total to withdraw from Vertex
     function forceWithdrawForPool(
-        Pool storage pool,
+        uint256 poolId,
         address token,
         address[] memory users,
         uint256[] memory amounts,
         uint128 totalToReceive
-    ) private {
+    ) public {
+        Pool storage pool = pools[poolId];
         if (users.length != amounts.length) revert LengthMismatch();
 
         // Establish empty token data.

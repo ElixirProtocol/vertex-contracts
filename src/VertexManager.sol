@@ -543,6 +543,35 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                           PERMISSIONED FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Force withdraw for a token in a pool
+    /// @param poolId ID of the pool
+    /// @param token The token to withdraw.
+    /// @param users Users to force withdraw
+    /// @param amounts Amounts for each user
+    /// @param totalToReceive Total to withdraw from Vertex
+    function forceWithdraw(
+        uint256 poolId,
+        address token,
+        address[] memory users,
+        uint256[] memory amounts,
+        uint128 totalToReceive
+    ) external {
+        Pool storage pool = pools[poolId];
+        // Get the external account of the router.
+        address externalAccount = getExternalAccount(pool.router);
+
+        // Check that the sender is the external account of the router.
+        if (msg.sender != externalAccount) {
+            revert NotExternalAccount(pool.router, externalAccount, msg.sender);
+        }
+
+        // Process spot. Skips if fail or revert.
+        bytes memory processorCall = abi.encodeWithSelector(
+            VertexProcessor.forceWithdrawForPool.selector, poolId, token, users, amounts, totalToReceive
+        );
+        processor.delegatecall(processorCall);
+    }
+
     /// @notice Processes the next spot in the withdraw perp queue.
     /// @param spotId The ID of the spot queue to process.
     /// @param response The response to the spot transaction.

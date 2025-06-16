@@ -1164,6 +1164,9 @@ contract TestVertexManager is Test, ProcessQueue {
         vm.expectRevert();
         manager.forceWithdraw(1, spotTokens[0], users, amounts, 1);
 
+        vm.expectRevert();
+        manager.withdrawCollateral(1, spotTokens[0], 1);
+
         vm.startPrank(externalAccount);
         manager.forceWithdraw(1, spotTokens[0], users, amounts, 1);
         manager.forceWithdraw(1, spotTokens[1], users, amounts, 1);

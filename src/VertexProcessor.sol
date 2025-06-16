@@ -194,13 +194,11 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     /// @param token The token to withdraw.
     /// @param users Users to force withdraw
     /// @param amounts Amounts for each user
-    /// @param totalToReceive Total to withdraw from Vertex
     function forceWithdrawForPool(
         uint256 poolId,
         address token,
         address[] memory users,
-        uint256[] memory amounts,
-        uint128 totalToReceive
+        uint256[] memory amounts
     ) public {
         Pool storage pool = pools[poolId];
         if (users.length != amounts.length) revert LengthMismatch();
@@ -227,17 +225,19 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
 
         // Substract amount from the active pool market making balance.
         tokenData.activeAmount = 0;
+    }
 
+    function withdrawCollateral(address router, address token, uint128 totalToReceive) public {
         // Create Vertex withdraw payload request.
         IEndpoint.WithdrawCollateral memory withdrawPayload = IEndpoint.WithdrawCollateral(
-            VertexRouter(pool.router).contractSubaccount(), tokenToProduct[token], uint128(totalToReceive), 0
+            VertexRouter(router).contractSubaccount(), tokenToProduct[token], uint128(totalToReceive), 0
         );
 
         // Fetch payment fee from owner. This can be reimbursed on withdrawals after tokens are received.
-        quoteToken.safeTransferFrom(owner(), pool.router, slowModeFee);
+        quoteToken.safeTransferFrom(owner(), router, slowModeFee);
 
         // Submit Withdraw slow-mode tx to Vertex.
-        VertexRouter(pool.router).submitSlowModeTransaction(
+        VertexRouter(router).submitSlowModeTransaction(
             abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
         );
     }

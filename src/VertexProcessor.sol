@@ -194,12 +194,9 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     /// @param token The token to withdraw.
     /// @param users Users to force withdraw
     /// @param amounts Amounts for each user
-    function forceWithdrawForPool(
-        uint256 poolId,
-        address token,
-        address[] memory users,
-        uint256[] memory amounts
-    ) public {
+    function forceWithdrawForPool(uint256 poolId, address token, address[] memory users, uint256[] memory amounts)
+        public
+    {
         Pool storage pool = pools[poolId];
         if (users.length != amounts.length) revert LengthMismatch();
 

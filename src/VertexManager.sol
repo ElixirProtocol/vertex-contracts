@@ -572,6 +572,27 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         processor.delegatecall(processorCall);
     }
 
+    /// @notice Withdraw collateral
+    /// @param poolId ID of the pool
+    /// @param token The token to withdraw.
+    /// @param amount Amount to withdraw
+    function withdrawCollateral(uint256 poolId, address token, uint128 amount) external {
+        Pool storage pool = pools[poolId];
+
+        // Get the external account of the router.
+        address externalAccount = getExternalAccount(pool.router);
+
+        // Check that the sender is the external account of the router.
+        if (msg.sender != externalAccount) {
+            revert NotExternalAccount(pool.router, externalAccount, msg.sender);
+        }
+
+        // Process spot. Skips if fail or revert.
+        bytes memory processorCall =
+            abi.encodeWithSelector(VertexProcessor.withdrawCollateral.selector, pool.router, token, amount);
+        processor.delegatecall(processorCall);
+    }
+
     /// @notice Processes the next spot in the withdraw perp queue.
     /// @param spotId The ID of the spot queue to process.
     /// @param response The response to the spot transaction.
@@ -615,56 +636,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         claimPaused = _claimPaused;
 
         emit PauseUpdated(depositPaused, withdrawPaused, claimPaused);
-    }
-
-    /// @notice Adds a new pool.
-    /// @param id The ID of the new pool.
-    /// @param tokens The tokens to add.
-    /// @param hardcaps The hardcaps for the tokens.
-    /// @param poolType The type of the pool.
-    /// @param externalAccount The external account to link to the Vertex Endpoint.
-    function addPool(
-        uint256 id,
-        address[] calldata tokens,
-        uint256[] calldata hardcaps,
-        PoolType poolType,
-        address externalAccount
-    ) external onlyOwner {
-        // Check that the pool doesn't exist.
-        if (pools[id].router != address(0)) revert InvalidPool(id);
-
-        // Deploy a new router contract.
-        VertexRouter router = new VertexRouter(address(endpoint), externalAccount);
-
-        // Approve the fee token to the router.
-        router.makeApproval(address(quoteToken));
-
-        // Create LinkSigner request for Vertex.
-        IEndpoint.LinkSigner memory linkSigner =
-            IEndpoint.LinkSigner(router.contractSubaccount(), router.externalSubaccount(), 0);
-
-        // Fetch payment fee from owner. This can be reimbursed on withdrawals after tokens are received.
-        quoteToken.safeTransferFrom(owner(), address(router), slowModeFee);
-
-        // Submit slow-mode tx to Vertex.
-        router.submitSlowModeTransaction(
-            abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner))
-        );
-
-        // invariant: poolId always has same router
-        // Adds signer (external account) to the signer mapping
-        routerSigner[address(router)] = externalAccount;
-
-        // Set the router address of the pool.
-        pools[id].router = address(router);
-
-        // Set the pool type.
-        pools[id].poolType = poolType;
-
-        // Add tokens to pool.
-        addPoolTokens(id, tokens, hardcaps);
-
-        emit PoolAdded(id, poolType, address(router), tokens, hardcaps);
     }
 
     /// @notice Updates linked signers for given pools

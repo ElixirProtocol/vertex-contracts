@@ -23,18 +23,18 @@ contract UpgradeContract is Script {
         newManager = new VertexManager();
 
         // Upgrade proxy to new implementation.
-        manager.upgradeTo(address(newManager));
-
-        uint256[] memory pools = new uint256[](2);
-        address[] memory signers = new address[](2);
-
-        pools[0] = 38;
-        pools[1] = 40;
-
-        signers[0] = 0x28CcdB531854d09D48733261688dc1679fb9A242;
-        signers[1] = 0x28CcdB531854d09D48733261688dc1679fb9A242;
-
-        manager.updateLinkedSigners(pools, signers);
+        // manager.upgradeTo(address(newManager));
+        //
+        // uint256[] memory pools = new uint256[](2);
+        // address[] memory signers = new address[](2);
+        //
+        // pools[0] = 38;
+        // pools[1] = 40;
+        //
+        // signers[0] = 0x28CcdB531854d09D48733261688dc1679fb9A242;
+        // signers[1] = 0x28CcdB531854d09D48733261688dc1679fb9A242;
+        //
+        // manager.updateLinkedSigners(pools, signers);
         vm.stopBroadcast();
 
         // Check upgrade by ensuring storage is not changed.

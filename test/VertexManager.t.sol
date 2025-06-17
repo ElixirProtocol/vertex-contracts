@@ -1129,6 +1129,66 @@ contract TestVertexManager is Test, ProcessQueue {
         manager.claim(address(this), spotTokens[1], 1);
     }
 
+    /// @notice Unit test for force withdrawing
+    function testForceWithdraw() public {
+        uint256 amountBTC = 1 * 10 ** 8 + manager.getTransactionFee(address(BTC));
+        uint256 amountUSDC = manager.getBalancedAmount(address(BTC), address(USDC), amountBTC);
+
+        deal(address(BTC), address(this), amountBTC);
+        deal(address(USDC), address(this), amountUSDC);
+
+        BTC.approve(address(manager), amountBTC);
+        USDC.approve(address(manager), amountUSDC);
+
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amountBTC;
+        amounts[1] = amountUSDC;
+
+        manager.depositSpot{value: fee}(
+            1, spotTokens[0], spotTokens[1], amounts[0], amounts[1], amounts[1], address(this)
+        );
+
+        vm.startPrank(externalAccount);
+        processQueue(manager);
+        vm.stopPrank();
+
+        processSlowModeTxs(endpoint);
+
+        address[] memory users = new address[](1);
+        uint256[] memory userBTCAmounts = new uint256[](1);
+        uint256[] memory userUSDCAmounts = new uint256[](1);
+        users[0] = address(this);
+        userBTCAmounts[0] = amountBTC;
+        userUSDCAmounts[0] = amountUSDC;
+
+        vm.expectRevert();
+        manager.forceWithdraw(1, spotTokens[0], users, amounts);
+
+        vm.startPrank(externalAccount);
+        assertEq(manager.getUserPendingAmount(1, spotTokens[0], users[0]), 0);
+        assertEq(manager.getUserPendingAmount(1, spotTokens[1], users[0]), 0);
+
+        manager.forceWithdraw(1, spotTokens[0], users, userBTCAmounts);
+        manager.forceWithdraw(1, spotTokens[1], users, userUSDCAmounts);
+
+        assertEq(manager.getUserPendingAmount(1, spotTokens[0], users[0]), userBTCAmounts[0]);
+        assertEq(manager.getUserPendingAmount(1, spotTokens[1], users[0]), userUSDCAmounts[0]);
+
+        manager.forceDecrement(1, spotTokens[0], users, userBTCAmounts);
+        manager.forceDecrement(1, spotTokens[1], users, userUSDCAmounts);
+
+        assertEq(manager.getUserPendingAmount(1, spotTokens[0], users[0]), 0);
+        assertEq(manager.getUserPendingAmount(1, spotTokens[1], users[0]), 0);
+
+        vm.stopPrank();
+
+        // processSlowModeTxs(endpoint);
+        //
+        // // Claim tokens for user and owner.
+        // manager.claim(address(this), spotTokens[0], 1);
+        // manager.claim(address(this), spotTokens[1], 1);
+    }
+
     /// @notice Unit test for safety checks on unqueue function.
     function testUnqueue() public {
         uint256 amountBTC = 10 * 10 ** 8; // 10 BTC

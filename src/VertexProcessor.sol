@@ -78,6 +78,8 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
     /// @param amount The amount of tokens being deposited.
     error HardcapReached(address token, uint256 hardcap, uint256 activeAmount, uint256 amount);
 
+    error LengthMismatch();
+
     /*//////////////////////////////////////////////////////////////
                     INTERNAL DEPOSIT/WITHDRAW LOGIC
     //////////////////////////////////////////////////////////////*/
@@ -185,6 +187,56 @@ contract VertexProcessor is Initializable, UUPSUpgradeable, OwnableUpgradeable, 
         );
 
         emit Withdraw(pool.router, caller, tokenToProduct[token], amountToReceive);
+    }
+
+    /// @notice Force withdraw for a token in a pool
+    /// @param poolId ID of the pool
+    /// @param token The token to withdraw.
+    /// @param users Users to force withdraw
+    /// @param amounts Amounts for each user
+    function forceWithdrawForPool(uint256 poolId, address token, address[] memory users, uint256[] memory amounts)
+        public
+    {
+        Pool storage pool = pools[poolId];
+        if (users.length != amounts.length) revert LengthMismatch();
+
+        // Establish empty token data.
+        Token storage tokenData;
+
+        // If token is the Clearinghouse quote token, point to the old quote token data.
+        if (oldQuoteToken != address(0) && token == address(quoteToken)) {
+            tokenData = pool.tokens[oldQuoteToken];
+        } else {
+            tokenData = pool.tokens[token];
+        }
+
+        for (uint256 i = 0; i < users.length; i++) {
+            // Substract amount from the active market making balance of the caller.
+            tokenData.userActiveAmount[users[i]] = 0;
+
+            // Update the user pending balance.
+            tokenData.userPendingAmount[users[i]] += amounts[i];
+
+            emit Withdraw(pool.router, users[i], tokenToProduct[token], amounts[i]);
+        }
+
+        // Substract amount from the active pool market making balance.
+        tokenData.activeAmount = 0;
+    }
+
+    function withdrawCollateral(address router, address token, uint128 totalToReceive) public {
+        // Create Vertex withdraw payload request.
+        IEndpoint.WithdrawCollateral memory withdrawPayload = IEndpoint.WithdrawCollateral(
+            VertexRouter(router).contractSubaccount(), tokenToProduct[token], uint128(totalToReceive), 0
+        );
+
+        // Fetch payment fee from owner. This can be reimbursed on withdrawals after tokens are received.
+        quoteToken.safeTransferFrom(owner(), router, slowModeFee);
+
+        // Submit Withdraw slow-mode tx to Vertex.
+        VertexRouter(router).submitSlowModeTransaction(
+            abi.encodePacked(uint8(IEndpoint.TransactionType.WithdrawCollateral), abi.encode(withdrawPayload))
+        );
     }
 
     /// @notice Processes a spot transaction given a response.

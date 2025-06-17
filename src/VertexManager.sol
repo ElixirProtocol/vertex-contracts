@@ -81,6 +81,13 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param eventType The type of queue update.
     event QueueUpdated(uint128 queueCount, uint128 queueUpTo, Spot nextSpot, QueueEvent eventType);
 
+    /// @notice Emitted when a withdraw is made.
+    /// @param router The router of the pool withdrawn from.
+    /// @param user The user who withdrew.
+    /// @param tokenId The Vertex product ID of the token withdrawn.
+    /// @param amount The token amount the user receives.
+    event Withdraw(address indexed router, address indexed user, uint32 tokenId, uint256 indexed amount);
+
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -135,6 +142,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Emitted when the price returned is zero.
     error ZeroPrice();
+
+    error LengthMismatch();
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
@@ -543,6 +552,86 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
                           PERMISSIONED FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Force withdraw for a token in a pool
+    /// @param poolId ID of the pool
+    /// @param token The token to withdraw.
+    /// @param users Users to force withdraw
+    /// @param amounts Amounts for each user
+    function forceWithdraw(uint256 poolId, address token, address[] memory users, uint256[] memory amounts) external {
+        Pool storage pool = pools[poolId];
+
+        // Get the external account of the router.
+        address externalAccount = getExternalAccount(pool.router);
+
+        // Check that the sender is the external account of the router.
+        if (msg.sender != externalAccount) {
+            revert NotExternalAccount(pool.router, externalAccount, msg.sender);
+        }
+
+        if (users.length != amounts.length) revert LengthMismatch();
+
+        // Establish empty token data.
+        Token storage tokenData;
+
+        // If token is the Clearinghouse quote token, point to the old quote token data.
+        if (oldQuoteToken != address(0) && token == address(quoteToken)) {
+            tokenData = pool.tokens[oldQuoteToken];
+        } else {
+            tokenData = pool.tokens[token];
+        }
+
+        for (uint256 i = 0; i < users.length; i++) {
+            require(tokenData.userActiveAmount[users[i]] != 0);
+
+            // Substract amount from the active market making balance of the caller.
+            tokenData.userActiveAmount[users[i]] = 0;
+
+            // Update the user pending balance.
+            tokenData.userPendingAmount[users[i]] += amounts[i];
+
+            emit Withdraw(pool.router, users[i], tokenToProduct[token], amounts[i]);
+        }
+
+        // Substract amount from the active pool market making balance.
+        tokenData.activeAmount = 0;
+    }
+
+    /// @notice Force decrement claimable amount
+    /// @param poolId ID of the pool
+    /// @param token The token to withdraw.
+    /// @param users Users to force withdraw
+    /// @param amounts Amounts for each user
+    function forceDecrement(uint256 poolId, address token, address[] memory users, uint256[] memory amounts) external {
+        Pool storage pool = pools[poolId];
+        if (users.length != amounts.length) revert LengthMismatch();
+
+        // Get the external account of the router.
+        address externalAccount = getExternalAccount(pool.router);
+
+        // Check that the sender is the external account of the router.
+        if (msg.sender != externalAccount) {
+            revert NotExternalAccount(pool.router, externalAccount, msg.sender);
+        }
+
+        // Establish empty token data.
+        Token storage tokenData;
+
+        // If token is the Clearinghouse quote token, point to the old quote token data.
+        if (oldQuoteToken != address(0) && token == address(quoteToken)) {
+            tokenData = pool.tokens[oldQuoteToken];
+        } else {
+            tokenData = pool.tokens[token];
+        }
+
+        for (uint256 i = 0; i < users.length; i++) {
+            // Update the user pending balance.
+            tokenData.userPendingAmount[users[i]] -= amounts[i];
+        }
+
+        // Substract amount from the active pool market making balance.
+        tokenData.activeAmount = 0;
+    }
+
     /// @notice Processes the next spot in the withdraw perp queue.
     /// @param spotId The ID of the spot queue to process.
     /// @param response The response to the spot transaction.
@@ -586,56 +675,6 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
         claimPaused = _claimPaused;
 
         emit PauseUpdated(depositPaused, withdrawPaused, claimPaused);
-    }
-
-    /// @notice Adds a new pool.
-    /// @param id The ID of the new pool.
-    /// @param tokens The tokens to add.
-    /// @param hardcaps The hardcaps for the tokens.
-    /// @param poolType The type of the pool.
-    /// @param externalAccount The external account to link to the Vertex Endpoint.
-    function addPool(
-        uint256 id,
-        address[] calldata tokens,
-        uint256[] calldata hardcaps,
-        PoolType poolType,
-        address externalAccount
-    ) external onlyOwner {
-        // Check that the pool doesn't exist.
-        if (pools[id].router != address(0)) revert InvalidPool(id);
-
-        // Deploy a new router contract.
-        VertexRouter router = new VertexRouter(address(endpoint), externalAccount);
-
-        // Approve the fee token to the router.
-        router.makeApproval(address(quoteToken));
-
-        // Create LinkSigner request for Vertex.
-        IEndpoint.LinkSigner memory linkSigner =
-            IEndpoint.LinkSigner(router.contractSubaccount(), router.externalSubaccount(), 0);
-
-        // Fetch payment fee from owner. This can be reimbursed on withdrawals after tokens are received.
-        quoteToken.safeTransferFrom(owner(), address(router), slowModeFee);
-
-        // Submit slow-mode tx to Vertex.
-        router.submitSlowModeTransaction(
-            abi.encodePacked(uint8(IEndpoint.TransactionType.LinkSigner), abi.encode(linkSigner))
-        );
-
-        // invariant: poolId always has same router
-        // Adds signer (external account) to the signer mapping
-        routerSigner[address(router)] = externalAccount;
-
-        // Set the router address of the pool.
-        pools[id].router = address(router);
-
-        // Set the pool type.
-        pools[id].poolType = poolType;
-
-        // Add tokens to pool.
-        addPoolTokens(id, tokens, hardcaps);
-
-        emit PoolAdded(id, poolType, address(router), tokens, hardcaps);
     }
 
     /// @notice Updates linked signers for given pools

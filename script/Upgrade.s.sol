@@ -4,10 +4,12 @@ pragma solidity 0.8.18;
 import "forge-std/Script.sol";
 
 import {VertexManager} from "src/VertexManager.sol";
+import {VertexProcessor} from "src/VertexProcessor.sol";
 
 contract UpgradeContract is Script {
     VertexManager internal manager;
     VertexManager internal newManager;
+    VertexProcessor internal processor;
 
     function run() external {
         // Start broadcast.
@@ -22,19 +24,21 @@ contract UpgradeContract is Script {
         // Deploy new implementation.
         newManager = new VertexManager();
 
+        // processor = new VertexProcessor();
+
         // Upgrade proxy to new implementation.
-        manager.upgradeTo(address(newManager));
-
-        uint256[] memory pools = new uint256[](2);
-        address[] memory signers = new address[](2);
-
-        pools[0] = 38; 
-        pools[1] = 40;
-
-        signers[0] = 0x28CcdB531854d09D48733261688dc1679fb9A242;
-        signers[1] = 0x28CcdB531854d09D48733261688dc1679fb9A242;
-
-        manager.updateLinkedSigners(pools, signers);
+        // manager.upgradeTo(address(newManager));
+        //
+        // uint256[] memory pools = new uint256[](2);
+        // address[] memory signers = new address[](2);
+        //
+        // pools[0] = 38;
+        // pools[1] = 40;
+        //
+        // signers[0] = 0x28CcdB531854d09D48733261688dc1679fb9A242;
+        // signers[1] = 0x28CcdB531854d09D48733261688dc1679fb9A242;
+        //
+        // manager.updateLinkedSigners(pools, signers);
         vm.stopBroadcast();
 
         // Check upgrade by ensuring storage is not changed.

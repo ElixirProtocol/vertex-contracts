@@ -4,10 +4,12 @@ pragma solidity 0.8.18;
 import "forge-std/Script.sol";
 
 import {VertexManager} from "src/VertexManager.sol";
+import {VertexProcessor} from "src/VertexProcessor.sol";
 
 contract UpgradeContract is Script {
     VertexManager internal manager;
     VertexManager internal newManager;
+    VertexProcessor internal processor;
 
     function run() external {
         // Start broadcast.
@@ -21,6 +23,8 @@ contract UpgradeContract is Script {
 
         // Deploy new implementation.
         newManager = new VertexManager();
+
+        // processor = new VertexProcessor();
 
         // Upgrade proxy to new implementation.
         // manager.upgradeTo(address(newManager));

@@ -1154,29 +1154,39 @@ contract TestVertexManager is Test, ProcessQueue {
 
         processSlowModeTxs(endpoint);
 
-        address[] memory users = new address[](2);
-        uint256[] memory userAmounts = new uint256[](2);
+        address[] memory users = new address[](1);
+        uint256[] memory userBTCAmounts = new uint256[](1);
+        uint256[] memory userUSDCAmounts = new uint256[](1);
         users[0] = address(this);
-        users[1] = address(this);
-        userAmounts[0] = 1;
-        userAmounts[1] = 1;
+        userBTCAmounts[0] = amountBTC;
+        userUSDCAmounts[0] = amountUSDC;
 
         vm.expectRevert();
-        manager.forceWithdraw(1, spotTokens[0], users, amounts, 1);
-
-        vm.expectRevert();
-        manager.withdrawCollateral(1, spotTokens[0], 1);
+        manager.forceWithdraw(1, spotTokens[0], users, amounts);
 
         vm.startPrank(externalAccount);
-        manager.forceWithdraw(1, spotTokens[0], users, amounts, 1);
-        manager.forceWithdraw(1, spotTokens[1], users, amounts, 1);
+        assertEq(manager.getUserPendingAmount(1, spotTokens[0], users[0]), 0);
+        assertEq(manager.getUserPendingAmount(1, spotTokens[1], users[0]), 0);
+
+        manager.forceWithdraw(1, spotTokens[0], users, userBTCAmounts);
+        manager.forceWithdraw(1, spotTokens[1], users, userUSDCAmounts);
+
+        assertEq(manager.getUserPendingAmount(1, spotTokens[0], users[0]), userBTCAmounts[0]);
+        assertEq(manager.getUserPendingAmount(1, spotTokens[1], users[0]), userUSDCAmounts[0]);
+
+        manager.forceDecrement(1, spotTokens[0], users, userBTCAmounts);
+        manager.forceDecrement(1, spotTokens[1], users, userUSDCAmounts);
+
+        assertEq(manager.getUserPendingAmount(1, spotTokens[0], users[0]), 0);
+        assertEq(manager.getUserPendingAmount(1, spotTokens[1], users[0]), 0);
+
         vm.stopPrank();
 
-        processSlowModeTxs(endpoint);
-
-        // Claim tokens for user and owner.
-        manager.claim(address(this), spotTokens[0], 1);
-        manager.claim(address(this), spotTokens[1], 1);
+        // processSlowModeTxs(endpoint);
+        //
+        // // Claim tokens for user and owner.
+        // manager.claim(address(this), spotTokens[0], 1);
+        // manager.claim(address(this), spotTokens[1], 1);
     }
 
     /// @notice Unit test for safety checks on unqueue function.

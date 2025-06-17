@@ -81,6 +81,13 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param eventType The type of queue update.
     event QueueUpdated(uint128 queueCount, uint128 queueUpTo, Spot nextSpot, QueueEvent eventType);
 
+    /// @notice Emitted when a withdraw is made.
+    /// @param router The router of the pool withdrawn from.
+    /// @param user The user who withdrew.
+    /// @param tokenId The Vertex product ID of the token withdrawn.
+    /// @param amount The token amount the user receives.
+    event Withdraw(address indexed router, address indexed user, uint32 tokenId, uint256 indexed amount);
+
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -135,6 +142,8 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
 
     /// @notice Emitted when the price returned is zero.
     error ZeroPrice();
+
+    error LengthMismatch();
 
     /*//////////////////////////////////////////////////////////////
                                 MODIFIERS
@@ -548,15 +557,9 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
     /// @param token The token to withdraw.
     /// @param users Users to force withdraw
     /// @param amounts Amounts for each user
-    /// @param totalToReceive Total to withdraw from Vertex
-    function forceWithdraw(
-        uint256 poolId,
-        address token,
-        address[] memory users,
-        uint256[] memory amounts,
-        uint128 totalToReceive
-    ) external {
+    function forceWithdraw(uint256 poolId, address token, address[] memory users, uint256[] memory amounts) external {
         Pool storage pool = pools[poolId];
+
         // Get the external account of the router.
         address externalAccount = getExternalAccount(pool.router);
 
@@ -565,19 +568,42 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             revert NotExternalAccount(pool.router, externalAccount, msg.sender);
         }
 
-        // Process spot. Skips if fail or revert.
-        bytes memory processorCall = abi.encodeWithSelector(
-            VertexProcessor.forceWithdrawForPool.selector, poolId, token, users, amounts, totalToReceive
-        );
-        processor.delegatecall(processorCall);
+        if (users.length != amounts.length) revert LengthMismatch();
+
+        // Establish empty token data.
+        Token storage tokenData;
+
+        // If token is the Clearinghouse quote token, point to the old quote token data.
+        if (oldQuoteToken != address(0) && token == address(quoteToken)) {
+            tokenData = pool.tokens[oldQuoteToken];
+        } else {
+            tokenData = pool.tokens[token];
+        }
+
+        for (uint256 i = 0; i < users.length; i++) {
+            require(tokenData.userActiveAmount[users[i]] != 0);
+
+            // Substract amount from the active market making balance of the caller.
+            tokenData.userActiveAmount[users[i]] = 0;
+
+            // Update the user pending balance.
+            tokenData.userPendingAmount[users[i]] += amounts[i];
+
+            emit Withdraw(pool.router, users[i], tokenToProduct[token], amounts[i]);
+        }
+
+        // Substract amount from the active pool market making balance.
+        tokenData.activeAmount = 0;
     }
 
-    /// @notice Withdraw collateral
+    /// @notice Force decrement claimable amount
     /// @param poolId ID of the pool
     /// @param token The token to withdraw.
-    /// @param amount Amount to withdraw
-    function withdrawCollateral(uint256 poolId, address token, uint128 amount) external {
+    /// @param users Users to force withdraw
+    /// @param amounts Amounts for each user
+    function forceDecrement(uint256 poolId, address token, address[] memory users, uint256[] memory amounts) external {
         Pool storage pool = pools[poolId];
+        if (users.length != amounts.length) revert LengthMismatch();
 
         // Get the external account of the router.
         address externalAccount = getExternalAccount(pool.router);
@@ -587,10 +613,23 @@ contract VertexManager is Initializable, UUPSUpgradeable, OwnableUpgradeable, Re
             revert NotExternalAccount(pool.router, externalAccount, msg.sender);
         }
 
-        // Process spot. Skips if fail or revert.
-        bytes memory processorCall =
-            abi.encodeWithSelector(VertexProcessor.withdrawCollateral.selector, pool.router, token, amount);
-        processor.delegatecall(processorCall);
+        // Establish empty token data.
+        Token storage tokenData;
+
+        // If token is the Clearinghouse quote token, point to the old quote token data.
+        if (oldQuoteToken != address(0) && token == address(quoteToken)) {
+            tokenData = pool.tokens[oldQuoteToken];
+        } else {
+            tokenData = pool.tokens[token];
+        }
+
+        for (uint256 i = 0; i < users.length; i++) {
+            // Update the user pending balance.
+            tokenData.userPendingAmount[users[i]] -= amounts[i];
+        }
+
+        // Substract amount from the active pool market making balance.
+        tokenData.activeAmount = 0;
     }
 
     /// @notice Processes the next spot in the withdraw perp queue.

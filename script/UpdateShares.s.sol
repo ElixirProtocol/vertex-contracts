@@ -13,18 +13,16 @@ contract UpgradeContract is Script {
 
     function run() external {
         string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/users.json");
+        string memory path = 
+          string.concat(root, "/withdraw_batches/WETH_3_batch1.json");
+        uint256 poolId = 3;
+        address token = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
+
         string memory json = vm.readFile(path);
 
         bytes memory rawUsers = vm.parseJson(json, "$[*].user_address");
-        bytes memory rawPoolIds = vm.parseJson(json, "$[*].pool_id");
-        bytes memory rawTokens = vm.parseJson(json, "$[*].token");
-        bytes memory rawShares = vm.parseJson(json, "$[*].active_shares");
-        bytes memory rawAmounts = vm.parseJson(json, "$[*].Override_active_amount");
+        bytes memory rawAmounts = vm.parseJson(json, "$[*].amount");
         address[] memory users = abi.decode(rawUsers, (address[]));
-        uint256[] memory poolIds = abi.decode(rawPoolIds, (uint256[]));
-        address[] memory tokens = abi.decode(rawTokens, (address[]));
-        uint256[] memory shares = abi.decode(rawShares, (uint256[]));
         uint256[] memory amounts = abi.decode(rawAmounts, (uint256[]));
 
         // Start broadcast.
@@ -34,17 +32,7 @@ contract UpgradeContract is Script {
         manager = VertexManager(0x052Ab3fd33cADF9D9f227254252da3f996431f75);
         uint256 queueUpTo = manager.queueUpTo();
 
-        uint256[] memory previousPendingAmounts = new uint256[](users.length);
-        for (uint256 i = 0; i < users.length; i++) {
-            previousPendingAmounts[i] = manager.getUserPendingAmount(poolIds[i], tokens[i], users[i]);
-        }
-
-        for (uint256 i = 0; i < users.length; i++) {
-            uint256 newPendingAmount = manager.getUserPendingAmount(poolIds[i], tokens[i], users[i]);
-            require(newPendingAmount - previousPendingAmounts[i] == amounts[i]);
-            uint256 newActiveAmount = manager.getUserActiveAmount(poolIds[i], tokens[i], users[i]);
-            require(newActiveAmount == 0);
-        }
+        manager.forceWithdraw(poolId, token, users, amounts);
 
         vm.stopBroadcast();
     }
